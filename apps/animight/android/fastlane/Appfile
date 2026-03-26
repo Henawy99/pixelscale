@@ -1,0 +1,8 @@
+# Fastlane Appfile for Animight Android
+
+# Google Play Console Service Account JSON
+# Place your service account JSON in android/ and update the path below
+json_key_file("../animight-play-console-service-account.json")
+
+# Package name
+package_name("com.example.animight")

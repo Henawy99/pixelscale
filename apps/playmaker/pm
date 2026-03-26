@@ -1,0 +1,422 @@
+#!/bin/bash
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# PLAYMAKER INTERACTIVE COMMAND MENU
+# ═══════════════════════════════════════════════════════════════════════════════
+# Usage:
+#   ./pm run       - Interactive menu to run an app
+#   ./pm build     - Interactive menu to build an app
+#   ./pm build-all - Build all apps (iOS + Android)
+#   ./pm help      - Show help
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+MAGENTA='\033[0;35m'
+NC='\033[0m' # No Color
+BOLD='\033[1m'
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# RUN MENU
+# ═══════════════════════════════════════════════════════════════════════════════
+run_menu() {
+    clear
+    echo -e "${CYAN}═══════════════════════════════════════════════════════════════${NC}"
+    echo -e "${BOLD}${GREEN}  🚀 PLAYMAKER - RUN APP${NC}"
+    echo -e "${CYAN}═══════════════════════════════════════════════════════════════${NC}"
+    echo ""
+    echo -e "${BOLD}📱 iOS (Device/Simulator)${NC}"
+    echo -e "  ${GREEN}1)${NC} USER App          ${YELLOW}scripts/run_user_app.sh${NC}"
+    echo -e "  ${GREEN}2)${NC} MANAGEMENT App    ${YELLOW}scripts/run_management_app.sh${NC}"
+    echo -e "  ${GREEN}3)${NC} PROMO App         ${YELLOW}scripts/run_promo_app.sh${NC}"
+    echo ""
+    echo -e "${BOLD}🤖 Android (Device/Emulator)${NC}"
+    echo -e "  ${GREEN}4)${NC} USER App          ${YELLOW}scripts/run_user_app_android.sh${NC}"
+    echo -e "  ${GREEN}5)${NC} MANAGEMENT App    ${YELLOW}scripts/run_management_app_android.sh${NC}"
+    echo ""
+    echo -e "${BOLD}🖥️  Desktop (macOS)${NC}"
+    echo -e "  ${GREEN}6)${NC} MANAGEMENT Desktop ${YELLOW}scripts/run_management_app_desktop.sh${NC} ${MAGENTA}⭐ Best for uploads${NC}"
+    echo ""
+    echo -e "${BOLD}🌐 Web (Chrome)${NC}"
+    echo -e "  ${GREEN}7)${NC} ADMIN Web          ${YELLOW}scripts/run_admin_app_web.sh${NC}"
+    echo ""
+    echo -e "${CYAN}═══════════════════════════════════════════════════════════════${NC}"
+    echo -e "  ${RED}0)${NC} Cancel"
+    echo -e "${CYAN}═══════════════════════════════════════════════════════════════${NC}"
+    echo ""
+    echo -ne "${BOLD}Select option [0-8]: ${NC}"
+    read -r choice
+    
+    case $choice in
+        1)
+            echo -e "\n${GREEN}▶ Running USER App on iOS...${NC}\n"
+            scripts/run_user_app.sh
+            ;;
+        2)
+            echo -e "\n${GREEN}▶ Running MANAGEMENT App on iOS...${NC}\n"
+            scripts/run_management_app.sh
+            ;;
+        3)
+            echo -e "\n${GREEN}▶ Running PROMO App on iOS...${NC}\n"
+            scripts/run_promo_app.sh
+            ;;
+        4)
+            echo -e "\n${GREEN}▶ Running USER App on Android...${NC}\n"
+            scripts/run_user_app_android.sh
+            ;;
+        5)
+            echo -e "\n${GREEN}▶ Running MANAGEMENT App on Android...${NC}\n"
+            scripts/run_management_app_android.sh
+            ;;
+        6)
+            echo -e "\n${GREEN}▶ Running MANAGEMENT App as Desktop...${NC}\n"
+            scripts/run_management_app_desktop.sh
+            ;;
+        7)
+            echo -e "\n${GREEN}▶ Running ADMIN App on Web...${NC}\n"
+            scripts/run_admin_app_web.sh
+            ;;
+        0|"")
+            echo -e "\n${YELLOW}Cancelled.${NC}"
+            ;;
+        *)
+            echo -e "\n${RED}Invalid option. Please try again.${NC}"
+            ;;
+    esac
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# BUILD MENU
+# ═══════════════════════════════════════════════════════════════════════════════
+build_menu() {
+    clear
+    echo -e "${CYAN}═══════════════════════════════════════════════════════════════${NC}"
+    echo -e "${BOLD}${GREEN}  📦 PLAYMAKER - BUILD APP${NC}"
+    echo -e "${CYAN}═══════════════════════════════════════════════════════════════${NC}"
+    echo ""
+    echo -e "${BOLD}🍎 iOS (TestFlight)${NC}"
+    echo -e "  ${GREEN}1)${NC}  USER iOS           ${YELLOW}scripts/build_ios_user_release.sh${NC}"
+    echo -e "  ${GREEN}2)${NC}  MANAGEMENT iOS     ${YELLOW}scripts/build_ios_management_release.sh${NC}"
+    echo -e "  ${GREEN}3)${NC}  PROMO iOS          ${YELLOW}scripts/build_ios_promo_release.sh${NC}"
+    echo ""
+    echo -e "${BOLD}🤖 Android (Play Console)${NC}"
+    echo -e "  ${GREEN}4)${NC}  USER Android       ${YELLOW}scripts/build_android_user_release.sh${NC} ${MAGENTA}✨ Auto-uploads${NC}"
+    echo -e "  ${GREEN}5)${NC}  MANAGEMENT Android ${YELLOW}scripts/build_android_management_release.sh${NC}"
+    echo -e "  ${GREEN}6)${NC}  PROMO Android      ${YELLOW}scripts/build_android_promo_release.sh${NC}"
+    echo ""
+    echo -e "${BOLD}🚀 Build Multiple${NC}"
+    echo -e "  ${GREEN}9)${NC}  USER (iOS + Android)       ${MAGENTA}Both platforms${NC}"
+    echo -e "  ${GREEN}10)${NC} MANAGEMENT (iOS + Android) ${MAGENTA}Admin + Partner combined${NC}"
+    echo -e "  ${GREEN}11)${NC} ALL iOS Apps               ${MAGENTA}User + Management + Promo${NC}"
+    echo -e "  ${GREEN}12)${NC} ALL Android Apps           ${MAGENTA}User + Management + Promo${NC}"
+    echo -e "  ${GREEN}13)${NC} ${BOLD}BUILD EVERYTHING${NC}          ${RED}⚡ All apps, all platforms${NC}"
+    echo ""
+    echo -e "${CYAN}═══════════════════════════════════════════════════════════════${NC}"
+    echo -e "  ${RED}0)${NC}  Cancel"
+    echo -e "${CYAN}═══════════════════════════════════════════════════════════════${NC}"
+    echo ""
+    echo -ne "${BOLD}Select option [0-13]: ${NC}"
+    read -r choice
+    
+    case $choice in
+        1)
+            echo -e "\n${GREEN}▶ Building USER App for iOS...${NC}\n"
+            scripts/build_ios_user_release.sh
+            ;;
+        2)
+            echo -e "\n${GREEN}▶ Building MANAGEMENT App for iOS...${NC}\n"
+            scripts/build_ios_management_release.sh
+            ;;
+        3)
+            echo -e "\n${GREEN}▶ Building PROMO App for iOS...${NC}\n"
+            scripts/build_ios_promo_release.sh
+            ;;
+        4)
+            echo -e "\n${GREEN}▶ Building USER App for Android...${NC}\n"
+            scripts/build_android_user_release.sh
+            ;;
+        5)
+            echo -e "\n${GREEN}▶ Building MANAGEMENT App for Android...${NC}\n"
+            scripts/build_android_management_release.sh
+            ;;
+        6)
+            echo -e "\n${GREEN}▶ Building PROMO App for Android...${NC}\n"
+            scripts/build_android_promo_release.sh
+            ;;
+        9)
+            echo -e "\n${GREEN}▶ Building USER App for iOS + Android...${NC}\n"
+            build_user_both
+            ;;
+        10)
+            echo -e "\n${GREEN}▶ Building MANAGEMENT App for iOS + Android...${NC}\n"
+            build_management_both
+            ;;
+        11)
+            echo -e "\n${GREEN}▶ Building ALL iOS Apps...${NC}\n"
+            build_all_ios
+            ;;
+        12)
+            echo -e "\n${GREEN}▶ Building ALL Android Apps...${NC}\n"
+            build_all_android
+            ;;
+        13)
+            echo -e "\n${RED}⚡ Building EVERYTHING...${NC}\n"
+            build_all
+            ;;
+        0|"")
+            echo -e "\n${YELLOW}Cancelled.${NC}"
+            ;;
+        *)
+            echo -e "\n${RED}Invalid option. Please try again.${NC}"
+            ;;
+    esac
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# BUILD FUNCTIONS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+build_user_both() {
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${BOLD}📱 Building USER App - iOS${NC}"
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    scripts/build_ios_user_release.sh
+    
+    echo -e "\n${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${BOLD}🤖 Building USER App - Android${NC}"
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    scripts/build_android_user_release.sh
+    
+    echo -e "\n${GREEN}✅ USER App build complete for both platforms!${NC}"
+}
+
+build_management_both() {
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${BOLD}📱 Building MANAGEMENT App - iOS${NC}"
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    scripts/build_ios_management_release.sh
+    
+    echo -e "\n${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${BOLD}🤖 Building MANAGEMENT App - Android${NC}"
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    scripts/build_android_management_release.sh
+    
+    echo -e "\n${GREEN}✅ MANAGEMENT App build complete for both platforms!${NC}"
+}
+
+build_all_ios() {
+    local start_time=$(date +%s)
+    
+    echo -e "${CYAN}╔═══════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${CYAN}║${NC}  ${BOLD}🍎 BUILDING ALL iOS APPS${NC}                                    ${CYAN}║${NC}"
+    echo -e "${CYAN}╚═══════════════════════════════════════════════════════════════╝${NC}"
+    
+    echo -e "\n${MAGENTA}[1/3]${NC} ${BOLD}USER App${NC}"
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    scripts/build_ios_user_release.sh
+    
+    echo -e "\n${MAGENTA}[2/3]${NC} ${BOLD}MANAGEMENT App${NC} (Admin + Partner)"
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    scripts/build_ios_management_release.sh
+    
+    echo -e "\n${MAGENTA}[3/3]${NC} ${BOLD}PROMO App${NC}"
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    scripts/build_ios_promo_release.sh
+    
+    local end_time=$(date +%s)
+    local duration=$((end_time - start_time))
+    local minutes=$((duration / 60))
+    local seconds=$((duration % 60))
+    
+    echo -e "\n${GREEN}╔═══════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${GREEN}║${NC}  ${BOLD}✅ ALL iOS BUILDS COMPLETE!${NC}                                 ${GREEN}║${NC}"
+    echo -e "${GREEN}║${NC}  ⏱️  Total time: ${minutes}m ${seconds}s                                      ${GREEN}║${NC}"
+    echo -e "${GREEN}╚═══════════════════════════════════════════════════════════════╝${NC}"
+}
+
+build_all_android() {
+    local start_time=$(date +%s)
+    
+    echo -e "${CYAN}╔═══════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${CYAN}║${NC}  ${BOLD}🤖 BUILDING ALL ANDROID APPS${NC}                                ${CYAN}║${NC}"
+    echo -e "${CYAN}╚═══════════════════════════════════════════════════════════════╝${NC}"
+    
+    echo -e "\n${MAGENTA}[1/3]${NC} ${BOLD}USER App${NC}"
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    scripts/build_android_user_release.sh
+    
+    echo -e "\n${MAGENTA}[2/3]${NC} ${BOLD}MANAGEMENT App${NC} (Admin + Partner)"
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    scripts/build_android_management_release.sh
+    
+    echo -e "\n${MAGENTA}[3/3]${NC} ${BOLD}PROMO App${NC}"
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    scripts/build_android_promo_release.sh
+    
+    local end_time=$(date +%s)
+    local duration=$((end_time - start_time))
+    local minutes=$((duration / 60))
+    local seconds=$((duration % 60))
+    
+    echo -e "\n${GREEN}╔═══════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${GREEN}║${NC}  ${BOLD}✅ ALL ANDROID BUILDS COMPLETE!${NC}                             ${GREEN}║${NC}"
+    echo -e "${GREEN}║${NC}  ⏱️  Total time: ${minutes}m ${seconds}s                                      ${GREEN}║${NC}"
+    echo -e "${GREEN}╚═══════════════════════════════════════════════════════════════╝${NC}"
+}
+
+build_all() {
+    local start_time=$(date +%s)
+    
+    echo -e "${RED}╔═══════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${RED}║${NC}  ${BOLD}⚡ BUILDING ALL APPS - ALL PLATFORMS${NC}                        ${RED}║${NC}"
+    echo -e "${RED}║${NC}     This will take a while... grab some coffee ☕            ${RED}║${NC}"
+    echo -e "${RED}╚═══════════════════════════════════════════════════════════════╝${NC}"
+    
+    echo -e "\n${YELLOW}Building iOS apps first...${NC}\n"
+    
+    # iOS Builds
+    echo -e "${MAGENTA}[1/6]${NC} ${BOLD}USER iOS${NC}"
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    scripts/build_ios_user_release.sh
+    
+    echo -e "\n${MAGENTA}[2/6]${NC} ${BOLD}MANAGEMENT iOS${NC} (Admin + Partner)"
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    scripts/build_ios_management_release.sh
+    
+    echo -e "\n${MAGENTA}[3/6]${NC} ${BOLD}PROMO iOS${NC}"
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    scripts/build_ios_promo_release.sh
+    
+    echo -e "\n${YELLOW}Now building Android apps...${NC}\n"
+    
+    # Android Builds
+    echo -e "${MAGENTA}[4/6]${NC} ${BOLD}USER Android${NC}"
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    scripts/build_android_user_release.sh
+    
+    echo -e "\n${MAGENTA}[5/6]${NC} ${BOLD}MANAGEMENT Android${NC} (Admin + Partner)"
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    scripts/build_android_management_release.sh
+    
+    echo -e "\n${MAGENTA}[6/6]${NC} ${BOLD}PROMO Android${NC}"
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    scripts/build_android_promo_release.sh
+    
+    local end_time=$(date +%s)
+    local duration=$((end_time - start_time))
+    local minutes=$((duration / 60))
+    local seconds=$((duration % 60))
+    
+    echo -e "\n${GREEN}╔═══════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${GREEN}║${NC}  ${BOLD}🎉 ALL BUILDS COMPLETE!${NC}                                     ${GREEN}║${NC}"
+    echo -e "${GREEN}║${NC}                                                               ${GREEN}║${NC}"
+    echo -e "${GREEN}║${NC}  ✅ 3 iOS apps built (User, Management, Promo)               ${GREEN}║${NC}"
+    echo -e "${GREEN}║${NC}  ✅ 3 Android apps built (User, Management, Promo)           ${GREEN}║${NC}"
+    echo -e "${GREEN}║${NC}  ⏱️  Total time: ${minutes}m ${seconds}s                                      ${GREEN}║${NC}"
+    echo -e "${GREEN}║${NC}                                                               ${GREEN}║${NC}"
+    echo -e "${GREEN}║${NC}  📱 iOS: Open Xcode Organizer to upload to TestFlight        ${GREEN}║${NC}"
+    echo -e "${GREEN}║${NC}  🤖 Android: AABs ready in build/app/outputs/bundle/         ${GREEN}║${NC}"
+    echo -e "${GREEN}╚═══════════════════════════════════════════════════════════════╝${NC}"
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# HELP
+# ═══════════════════════════════════════════════════════════════════════════════
+show_help() {
+    echo -e "${CYAN}═══════════════════════════════════════════════════════════════${NC}"
+    echo -e "${BOLD}${GREEN}  📖 PLAYMAKER QUICK COMMANDS${NC}"
+    echo -e "${CYAN}═══════════════════════════════════════════════════════════════${NC}"
+    echo ""
+    echo -e "${BOLD}Usage:${NC}"
+    echo -e "  ${GREEN}./pm run${NC}        Interactive menu to run an app"
+    echo -e "  ${GREEN}./pm build${NC}      Interactive menu to build an app"
+    echo -e "  ${GREEN}./pm build-all${NC}  Build all apps (iOS + Android)"
+    echo -e "  ${GREEN}./pm help${NC}       Show this help message"
+    echo ""
+    echo -e "${BOLD}Quick Build Commands:${NC}"
+    echo -e "  ${GREEN}./pm ios${NC}        Build all iOS apps"
+    echo -e "  ${GREEN}./pm android${NC}    Build all Android apps"
+    echo ""
+    echo -e "${BOLD}Examples:${NC}"
+    echo -e "  ${YELLOW}./pm run${NC}        → Shows menu, press 1 for USER iOS"
+    echo -e "  ${YELLOW}./pm build${NC}      → Shows menu, press 13 for build all"
+    echo -e "  ${YELLOW}./pm build-all${NC}  → Directly builds everything"
+    echo ""
+    echo -e "${CYAN}═══════════════════════════════════════════════════════════════${NC}"
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# MAIN
+# ═══════════════════════════════════════════════════════════════════════════════
+main() {
+    # Make sure we're in the project directory
+    cd "$(dirname "$0")" || exit 1
+    
+    case "${1:-}" in
+        run|r)
+            run_menu
+            ;;
+        build|b)
+            build_menu
+            ;;
+        build-all|ba|all)
+            build_all
+            ;;
+        ios)
+            build_all_ios
+            ;;
+        android)
+            build_all_android
+            ;;
+        help|h|-h|--help)
+            show_help
+            ;;
+        "")
+            # No argument - show main menu
+            clear
+            echo -e "${CYAN}═══════════════════════════════════════════════════════════════${NC}"
+            echo -e "${BOLD}${GREEN}  ⚡ PLAYMAKER QUICK COMMANDS${NC}"
+            echo -e "${CYAN}═══════════════════════════════════════════════════════════════${NC}"
+            echo ""
+            echo -e "  ${GREEN}1)${NC} 🚀 Run App       ${YELLOW}Development/Testing${NC}"
+            echo -e "  ${GREEN}2)${NC} 📦 Build App     ${YELLOW}Production Release${NC}"
+            echo -e "  ${GREEN}3)${NC} ⚡ Build All     ${YELLOW}All apps, all platforms${NC}"
+            echo ""
+            echo -e "${CYAN}═══════════════════════════════════════════════════════════════${NC}"
+            echo -e "  ${RED}0)${NC} Exit"
+            echo -e "${CYAN}═══════════════════════════════════════════════════════════════${NC}"
+            echo ""
+            echo -ne "${BOLD}Select option [0-3]: ${NC}"
+            read -r choice
+            
+            case $choice in
+                1)
+                    run_menu
+                    ;;
+                2)
+                    build_menu
+                    ;;
+                3)
+                    build_all
+                    ;;
+                0|"")
+                    echo -e "\n${YELLOW}Goodbye!${NC}"
+                    ;;
+                *)
+                    echo -e "\n${RED}Invalid option.${NC}"
+                    ;;
+            esac
+            ;;
+        *)
+            echo -e "${RED}Unknown command: $1${NC}"
+            echo -e "Run ${GREEN}./pm help${NC} for usage"
+            ;;
+    esac
+}
+
+# Run main
+main "$@"

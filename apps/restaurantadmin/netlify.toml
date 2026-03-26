@@ -1,0 +1,8 @@
+[build]
+  command = "bash build.sh"
+  publish = "build/web"
+
+[build.environment]
+  FLUTTER_VERSION = "3.32.0" # Explicitly set your Flutter version
+  NODE_VERSION = "20" # Use Netlify-supported Node LTS
+  # You can also specify RUBY_VERSION, GO_VERSION, etc., if needed by other parts of a complex build.

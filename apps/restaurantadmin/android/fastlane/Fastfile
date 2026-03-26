@@ -1,0 +1,188 @@
+# ============================================
+# Restaurant Admin - Android Fastlane Configuration
+# ============================================
+# Automated build and upload to Google Play Store
+# ============================================
+
+default_platform(:android)
+
+platform :android do
+
+  # ─────────────────────────────────────────
+  # Setup (runs before every lane)
+  # ─────────────────────────────────────────
+  before_all do
+    UI.header("🍔 Restaurant Admin - Android Automation")
+
+    # Verify service account JSON exists
+    json_path = File.expand_path("~/.play-store/play-store-credentials.json")
+    unless File.exist?(json_path)
+      UI.user_error!(
+        "❌ Google Play service account JSON not found!\n" \
+        "   Expected at: #{json_path}\n\n" \
+        "   Setup instructions:\n" \
+        "   1. Go to Google Play Console → Setup → API access\n" \
+        "   2. Create a service account\n" \
+        "   3. Download the JSON key file\n" \
+        "   4. Place it at: ~/.play-store/play-store-credentials.json\n" \
+        "   5. Grant permissions: 'Release to production' + 'Manage testing'"
+      )
+    end
+
+    UI.success("✅ Google Play credentials found")
+  end
+
+  # ─────────────────────────────────────────
+  # Lane: Build AAB & Upload to Play Store
+  # ─────────────────────────────────────────
+  desc "Build Android AAB and upload to Play Store Internal Testing"
+  lane :upload_app do
+    UI.header("📦 Building & Uploading to Play Store")
+
+    # Extract version info from pubspec.yaml
+    pubspec_path = File.join(Dir.pwd, "..", "..", "pubspec.yaml")
+    unless File.exist?(pubspec_path)
+      pubspec_path = File.join(Dir.pwd, "..", "pubspec.yaml")
+    end
+
+    pubspec = File.read(pubspec_path)
+    version_match = pubspec.match(/version:\s*(\d+\.\d+\.\d+)\+(\d+)/)
+
+    if version_match
+      version_name = version_match[1]
+      version_code = version_match[2]
+      UI.message("📊 Version: #{version_name} (Build #{version_code})")
+    else
+      UI.error("❌ Could not read version from pubspec.yaml")
+      UI.error("   Make sure pubspec.yaml has: version: X.Y.Z+N")
+      next
+    end
+
+    # Build the AAB using Flutter
+    UI.message("🔨 Building Android App Bundle (AAB)...")
+    project_root = File.join(Dir.pwd, "..", "..")
+    unless File.exist?(File.join(project_root, "pubspec.yaml"))
+      project_root = File.join(Dir.pwd, "..")
+    end
+
+    begin
+      Dir.chdir(project_root) do
+        sh("flutter", "build", "appbundle", "--release")
+      end
+      UI.success("✅ AAB built successfully!")
+    rescue => e
+      UI.error("❌ Flutter build failed!")
+      UI.error("   Error: #{e.message}")
+      UI.error("")
+      UI.error("   Troubleshooting:")
+      UI.error("   1. Run: flutter clean && flutter pub get")
+      UI.error("   2. Make sure you have a valid signing key configured")
+      UI.error("   3. Check android/app/build.gradle.kts for signing config")
+      raise e
+    end
+
+    # Find the AAB file
+    aab_path = File.join(project_root, "build", "app", "outputs", "bundle", "release", "app-release.aab")
+    unless File.exist?(aab_path)
+      UI.user_error!("❌ AAB file not found at: #{aab_path}")
+    end
+
+    UI.message("📦 AAB located at: #{aab_path}")
+
+    # Upload to Play Store (Internal Testing track)
+    UI.message("🚀 Uploading to Play Store (Internal Testing)...")
+    begin
+      upload_to_play_store(
+        track: "internal",
+        aab: aab_path,
+        skip_upload_metadata: true,
+        skip_upload_images: true,
+        skip_upload_screenshots: true,
+        skip_upload_changelogs: false,
+        release_status: "draft",
+        version_name: version_name
+      )
+      UI.success("✅ Successfully uploaded to Play Store!")
+    rescue => e
+      UI.error("❌ Play Store upload failed!")
+      UI.error("   Error: #{e.message}")
+      UI.error("")
+      UI.error("   Troubleshooting:")
+      UI.error("   1. Check your service account JSON at ~/.play-store/play-store-credentials.json")
+      UI.error("   2. Make sure the service account has correct permissions in Play Console")
+      UI.error("   3. Verify the package name matches: com.example.restaurantadmin")
+      UI.error("   4. Ensure the app exists in Google Play Console")
+      UI.error("   5. Make sure the version code (#{version_code}) is higher than the last upload")
+      raise e
+    end
+
+    UI.header("🎉 SUCCESS!")
+    UI.success("Version #{version_name} (Build #{version_code}) uploaded to Play Store Internal Testing!")
+    UI.message("Check Google Play Console to review and promote the release.")
+  end
+
+  # ─────────────────────────────────────────
+  # Lane: Build Only (no upload)
+  # ─────────────────────────────────────────
+  desc "Build Android AAB without uploading"
+  lane :build_only do
+    UI.header("📦 Building Android AAB (No Upload)")
+
+    project_root = File.join(Dir.pwd, "..", "..")
+    unless File.exist?(File.join(project_root, "pubspec.yaml"))
+      project_root = File.join(Dir.pwd, "..")
+    end
+
+    Dir.chdir(project_root) do
+      sh("flutter", "build", "appbundle", "--release")
+    end
+
+    aab_path = File.join(project_root, "build", "app", "outputs", "bundle", "release", "app-release.aab")
+    UI.success("✅ AAB built at: #{aab_path}")
+  end
+
+  # ─────────────────────────────────────────
+  # Lane: Upload existing AAB (no build)
+  # ─────────────────────────────────────────
+  desc "Upload existing AAB to Play Store Internal Testing"
+  lane :upload_only do
+    UI.header("🚀 Uploading Existing AAB to Play Store")
+
+    project_root = File.join(Dir.pwd, "..", "..")
+    unless File.exist?(File.join(project_root, "pubspec.yaml"))
+      project_root = File.join(Dir.pwd, "..")
+    end
+
+    aab_path = File.join(project_root, "build", "app", "outputs", "bundle", "release", "app-release.aab")
+    unless File.exist?(aab_path)
+      UI.user_error!("❌ No AAB file found! Run 'build_only' lane first or run flutter build appbundle")
+    end
+
+    # Read version
+    pubspec = File.read(File.join(project_root, "pubspec.yaml"))
+    version_match = pubspec.match(/version:\s*(\d+\.\d+\.\d+)\+(\d+)/)
+    version_name = version_match ? version_match[1] : "unknown"
+
+    upload_to_play_store(
+      track: "internal",
+      aab: aab_path,
+      skip_upload_metadata: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true,
+      skip_upload_changelogs: false,
+      release_status: "draft",
+      version_name: version_name
+    )
+
+    UI.success("✅ Uploaded to Play Store Internal Testing!")
+  end
+
+  # ─────────────────────────────────────────
+  # Error handling
+  # ─────────────────────────────────────────
+  error do |lane, exception|
+    UI.error("❌ Fastlane encountered an error in lane '#{lane}'")
+    UI.error("   #{exception.message}")
+  end
+
+end

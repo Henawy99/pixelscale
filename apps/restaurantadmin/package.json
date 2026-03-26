@@ -1,0 +1,11 @@
+{
+  "name": "playmaker-netlify-deps",
+  "version": "1.0.0",
+  "description": "Manages Node.js dependencies for Netlify build, like SASS.",
+  "engines": {
+    "node": "^20.0.0 || >=20"
+  },
+  "devDependencies": {
+    "sass": "^1.77.0"
+  }
+}

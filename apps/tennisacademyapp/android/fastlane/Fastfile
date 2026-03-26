@@ -1,0 +1,127 @@
+# Tennis Academy App — Android Fastlane Configuration
+# =====================================================
+# Automated build and upload to Google Play Console
+#
+# Tracks:
+#   internal      → Internal Testing (your team only)
+#   alpha         → Geschlossener Test (Closed Testing) ← recommended for testers
+#   beta          → Offener Test (Open Testing)
+#   production    → Production
+#
+# Usage:
+#   bundle exec fastlane internal        # Build + upload to Internal Testing
+#   bundle exec fastlane closed_test     # Build + upload to Geschlossener Test (alpha)
+#   bundle exec fastlane build_only      # Build AAB without uploading
+#   bundle exec fastlane upload_only     # Upload existing AAB (no build)
+#   bundle exec fastlane upload_closed   # Upload existing AAB to Geschlossener Test
+# =====================================================
+
+default_platform(:android)
+
+AAB_PATH = File.expand_path("../../build/app/outputs/bundle/release/app-release.aab")
+JSON_KEY = File.expand_path("../play-console-service-account.json")
+
+platform :android do
+
+  # ─────────────────────────────────────────────────────────────
+  # Build helper — cleans, gets deps, builds AAB
+  # ─────────────────────────────────────────────────────────────
+  private_lane :build_aab do
+    UI.message "🧹 Cleaning Flutter..."
+    Dir.chdir("../..") { sh("flutter clean") }
+
+    UI.message "📦 Getting dependencies..."
+    Dir.chdir("../..") { sh("flutter pub get") }
+
+    UI.message "🔨 Building Android App Bundle (AAB)..."
+    Dir.chdir("../..") { sh("flutter build appbundle --release") }
+
+    UI.success "✅ AAB ready at: #{AAB_PATH}"
+  end
+
+  # ─────────────────────────────────────────────────────────────
+  # Upload helper — uploads AAB to the given track
+  # ─────────────────────────────────────────────────────────────
+  private_lane :upload_aab do |options|
+    track = options[:track] || "internal"
+
+    unless File.exist?(AAB_PATH)
+      UI.user_error!("AAB not found at: #{AAB_PATH}\nRun 'build_only' first.")
+    end
+    unless File.exist?(JSON_KEY)
+      UI.user_error!("Service account JSON not found at: #{JSON_KEY}\nSee android/key.properties.example")
+    end
+
+    UI.message "🚀 Uploading to Play Console (track: #{track})..."
+    upload_to_play_store(
+      track: track,
+      json_key: JSON_KEY,
+      aab: AAB_PATH,
+      skip_upload_metadata: true,
+      skip_upload_changelogs: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true,
+      release_status: "completed"
+    )
+
+    UI.success "✅ Uploaded to #{track} track! Check Play Console."
+  end
+
+  # ─────────────────────────────────────────────────────────────
+  # LANES
+  # ─────────────────────────────────────────────────────────────
+
+  desc "Build only — produces AAB, no upload"
+  lane :build_only do
+    build_aab
+  end
+
+  desc "Build + upload to Internal Testing"
+  lane :internal do
+    UI.header "🎾 Tennis Academy → Internal Testing"
+    build_aab
+    upload_aab(track: "internal")
+  end
+
+  desc "Build + upload to Geschlossener Test (Closed Testing / alpha)"
+  lane :closed_test do
+    UI.header "🎾 Tennis Academy → Geschlossener Test (Closed Testing)"
+    build_aab
+    upload_aab(track: "alpha")
+  end
+
+  desc "Upload existing AAB to Internal Testing (skip build)"
+  lane :upload_only do
+    UI.header "🎾 Uploading AAB → Internal Testing"
+    upload_aab(track: "internal")
+  end
+
+  desc "Upload existing AAB to Geschlossener Test (skip build)"
+  lane :upload_closed do
+    UI.header "🎾 Uploading AAB → Geschlossener Test (Closed Testing)"
+    upload_aab(track: "alpha")
+  end
+
+  # Legacy alias
+  lane :publish do
+    internal
+  end
+
+  # ─────────────────────────────────────────────────────────────
+  # Error handling
+  # ─────────────────────────────────────────────────────────────
+  error do |lane, exception|
+    UI.error "❌ Lane '#{lane}' failed: #{exception.message}"
+
+    if exception.message.include?("json_key") || exception.message.include?("credentials")
+      UI.important "→ Service account JSON missing. Place at: android/play-console-service-account.json"
+    end
+    if exception.message.include?("version") || exception.message.include?("APK") || exception.message.include?("AAB")
+      UI.important "→ Version code may already exist in Play Console — please bump the build number."
+    end
+    if exception.message.include?("first") || exception.message.include?("manual")
+      UI.important "→ First upload MUST be done manually in Play Console (Google requirement)."
+    end
+  end
+
+end

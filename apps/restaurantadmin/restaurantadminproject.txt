@@ -1,0 +1,216 @@
+# **Restaurant Admin App - Comprehensive Overview & Rules**
+
+## **🏪 Business Context**
+You operate a restaurant with **4 Ghost Kitchen Brands**:
+1. **Crispy Chicken Lab** - Chicken-focused menu
+2. **Devils Smash Burger** - Burger-focused menu  
+3. **The Bowl Spot** - Bowl/healthy food menu
+4. **Tacotastic** - Mexican/taco menu
+
+## **📱 App Architecture & Core Screens**
+
+### **Main Navigation (4 Primary Screens)**
+1. **Orders Screen** (`lib/screens/orders_screen.dart`)
+2. **Inventory Screen** (`lib/screens/inventory_screen.dart`) 
+3. **Menus Screen** (`lib/screens/menus_screen.dart`)
+4. **Payments Screen** (`lib/screens/payments_screen.dart`)
+
+### **Additional Specialized Screens**
+- **Delivery Monitor Screen** (`lib/screens/delivery_monitor_screen.dart`) - Accessible from Orders screen
+- **Receipt Scanner Screen** (`lib/screens/scanned_order_receipt_screen.dart`) - Accessible via scanner icon
+- **Driver App Shell** (`lib/screens/driver/driver_app_shell.dart`) - Separate driver interface
+
+---
+
+## **🔄 Core Business Flow & Data Management**
+
+### **📋 ORDER MANAGEMENT SYSTEM**
+
+#### **Two Ways Orders Enter the System:**
+
+**1. Manual Order Creation** (`lib/widgets/cart_view_widget.dart`)
+- Staff manually creates orders through cart interface
+- Select brand, menu items, quantities, pricing
+- Choose order type (delivery/pickup), payment method
+- Enter customer details for delivery orders
+- **Inventory Impact**: Automatically subtracts materials when order is confirmed
+
+**2. Automated Receipt Scanning** (Fujitsu ix100 Scanner)
+- **Hardware**: Fujitsu ix100 scanner for physical receipts
+- **Local Server**: `lib/services/local_scan_server.dart` receives scanned images
+- **AI Processing**: Supabase Edge Function (`supabase/functions/scan-and-create-order/index.ts`) uses Gemini AI
+- **Data Extraction**: AI extracts order details, items, prices, delivery fees, customer info
+- **Database Insertion**: Automatically creates order with `pending_confirmation` status
+- **Auto-Confirm Dialog**: `lib/widgets/auto_confirm_order_dialog.dart` shows 7-second countdown
+- **Inventory Impact**: Materials subtracted after confirmation
+
+#### **Order Status Flow:**
+```
+Scanned Receipt → pending_confirmation → (Auto-confirm/Manual confirm) → confirmed → preparing → completed
+Manual Order → confirmed → preparing → completed
+```
+
+#### **Real-Time Order Updates:**
+- **GlobalOrderListener** (`lib/widgets/global_order_listener.dart`) - Monitors new orders globally
+- **Orders Screen Subscription** - Real-time updates when orders change
+- **Auto-popup for pending orders** - Shows confirmation dialog immediately
+
+---
+
+### **📦 INVENTORY MANAGEMENT SYSTEM**
+
+#### **Material Items** (`lib/models/material_item.dart`)
+- **Core Properties**: ID, name, current quantity, unit of measure, weighted average cost
+- **Tracking**: Seller info, item numbers, categories, notification thresholds
+- **Storage**: Local Hive database for offline capability
+
+#### **Inventory Updates:**
+**Automatic Subtraction (Orders):**
+- When orders are confirmed, materials are automatically subtracted
+- Based on menu item recipes (`lib/models/menu_item_material.dart`)
+- Real-time quantity updates across all screens
+
+**Manual Addition (Purchases) - PLANNED:**
+- Scan wholesale purchase receipts
+- AI extracts material items, quantities, costs
+- Automatically adds to inventory
+- Updates weighted average costs
+
+#### **Menu Item Materials** (`lib/models/menu_item_material.dart`)
+- Links menu items to required materials
+- Defines quantities needed per menu item
+- Enables automatic inventory deduction
+
+---
+
+### **🚚 DELIVERY MANAGEMENT SYSTEM**
+
+#### **Delivery Monitor Screen** (`lib/screens/delivery_monitor_screen.dart`)
+- **Route Management**: Create and manage delivery routes
+- **Driver Assignment**: Assign orders to drivers
+- **Real-time Tracking**: Monitor delivery progress
+- **Order Routing**: Optimize delivery sequences
+
+#### **Driver App** (`lib/screens/driver/driver_app_shell.dart`)
+- **Separate Interface**: Dedicated driver experience
+- **Route Navigation**: Google Maps integration
+- **Status Updates**: Online/offline toggle, delivery confirmations
+- **Real-time Communication**: Updates delivery status to main app
+
+---
+
+## **🤖 AI & Automation Features**
+
+### **Gemini AI Integration** (`lib/services/settings_service.dart`)
+**Order Receipt Processing:**
+- Extracts: Brand name, platform (Lieferando, Foodora, etc.), total price
+- Captures: Delivery fees, service fees, customer information
+- Parses: Individual items, quantities, prices
+- Handles: Date/time information, platform-specific order IDs
+
+**Purchase Receipt Processing (Planned):**
+- Extract material items from wholesale receipts
+- Parse quantities, costs, supplier information
+- Update inventory automatically
+
+### **Customizable AI Prompts** (`lib/screens/widgets/orders_settings_sheet.dart`)
+- **User-Editable Prompts**: Improve AI accuracy when errors occur
+- **Reset Functionality**: Restore optimized default prompts
+- **Pro Tips Interface**: Guidance for better AI recognition
+
+---
+
+## **📊 Data Models & Architecture**
+
+### **Core Models:**
+- **Order** (`lib/models/order.dart`) - Complete order information
+- **OrderItem** (`lib/models/order_item.dart`) - Individual order line items
+- **MaterialItem** (`lib/models/material_item.dart`) - Inventory materials
+- **MenuItemMaterial** (`lib/models/menu_item_material.dart`) - Recipe definitions
+- **Brand** (`lib/models/brand.dart`) - Ghost kitchen brand information
+
+### **Services:**
+- **OrderService** (`lib/services/order_service.dart`) - Order CRUD operations
+- **InventoryService** (`lib/services/inventory_service.dart`) - Inventory management
+- **SettingsService** (`lib/services/settings_service.dart`) - App configuration
+- **LocalScanServer** (`lib/services/local_scan_server.dart`) - Scanner integration
+
+### **Database:**
+- **Supabase** - Cloud database for orders, real-time subscriptions
+- **Hive** - Local database for inventory, offline capability
+
+---
+
+## **🎯 Key Business Rules & Requirements**
+
+### **Inventory Management Rules:**
+1. **Orders SUBTRACT materials** - When confirmed, automatically reduce inventory
+2. **Purchases ADD materials** - When scanned, automatically increase inventory  
+3. **Real-time Updates** - Inventory must always reflect current state
+4. **Weighted Average Costing** - Track material costs accurately
+5. **Low Stock Alerts** - Notify when materials reach threshold levels
+
+### **Order Processing Rules:**
+1. **Dual Input Methods** - Manual cart + automated scanning
+2. **Auto-Confirmation** - 7-second countdown for scanned orders
+3. **Real-time Notifications** - Immediate popup for new orders
+4. **Status Tracking** - Clear progression from pending to completed
+5. **Delivery Integration** - Seamless handoff to delivery system
+
+### **Scanner Integration Rules:**
+1. **Two Scan Types** - Orders (subtract inventory) vs Purchases (add inventory)
+2. **AI Processing** - Gemini extracts structured data from receipts
+3. **Error Handling** - User can improve prompts when AI fails
+4. **Immediate Processing** - Fast kitchen workflow, minimal delays
+
+### **Multi-Platform Compatibility:**
+1. **Mobile-First Design** - Optimized for phone usage
+2. **Cross-Platform** - Flutter ensures iOS/Android compatibility
+3. **Offline Capability** - Local Hive storage for inventory
+4. **Real-time Sync** - Supabase handles live updates
+
+---
+
+## **🔧 Technical Implementation Notes**
+
+### **Real-time Architecture:**
+- **Supabase Channels** - PostgreSQL change detection
+- **Global Listeners** - App-wide order monitoring
+- **Automatic UI Updates** - No manual refresh needed
+
+### **Scanner Workflow:**
+```
+Physical Receipt → Fujitsu ix100 → Local Server → Supabase Edge Function → 
+Gemini AI → JSON Response → Database Insert → Real-time Notification → 
+Auto-Confirm Dialog → Inventory Update
+```
+
+### **Authentication & Roles:**
+- **Admin Role** - Full restaurant management access
+- **Driver Role** - Delivery-focused interface
+- **Supabase Auth** - Secure user management
+
+---
+
+## **🎯 Development Priorities & Goals**
+
+### **Current Status:**
+✅ Manual order creation working  
+✅ Order receipt scanning implemented  
+✅ Real-time order updates functional  
+✅ Auto-confirm dialog with countdown  
+✅ Basic inventory tracking  
+✅ Delivery monitoring system  
+
+### **Next Priorities:**
+🔄 **Purchase Receipt Scanning** - Add materials to inventory  
+🔄 **Enhanced AI Prompts** - Better delivery fee extraction  
+🔄 **Mobile Optimization** - Ensure phone compatibility  
+🔄 **Inventory Automation** - Seamless purchase-to-inventory flow  
+
+### **Ultimate Vision:**
+**All-in-One Restaurant Management System** where scanning two types of receipts (orders & purchases) keeps inventory perfectly synchronized, enabling complete operational visibility and automation for multi-brand ghost kitchen operations.
+
+---
+
+This comprehensive system enables you to manage 4 ghost kitchen brands from a single app, with automated inventory management, real-time order processing, and integrated delivery operations - all optimized for fast-paced kitchen environments.

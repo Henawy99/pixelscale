@@ -1,0 +1,22 @@
+# ════════════════════════════════════════════════════════════════════════════════
+# ANIMIGHT - App Store Connect Configuration
+# ════════════════════════════════════════════════════════════════════════════════
+#
+# Issuer ID: dc9a069b-00fc-45f8-be31-84e435ea4d07
+# Key ID:    2GTNSM4DX2
+# Team ID:   G67XQ5S4QU
+# Key File:  ~/.appstoreconnect/private_keys/AuthKey_2GTNSM4DX2.p8
+#
+# ════════════════════════════════════════════════════════════════════════════════
+
+# Apple Developer Team
+team_id("G67XQ5S4QU")
+itc_team_id("G67XQ5S4QU")
+
+# App identifiers
+app_identifier("com.example.animight")
+apple_id("6749167305")
+
+# ════════════════════════════════════════════════════════════════════════════════
+# Note: API Key is configured in Fastfile (app_store_connect_api_key is a lane action)
+# ════════════════════════════════════════════════════════════════════════════════

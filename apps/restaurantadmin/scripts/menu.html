@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DEVILS SMASH BURGER - Menü</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --red: #DC143C;
+            --dark: #0a0a0a;
+            --card: #1a1a1a;
+            --gold: #FFD700;
+        }
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--dark);
+            color: #fff;
+            line-height: 1.4;
+            min-height: 100vh;
+            -webkit-font-smoothing: antialiased;
+        }
+        .header {
+            background: linear-gradient(180deg, var(--red) 0%, #8B0000 100%);
+            padding: 1.5rem 1rem;
+            text-align: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+        }
+        h1 {
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: 1.8rem;
+            letter-spacing: 2px;
+        }
+        .tagline {
+            font-size: 0.75rem;
+            color: var(--gold);
+            letter-spacing: 1px;
+            margin-top: 0.25rem;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 1rem;
+        }
+        .category {
+            margin-bottom: 1.5rem;
+        }
+        .category-title {
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: 1.4rem;
+            color: var(--red);
+            padding: 0.75rem 0;
+            border-bottom: 2px solid var(--red);
+            margin-bottom: 0.5rem;
+            letter-spacing: 1px;
+            position: sticky;
+            top: 72px;
+            background: var(--dark);
+            z-index: 50;
+        }
+        .item {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            padding: 0.75rem 0;
+            border-bottom: 1px solid #333;
+            gap: 1rem;
+        }
+        .item:last-child {
+            border-bottom: none;
+        }
+        .item-info {
+            flex: 1;
+        }
+        .item-name {
+            font-weight: 600;
+            font-size: 1rem;
+            color: #fff;
+            margin-bottom: 0.25rem;
+        }
+        .item-desc {
+            font-size: 0.8rem;
+            color: #888;
+            line-height: 1.3;
+        }
+        .item-price {
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: 1.2rem;
+            color: var(--gold);
+            white-space: nowrap;
+            font-weight: bold;
+        }
+        .unavailable {
+            opacity: 0.4;
+        }
+        .unavailable .item-name::after {
+            content: ' (Ausverkauft)';
+            color: var(--red);
+            font-size: 0.7rem;
+            font-weight: normal;
+        }
+        .loading {
+            text-align: center;
+            padding: 3rem 1rem;
+            color: #888;
+        }
+        .spinner {
+            width: 30px;
+            height: 30px;
+            border: 3px solid #333;
+            border-top-color: var(--red);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .footer {
+            text-align: center;
+            padding: 1.5rem;
+            color: #666;
+            font-size: 0.75rem;
+            border-top: 1px solid #333;
+            margin-top: 2rem;
+        }
+        .error {
+            text-align: center;
+            padding: 2rem;
+            color: var(--red);
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <h1>🍔 DEVILS SMASH BURGER</h1>
+        <p class="tagline">SMASH IT LIKE THE DEVIL</p>
+    </header>
+    
+    <main class="container" id="menu">
+        <div class="loading">
+            <div class="spinner"></div>
+            <p>Menü wird geladen...</p>
+        </div>
+    </main>
+    
+    <footer class="footer">
+        🔥 DEVILS SMASH BURGER 🔥
+    </footer>
+
+    <script>
+        const SUPABASE_URL = 'https://iluhlynzkgubtaswvgwt.supabase.co';
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlsdWhseW56a2d1YnRhc3d2Z3d0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDg1NjY2NTQsImV4cCI6MjA2NDE0MjY1NH0.nGrRDPvfH0VAf_naJvR9iKqFGo0kFZxv9hmgG6acmBQ';
+        const BRAND_ID = '4446a388-aaa7-402f-be4d-b82b23797415';
+
+        async function loadMenu() {
+            const container = document.getElementById('menu');
+            try {
+                const headers = {
+                    'apikey': SUPABASE_KEY,
+                    'Authorization': 'Bearer ' + SUPABASE_KEY
+                };
+
+                const [catRes, itemRes] = await Promise.all([
+                    fetch(SUPABASE_URL + '/rest/v1/menu_categories?brand_id=eq.' + BRAND_ID + '&order=display_order', { headers }),
+                    fetch(SUPABASE_URL + '/rest/v1/menu_items?brand_id=eq.' + BRAND_ID + '&order=display_order', { headers })
+                ]);
+
+                const categories = await catRes.json();
+                const items = await itemRes.json();
+
+                const byCategory = {};
+                items.forEach(item => {
+                    if (!byCategory[item.category_id]) byCategory[item.category_id] = [];
+                    byCategory[item.category_id].push(item);
+                });
+
+                let html = '';
+                categories.forEach(cat => {
+                    const catItems = byCategory[cat.id] || [];
+                    if (catItems.length === 0) return;
+
+                    html += '<section class="category">';
+                    html += '<h2 class="category-title">' + cat.name + '</h2>';
+                    
+                    catItems.forEach(item => {
+                        const available = item.is_available !== false;
+                        html += '<div class="item' + (available ? '' : ' unavailable') + '">';
+                        html += '<div class="item-info">';
+                        html += '<div class="item-name">' + item.name + '</div>';
+                        if (item.description) {
+                            html += '<div class="item-desc">' + item.description + '</div>';
+                        }
+                        html += '</div>';
+                        html += '<div class="item-price">€' + (item.price ? item.price.toFixed(2) : '0.00') + '</div>';
+                        html += '</div>';
+                    });
+
+                    html += '</section>';
+                });
+
+                container.innerHTML = html || '<div class="error">Keine Menüeinträge gefunden.</div>';
+            } catch (e) {
+                console.error(e);
+                container.innerHTML = '<div class="error">Fehler beim Laden. Bitte neu laden.</div>';
+            }
+        }
+
+        loadMenu();
+        setInterval(loadMenu, 60000);
+    </script>
+</body>
+</html>

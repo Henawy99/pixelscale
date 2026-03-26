@@ -1,0 +1,14 @@
+# Al Baseet Sports App Icon Configuration
+# Run: flutter pub run flutter_launcher_icons:main -f flutter_launcher_icons_albaseet.yaml
+
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: "assets/images/albaseetlogo.png"
+  
+  # Android specific
+  adaptive_icon_foreground: "assets/images/albaseetlogo.png"
+  adaptive_icon_background: "#FFCD3A"
+  
+  # Remove alpha channel
+  remove_alpha_ios: true

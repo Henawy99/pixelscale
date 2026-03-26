@@ -1,0 +1,1 @@
+ powershell -ExecutionPolicy Bypass -File C:\RestaurantAdmin\restaurantadmin\scripts\powershell_watcher_edge.ps1

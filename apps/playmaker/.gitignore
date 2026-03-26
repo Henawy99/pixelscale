@@ -1,0 +1,180 @@
+# ════════════════════════════════════════════════════════════════════════════════
+# PLAYMAKER .gitignore
+# ════════════════════════════════════════════════════════════════════════════════
+
+# ─────────────────────────────────────────────────────────────────────────────────
+# Build Outputs (IMPORTANT - excludes all build folders)
+# ─────────────────────────────────────────────────────────────────────────────────
+**/build/
+/build/
+promoapp/build/
+*.aab
+*.apk
+*.ipa
+*.app
+
+# ─────────────────────────────────────────────────────────────────────────────────
+# Screenshots & Images at root level (development artifacts)
+# ─────────────────────────────────────────────────────────────────────────────────
+/*.png
+/*.jpg
+/*.jpeg
+/*.gif
+/*.mov
+/*.mp4
+/screen_*.png
+/emulator_*.png
+/adv*.png
+/albaseet*.png
+/book*.png
+/bepro*.png
+/check*.png
+/menu*.png
+/phase*.png
+/rec_*.png
+/recordings*.png
+/running*.png
+/tap*.png
+
+# ─────────────────────────────────────────────────────────────────────────────────
+# Flutter/Dart/Pub related
+# ─────────────────────────────────────────────────────────────────────────────────
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+pubspec.lock
+
+# ─────────────────────────────────────────────────────────────────────────────────
+# iOS specific
+# ─────────────────────────────────────────────────────────────────────────────────
+**/ios/Pods/
+**/ios/.symlinks/
+**/ios/Flutter/Flutter.framework
+**/ios/Flutter/Flutter.podspec
+**/ios/Flutter/Generated.xcconfig
+**/ios/Flutter/ephemeral/
+**/ios/Flutter/flutter_export_environment.sh
+*.xcuserstate
+*.xcworkspacedata
+project.xcworkspace/
+
+# ─────────────────────────────────────────────────────────────────────────────────
+# Android specific
+# ─────────────────────────────────────────────────────────────────────────────────
+**/android/.gradle/
+**/android/app/debug
+**/android/app/profile
+**/android/app/release
+**/android/local.properties
+*.keystore
+!android/app/upload-keystore.jks
+
+# ─────────────────────────────────────────────────────────────────────────────────
+# macOS specific
+# ─────────────────────────────────────────────────────────────────────────────────
+**/macos/Flutter/ephemeral/
+**/macos/Pods/
+
+# ─────────────────────────────────────────────────────────────────────────────────
+# Credentials & Secrets (NEVER COMMIT THESE!)
+# ─────────────────────────────────────────────────────────────────────────────────
+.env
+*.env
+*credentials*.txt
+supabase*.txt
+android/playmaker-play-console-service-account.json
+android/*.json
+!android/google-services.json
+fastlane/private_keys/
+*.p8
+AuthKey_*.p8
+
+# ─────────────────────────────────────────────────────────────────────────────────
+# Fastlane
+# ─────────────────────────────────────────────────────────────────────────────────
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/
+fastlane/test_output/
+fastlane/README.md
+
+# ─────────────────────────────────────────────────────────────────────────────────
+# IDE & Editor
+# ─────────────────────────────────────────────────────────────────────────────────
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+*.swp
+*.swo
+*~
+
+# ─────────────────────────────────────────────────────────────────────────────────
+# Miscellaneous
+# ─────────────────────────────────────────────────────────────────────────────────
+*.class
+*.log
+*.pyc
+.DS_Store
+.atom/
+.buildlog/
+.history
+.svn/
+.swiftpm/
+migrate_working_dir/
+Thumbs.db
+
+# Symbolication related
+app.*.symbols
+
+# Obfuscation related
+app.*.map.json
+
+# ─────────────────────────────────────────────────────────────────────────────────
+# Cursor AI
+# ─────────────────────────────────────────────────────────────────────────────────
+.cursor/plans/
+
+# ─────────────────────────────────────────────────────────────────────────────────
+# Albaseet website (separate project)
+# ─────────────────────────────────────────────────────────────────────────────────
+albaseet-website/
+
+# ─────────────────────────────────────────────────────────────────────────────────
+# Node modules (if any)
+# ─────────────────────────────────────────────────────────────────────────────────
+node_modules/
+
+# ─────────────────────────────────────────────────────────────────────────────────
+# Apple Pay Certificates (SENSITIVE - DO NOT COMMIT)
+# ─────────────────────────────────────────────────────────────────────────────────
+apple_pay_certificates/*.key
+apple_pay_certificates/*.pem
+apple_pay_certificates/*.cer
+apple_pay_certificates/*.csr
+*.p8
+
+# ─────────────────────────────────────────────────────────────────────────────────
+# ML Model Weights & Data (Large Files)
+# ─────────────────────────────────────────────────────────────────────────────────
+modal_gpu_function/ckpts/
+modal_gpu_function/.tracknet_cache_disk/
+modal_gpu_function/tmp_test.py
+modal_gpu_function/tmp_test2.py
+*.pt
+*.pth
+*.npz
+*.onnx
+
+# ─────────────────────────────────────────────────────────────────────────────────
+# Paymob SDK Binaries (large binary files — download separately)
+# ─────────────────────────────────────────────────────────────────────────────────
+ios/PaymobSDK.xcframework/
+android/app/libs/
+paymobsk/

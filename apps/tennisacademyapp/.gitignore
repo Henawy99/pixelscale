@@ -1,0 +1,42 @@
+# Flutter
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+build/
+TennisAcademy-release.apk
+*.iml
+
+# Android
+*.jks
+*.keystore
+!release.keystore
+.key
+keystore.properties
+key.properties
+local.properties
+
+# iOS
+*.mode1v3
+*.mode2v3
+*.moved-aside
+*.pbxuser
+*.perspectivev3
+**/*.xcuserstate
+*.xcworkspace
+!default.xcworkspace
+
+# macOS
+.DS_Store
+*.pem
+
+# Env
+.env
+.env*.local
+
+# Legacy (Expo/RN) – keep if you have mixed tooling
+node_modules/
+.expo/
+dist/
+*.tsbuildinfo

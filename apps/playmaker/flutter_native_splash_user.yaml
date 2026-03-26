@@ -1,0 +1,38 @@
+flutter_native_splash:
+  # User app splash screen - Green theme
+  
+  # Background color (playmaker green)
+  color: "#00BF63"
+  
+  # Use the main playmaker logo
+  image: assets/images/playmakerappicon.png
+  
+  # Dark mode (same green)
+  color_dark: "#00BF63"
+  image_dark: assets/images/playmakerappicon.png
+  
+  # Android 12+ specific settings
+  android_12:
+    # Use playmaker green
+    color: "#00BF63"
+    color_dark: "#00BF63"
+    
+    # Branding image
+    branding: assets/images/playmakerappicon.png
+    branding_dark: assets/images/playmakerappicon.png
+  
+  # iOS specific
+  ios: true
+  ios_content_mode: center
+  
+  # Android specific  
+  android: true
+  android_gravity: center
+  
+  # Fullscreen mode
+  fullscreen: true
+  
+  # Info plist settings (iOS)
+  info_plist_files:
+    - 'ios/Runner/Info.plist'
+

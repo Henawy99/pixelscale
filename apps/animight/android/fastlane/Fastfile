@@ -1,0 +1,179 @@
+# Animight Android Fastlane Configuration
+# =========================================
+# Automated build and upload to Google Play Console
+#
+# Usage (run from the android/ directory):
+#   bundle exec fastlane build          # Build AAB only
+#   bundle exec fastlane upload         # Build + Upload to Internal Testing
+#   bundle exec fastlane upload_only    # Upload existing AAB (skip build)
+
+default_platform(:android)
+
+# Service account JSON path (relative to android/ directory)
+# TODO: Place your Google Play service account JSON at android/animight-play-console-service-account.json
+SERVICE_ACCOUNT_JSON = "animight-play-console-service-account.json"
+PACKAGE_NAME         = "com.example.animight"
+
+platform :android do
+
+  # ═══════════════════════════════════════════════════════════════════════════════
+  # BUILD ONLY
+  # ═══════════════════════════════════════════════════════════════════════════════
+
+  desc "Build release AAB (no upload)"
+  lane :build do
+    UI.header "Building Animight Android App Bundle"
+
+    version_info = get_version_info
+
+    UI.message "Package:  #{PACKAGE_NAME}"
+    UI.message "Version:  #{version_info[:name]} (Build #{version_info[:code]})"
+
+    Dir.chdir("..") do
+      UI.message "Cleaning..."
+      sh("flutter clean && flutter pub get")
+
+      UI.message "Building Android App Bundle..."
+      sh("flutter build appbundle --release")
+    end
+
+    aab_path = "../build/app/outputs/bundle/release/app-release.aab"
+
+    unless File.exist?(aab_path)
+      UI.user_error!("AAB not found at: #{aab_path}")
+    end
+
+    UI.success "Build complete!"
+    UI.message "AAB: #{File.expand_path(aab_path)}"
+    UI.message "Size: #{File.size(aab_path) / 1024 / 1024} MB"
+  end
+
+  # ═══════════════════════════════════════════════════════════════════════════════
+  # BUILD + UPLOAD
+  # ═══════════════════════════════════════════════════════════════════════════════
+
+  desc "Build AAB and upload to Google Play Console (Internal Testing)"
+  lane :upload do
+    UI.header "Building & Uploading Animight to Play Console"
+
+    version_info = get_version_info
+
+    UI.message "Package:  #{PACKAGE_NAME}"
+    UI.message "Version:  #{version_info[:name]} (Build #{version_info[:code]})"
+    UI.message "Track:    Internal Testing"
+
+    Dir.chdir("..") do
+      UI.message "Cleaning..."
+      sh("flutter clean && flutter pub get")
+
+      UI.message "Building Android App Bundle..."
+      sh("flutter build appbundle --release")
+    end
+
+    aab_path = "../build/app/outputs/bundle/release/app-release.aab"
+
+    unless File.exist?(aab_path)
+      UI.user_error!("AAB not found at: #{aab_path}")
+    end
+
+    UI.success "Build complete! Uploading to Play Console..."
+
+    upload_to_play_store(
+      track: 'internal',
+      aab: aab_path,
+      json_key: SERVICE_ACCOUNT_JSON,
+      package_name: PACKAGE_NAME,
+      skip_upload_metadata: true,
+      skip_upload_changelogs: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true,
+      release_status: 'completed',
+      version_name: version_info[:name],
+      version_code: version_info[:code],
+      timeout: 1200
+    )
+
+    UI.success "Animight uploaded to Play Console (Internal Testing)!"
+    UI.message "Version #{version_info[:name]} (Build #{version_info[:code]}) is now live."
+    UI.message "View in Play Console: https://play.google.com/console"
+  end
+
+  # ═══════════════════════════════════════════════════════════════════════════════
+  # UPLOAD ONLY — Skip build, use existing AAB
+  # ═══════════════════════════════════════════════════════════════════════════════
+
+  desc "Upload existing AAB to Play Console (skip build)"
+  lane :upload_only do
+    aab_path = File.expand_path("../../build/app/outputs/bundle/release/app-release.aab")
+
+    UI.header "Uploading Animight AAB to Play Console"
+    UI.message "AAB path: #{aab_path}"
+
+    unless File.exist?(aab_path)
+      UI.user_error!("AAB not found at: #{aab_path}\nPlease build first with: bundle exec fastlane upload")
+    end
+
+    UI.message "File size: #{File.size(aab_path) / 1024 / 1024} MB"
+
+    upload_to_play_store(
+      track: 'internal',
+      aab: aab_path,
+      json_key: SERVICE_ACCOUNT_JSON,
+      package_name: PACKAGE_NAME,
+      skip_upload_metadata: true,
+      skip_upload_changelogs: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true,
+      release_status: 'completed',
+      timeout: 1200
+    )
+
+    UI.success "Animight uploaded to Play Console (Internal Testing)!"
+  end
+
+  # ═══════════════════════════════════════════════════════════════════════════════
+  # HELPER METHODS
+  # ═══════════════════════════════════════════════════════════════════════════════
+
+  private_lane :get_version_info do
+    pubspec_path = "../pubspec.yaml"
+
+    if File.exist?(pubspec_path)
+      content      = File.read(pubspec_path)
+      version_line = content.match(/version:\s*(.+)/)
+
+      if version_line
+        full_version = version_line[1].strip.split('#').first.strip
+        parts        = full_version.split('+')
+        { name: parts[0], code: parts[1].to_i }
+      else
+        { name: "1.0.0", code: 1 }
+      end
+    else
+      { name: "1.0.0", code: 1 }
+    end
+  end
+
+  # ═══════════════════════════════════════════════════════════════════════════════
+  # ERROR HANDLING
+  # ═══════════════════════════════════════════════════════════════════════════════
+
+  error do |lane, exception|
+    UI.error "Lane #{lane} failed with error:"
+    UI.error exception.message
+
+    if exception.message.include?("json_key") || exception.message.include?("credentials")
+      UI.important ""
+      UI.important "Service account JSON not found or invalid."
+      UI.important "Place your Google Play service account JSON at:"
+      UI.important "  android/#{SERVICE_ACCOUNT_JSON}"
+      UI.important ""
+      UI.important "Create one at: https://play.google.com/console → Setup → API access"
+    elsif exception.message.include?("version")
+      UI.important ""
+      UI.important "Version code may already exist in Play Console."
+      UI.important "Increment the version in pubspec.yaml and try again."
+    end
+  end
+
+end

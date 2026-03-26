@@ -1,0 +1,16 @@
+# Partner App Icon Configuration
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/images/mobile-wallet-logos/playstorelogopmpartner.png"
+  
+  # Android configuration
+  android_min_sdk_android: 21
+  android_adaptive_icon_background: "#1E40AF" # Blue background
+  android_adaptive_icon_foreground: "assets/images/mobile-wallet-logos/playstorelogopmpartner.png"
+  
+  # iOS configuration
+  ios_content_json: "ios/Runner/Assets.xcassets/AppIcon.appiconset/Contents.json"
+  
+  # Remove old launcher icons
+  remove_alpha_ios: true

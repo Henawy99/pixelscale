@@ -1,0 +1,12 @@
+# Fastlane Appfile for Playmaker Android Apps
+
+# Google Play Console Service Account JSON
+json_key_file("../playmaker-play-console-service-account.json")
+
+# Package names for each app
+package_name("com.playmaker.app") # Default to USER app
+
+
+
+
+

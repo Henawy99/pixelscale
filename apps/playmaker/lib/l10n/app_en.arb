@@ -1,0 +1,828 @@
+{
+  "@@locale": "en",
+  "appTitle": "Playmaker",
+  "next": "Next",
+  "skip": "Skip",
+  "done": "Done",
+  "cancel": "Cancel",
+  "save": "Save",
+  "edit": "Edit",
+  "delete": "Delete",
+  "search": "Search",
+  "submit": "Submit",
+  "login": "Login",
+  "register": "Register",
+  "logout": "Logout",
+
+  "personalInformation": "Personal Information",
+  "playerDetails": "Player Details",
+  "settings": "Settings",
+  "deleteAccount": "Delete Account",
+  "profileUpdated": "Profile Updated Successfully",
+  
+  "name": "Name",
+  "email": "Email",
+  "password": "Password",
+  "phoneNumber": "Phone Number",
+  "age": "Age",
+  "nationality": "Nationality",
+  "playerId": "Player ID",
+  "position": "Position",
+  "level": "Level",
+  "joined": "Joined",
+
+  "beginner": "Beginner",
+  "levelBeginnerDescription": "New to football, learning the basics.",
+  "casual": "Casual",
+  "levelCasualDescription": "Plays regularly, understands the game.",
+  "skilled": "Skilled",
+  "levelSkilledDescription": "Good technical skills, tactical awareness.",
+  "elite": "Elite",
+  "levelEliteDescription": "Strong player, makes an impact.",
+  "expert": "Expert",
+  "levelExpertDescription": "High-level skills, dominates matches.",
+  "skillLevel": "Skill Level",
+  
+  "matches": "Matches",
+  "squads": "Squads",
+  "friends": "Friends",
+  "profile": "Profile",
+  "fields": "Fields",
+  
+  "enterYourName": "Enter your full name",
+  "selectPositionAndLevel": "Select Position & Level",
+  "preferredPosition": "Preferred Position",
+  "completeProfileButton": "Complete Profile",
+  
+  "playMoreToUnlock": "Play {count} matches to unlock",
+  "@playMoreToUnlock": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "example": "10"
+      }
+    }
+  },
+  "almostUnlocked": "Almost",
+  "justUnlocked": "Unlocked!",
+  
+  "privacyPolicy": "Privacy Policy",
+  "termsConditions": "Terms & Conditions",
+  "deleteAccountConfirmation": "This action is permanent. Your profile, bookings, and all associated data will be permanently removed.",
+  "typeToConfirm": "Type \"{word}\" to confirm deletion:",
+  
+  "languageSettingsTitle": "Language Settings",
+  "rtlLayoutInfo": "The app will support right-to-left layout automatically when Arabic is selected. This affects all screens and components, providing a seamless experience for Arabic users.",
+  "birthDateTitle": "Birth Date",
+  "hintDD": "DD",
+  "hintMM": "MM",
+  "hintYYYY": "YYYY",
+  "phoneNumberTitle": "Phone Number",
+  "hintPhoneNumber": "Phone number",
+  "fullNameTitle": "Full Name",
+  "hintEnterFullName": "Enter your full name",
+  "couldNotFetchUpdatedProfile": "Could not fetch updated profile after image upload.",
+  "deleteAccountWarningMessage": "This action is permanent. Your profile, bookings, and all associated data will be permanently removed.",
+  "typeToConfirmDeletion": "Type \"{word}\" to confirm deletion:",
+  "@typeToConfirmDeletion": {
+    "placeholders": {
+      "word": {
+        "type": "String",
+        "example": "playmaker"
+      }
+    }
+  },
+  "pleaseTypeExactly": "Please type exactly \"{word}\"",
+  "@pleaseTypeExactly": {
+    "placeholders": {
+      "word": {
+        "type": "String",
+        "example": "playmaker"
+      }
+    }
+  },
+  "accountDeletedSuccess": "Account successfully deleted",
+  "errorDeletingAccount": "Error deleting account: {error}",
+  "@errorDeletingAccount": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "logoutConfirmationMessage": "Are you sure you want to log out of your account?",
+  "createProfileTitle": "Create Profile",
+  "signUpToAccessFeatures": "Sign up to access all features:",
+  "featureBookFields": "Book football fields",
+  "featureJoinCreateSquads": "Join and create squads",
+  "featureScheduleMatches": "Schedule matches",
+  "featureConnectPlayers": "Connect with players",
+  "getStarted": "Get Started",
+  "statGames": "Games",
+  "statFriends": "Friends",
+  "statSquads": "Squads",
+  "phoneLabel": "Phone",
+
+  "squadsTabTitle": "Squads",
+  "friendsCardTitle": "Friends",
+  "connectWithPlayersSubtitle": "Connect with players",
+  "friendsStatLabel": "Friends",
+  "mySquadsCardTitle": "My Squads",
+  "mySquadsCardSubtitle": "View and manage your teams",
+  "teamsStatLabel": "Teams",
+  "joinSquadsCardTitle": "Join Squads",
+  "joinSquadsCardSubtitle": "Find and join teams in your area",
+  "createSquadCardTitle": "Create Squad",
+  "createSquadCardSubtitle": "Start your own team and recruit players",
+  "createAccountDialogTitle": "Create Account",
+  "createAccountDialogMessage": "Please create an account to access this feature.",
+  "signUpButton": "Sign Up",
+
+  "playTabTitle": "Play",
+  "bookAFieldCardTitle": "Book a Field",
+  "bookAFieldCardSubtitle": "Find and book football fields near you",
+  "joinMatchesCardTitle": "Join Matches",
+  "joinMatchesCardSubtitle": "Play with others in scheduled matches",
+  "openMatchesStatLabel": "Open Matches",
+  "failedToLoadBookingsSnackbar": "Failed to load bookings",
+  "errorFetchingFieldDetailsSnackbar": "Error fetching field details",
+  "recentlyPlayedFieldsTitle": "Recently Played Fields",
+  "yourFavoritePlacesToPlaySubtitle": "Your favorite places to play",
+  "bookAgainButton": "Book Again",
+  "noRecentlyPlayedFields": "No recently played fields",
+  "errorLoadingFields": "Error loading fields",
+
+  "matchDetailsTitle": "Match Details",
+  "detailsTab": "Details",
+  "chatTab": "Chat",
+  "openInGoogleMaps": "Open in Google Maps",
+  "couldNotLaunchGoogleMaps": "Could not launch Google Maps",
+  "openInAppleMaps": "Open in Apple Maps",
+  "couldNotLaunchAppleMaps": "Could not launch Apple Maps",
+  "failedToAcceptJoinRequest": "Failed to accept join request",
+  "joinRequestPending": "Join Request Pending",
+  "joinMatchButton": "Join Match",
+  "matchInformationSectionTitle": "Match Information",
+  "dateLabel": "Date",
+  "timeLabel": "Time",
+  "hostLabel": "Host",
+  "youSuffix": "You",
+  "unableToLoadHost": "Unable to load host",
+  "joinRequestsSectionTitle": "Join Requests",
+  "playersSectionTitle": "Players",
+  "playersJoinedCount": "{count} joined",
+  "@playersJoinedCount": {
+    "placeholders": {
+      "count": {"type": "String"}
+    }
+  },
+  "playersMaxCount": "{current} / {max}",
+  "@playersMaxCount": {
+    "placeholders": {
+      "current": {"type": "String"},
+      "max": {"type": "String"}
+    }
+  },
+  "addPlayersButton": "Add",
+  "guestLabel": "Guest {number}",
+  "@guestLabel": {
+    "placeholders": {
+      "number": {"type": "String"}
+    }
+  },
+  "invalidGuestEntry": "Invalid Guest Entry",
+  "locationSectionTitle": "Location",
+  "locationAccessRequired": "Location access required",
+  "getDirectionsButton": "Get Directions",
+  "joinMatchSheetTitle": "Join Match",
+  "joinAloneOption": "Join Alone",
+  "joinAloneSubtitle": "Play with other players",
+  "joinWithGuestsOption": "Join with Guests",
+  "joinWithGuestsSubtitle": "Bring your friends along",
+  "numberOfGuestsLabel": "Number of Guests",
+  "joinWithXGuestsButton": "Join with {count} Guest(s)",
+  "@joinWithXGuestsButton": {
+    "placeholders": {
+      "count": {"type": "String"}
+    }
+  },
+  "joinRequestSent": "Join request sent!",
+  "failedToSendJoinRequest": "Failed to send join request: {error}",
+  "@failedToSendJoinRequest": {
+    "placeholders": {
+      "error": {"type": "String"}
+    }
+  },
+  "addPlayersSheetTitle": "Add Players",
+  "addGuestsOption": "Add Guests",
+  "addGuestsSubtitle": "Add guest players",
+  "addFriendsOption": "Add Friends",
+  "addFriendsSubtitle": "Add from your friends list",
+  "addSquadOption": "Add Squad",
+  "addSquadSubtitle": "Add players from your squad",
+  "selectAction": "Select Action",
+  "addedXGuestsSnackbar": "Added {count} guest(s) to the match",
+  "@addedXGuestsSnackbar": {
+    "placeholders": {
+      "count": {"type": "String"}
+    }
+  },
+  "errorAddingGuestsSnackbar": "Error adding guests: {error}",
+  "@errorAddingGuestsSnackbar": {
+    "placeholders": {
+      "error": {"type": "String"}
+    }
+  },
+  "addedXPlayersSnackbar": "Added {count} player(s) to the match",
+  "@addedXPlayersSnackbar": {
+    "placeholders": {
+      "count": {"type": "String"}
+    }
+  },
+  "errorAddingPlayersSnackbar": "Error adding players: {error}",
+  "@errorAddingPlayersSnackbar": {
+    "placeholders": {
+      "error": {"type": "String"}
+    }
+  },
+  "allSquadMembersAlreadyInMatch": "All squad members are already in the match",
+  "cannotAddSquadMembersLimitReached": "Cannot add squad members from {squadName}. Maximum limit of {maxPlayers} reached.",
+  "@cannotAddSquadMembersLimitReached": {
+    "placeholders": {
+      "squadName": {"type": "String"},
+      "maxPlayers": {"type": "String"}
+    }
+  },
+  "sentXFriendJoinRequests": "Sent {count} friend join request(s)",
+  "@sentXFriendJoinRequests": {
+    "placeholders": {
+      "count": {"type": "String"}
+    }
+  },
+  "sentXSquadJoinRequests": "Sent {count} join request(s) for members of {squadName}",
+  "@sentXSquadJoinRequests": {
+    "placeholders": {
+      "count": {"type": "String"},
+      "squadName": {"type": "String"}
+    }
+  },
+  "requestedToAddXGuests": "Requested to add {count} guest(s)",
+  "@requestedToAddXGuests": {
+    "placeholders": {
+      "count": {"type": "String"}
+    }
+  },
+  "failedToSendGuestAddRequest": "Failed to send guest add request: {error}",
+  "@failedToSendGuestAddRequest": {
+    "placeholders": {
+      "error": {"type": "String"}
+    }
+  },
+  "minsSuffix": "mins",
+  "cannotAcceptRequestMaxPlayers": "Cannot accept request. Adding {count} player(s) would exceed the maximum of {maxPlayers}.",
+  "@cannotAcceptRequestMaxPlayers": {
+    "placeholders": {
+      "count": {"type": "String"},
+      "maxPlayers": {"type": "String"}
+    }
+  },
+  "playerAddedToMatchSnackbar": "{playerName} has been added to the match",
+  "@playerAddedToMatchSnackbar": {
+    "placeholders": {
+      "playerName": {"type": "String"}
+    }
+  },
+  "playerAddedWithGuestsSnackbar": "{playerName} has been added to the match with {guestCount} guests",
+  "@playerAddedWithGuestsSnackbar": {
+    "placeholders": {
+      "playerName": {"type": "String"},
+      "guestCount": {"type": "String"}
+    }
+  },
+  "guestRequestApprovedSnackbar": "{playerName} request to add {guestCount} guests approved",
+  "@guestRequestApprovedSnackbar": {
+    "placeholders": {
+      "playerName": {"type": "String"},
+      "guestCount": {"type": "String"}
+    }
+  },
+  "declinedJoinRequestSnackbar": "Declined join request",
+  "failedToDeclineJoinRequestSnackbar": "Failed to decline join request",
+  "errorParsingJoinRequest": "Error parsing join request: {error}",
+    "@errorParsingJoinRequest": {
+    "placeholders": {
+      "error": {"type": "String"}
+    }
+  },
+  "errorRefreshingBooking": "Error re-fetching booking: {error}",
+  "@errorRefreshingBooking": {
+    "placeholders": {
+      "error": {"type": "String"}
+    }
+  },
+  "bookingNotFound": "Booking not found",
+  "youAreNotMemberOfSquads": "You are not a member of any squads",
+  "selectSquadToRequestTitle": "Select Squad to Request",
+  "selectSquadTitle": "Select Squad",
+  "membersSuffix": "members",
+
+  "matchesTab_errorLoadingFields": "Error loading fields: {e}",
+  "@matchesTab_errorLoadingFields": {
+    "placeholders": {"e": {"type": "String"}}
+  },
+  "matchesTab_unknownPlayer": "Unknown Player",
+  "matchesTab_errorFetchingHostInfo": "Error fetching host info: {e}",
+  "@matchesTab_errorFetchingHostInfo": {
+    "placeholders": {"e": {"type": "String"}}
+  },
+  "matchesTab_matchInProgress": "Match in progress",
+  "matchesTab_timeLeftDaysHours": "{days} day(s), {hours} hr(s) left",
+  "@matchesTab_timeLeftDaysHours": {
+    "placeholders": {
+      "days": {"type": "int"},
+      "hours": {"type": "int"}
+    }
+  },
+  "matchesTab_timeLeftHoursMinutes": "{hours} hr(s), {minutes} min(s) left",
+  "@matchesTab_timeLeftHoursMinutes": {
+    "placeholders": {
+      "hours": {"type": "int"},
+      "minutes": {"type": "int"}
+    }
+  },
+  "matchesTab_timeLeftMinutes": "{minutes} min(s) left",
+  "@matchesTab_timeLeftMinutes": {
+    "placeholders": {"minutes": {"type": "int"}}
+  },
+  "matchesTab_startingSoon": "Starting soon",
+  "matchesTab_errorGeneric": "Error: {error}",
+  "@matchesTab_errorGeneric": {
+    "placeholders": {"error": {"type": "String"}}
+  },
+  "matchesTab_upcoming": "Upcoming",
+  "matchesTab_past": "Past",
+  "matchesTab_noMatchesFound": "No matches found",
+  "matchesTab_startByJoiningOrBooking": "Start by joining a match or booking a field",
+  "matchesTab_joinAMatch": "Join a Match",
+  "matchesTab_loading": "Loading...",
+  "matchesTab_completed": "Completed",
+  "matchesTab_spotsLeft": "{spotsLeft} Spot(s) Left",
+  "@matchesTab_spotsLeft": {
+    "placeholders": {"spotsLeft": {"type": "int"}}
+  },
+  "matchesTab_matchFull": "Match Full",
+
+  "fieldBooking_errorParsingRecurringOriginalDate": "Error parsing recurringOriginalDate ('{date}'): {e}",
+  "@fieldBooking_errorParsingRecurringOriginalDate": {
+    "placeholders": {
+      "date": {"type": "String"},
+      "e": {"type": "String"}
+    }
+  },
+  "fieldBooking_errorParsingRecurringEndDate": "Error parsing recurringEndDate ('{date}'): {e}",
+  "@fieldBooking_errorParsingRecurringEndDate": {
+    "placeholders": {
+      "date": {"type": "String"},
+      "e": {"type": "String"}
+    }
+  },
+  "fieldBooking_streetAddressNotAvailable": "Street address not available",
+  "fieldBooking_directions": "Directions",
+  "fieldBooking_priceRangeEGP": "{priceRange} EGP",
+  "@fieldBooking_priceRangeEGP": {
+    "placeholders": {"priceRange": {"type": "String"}}
+  },
+  "fieldBooking_selectDate": "Select Date",
+  "fieldBooking_today": "Today",
+  "fieldBooking_availableTimeSlots": "Available Time Slots",
+  "fieldBooking_noTimeSlotsAvailable": "No time slots available",
+  "fieldBooking_trySelectingAnotherDate": "Try selecting another date",
+  "fieldBooking_errorParsingTimeSlotForPastCheck": "Error parsing timeslot time for 'isPast' check: {e}",
+  "@fieldBooking_errorParsingTimeSlotForPastCheck": {
+    "placeholders": {"e": {"type": "String"}}
+  },
+  "fieldBooking_booked": "Booked",
+  "fieldBooking_pastTimeSlot": "Past",
+  "fieldBooking_continueToBooking": "Continue to Booking",
+  "fieldBooking_bookingCreatedSuccessfully": "Booking created successfully",
+  "fieldBooking_available": "Available",
+  "fieldBooking_openMatchStatus": "Open Match",
+  "fieldBooking_durationHours": "{duration} hours",
+  "@fieldBooking_durationHours": {
+    "placeholders": {"duration": {"type": "int"}}
+  },
+  "fieldBooking_durationHoursMinutes": "{hours}:{minutes} hours",
+  "@fieldBooking_durationHoursMinutes": {
+    "placeholders": {
+      "hours": {"type": "int"},
+      "minutes": {"type": "String"}
+    }
+  },
+  "fieldBooking_priceEGP": "{price} EGP",
+  "@fieldBooking_priceEGP": {
+    "placeholders": {"price": {"type": "dynamic"}}
+  },
+  "fieldBooking_photoCounter": "{current} / {totalPhotos}",
+  "@fieldBooking_photoCounter": {
+    "placeholders": {
+      "current": {"type": "int"},
+      "totalPhotos": {"type": "int"}
+    }
+  },
+
+  "fieldsListView_locationNewCairo": "New Cairo",
+  "fieldsListView_locationNasrCity": "Nasr City",
+  "fieldsListView_locationShorouk": "Shorouk",
+  "fieldsListView_locationMaadi": "Maadi",
+  "fieldsListView_locationSheikhZayed": "Sheikh Zayed",
+  "fieldsListView_locationOctober": "October",
+  "fieldsListView_errorCheckingLocationPermission": "Error checking location permission: {e}",
+  "@fieldsListView_errorCheckingLocationPermission": {
+    "placeholders": {"e": {"type": "String"}}
+  },
+  "fieldsListView_errorFetchingFields": "Error fetching fields: {e}",
+  "@fieldsListView_errorFetchingFields": {
+    "placeholders": {"e": {"type": "String"}}
+  },
+  "fieldsListView_viewMap": "View Map",
+  "fieldsListView_filter": "Filter",
+  "fieldsListView_withinRadiusKm": "Within {radius} km",
+  "@fieldsListView_withinRadiusKm": {
+    "placeholders": {"radius": {"type": "int"}}
+  },
+  "fieldsListView_createAccountToBook": "Please create an account to book a field.",
+  "fieldsListView_filterFields": "Filter Fields",
+  "fieldsListView_location": "Location",
+  "fieldsListView_distance": "Distance",
+  "fieldsListView_anyDistance": "Any Distance",
+  "fieldsListView_radiusKm": "{radius} km",
+  "@fieldsListView_radiusKm": {
+    "placeholders": {"radius": {"type": "int"}}
+  },
+  "fieldsListView_minRadius": "1 km",
+  "fieldsListView_maxRadius": "20 km",
+  "fieldsListView_applyFilters": "Apply Filters",
+  "fieldsListView_distanceMetersAway": "{distance}m away",
+  "@fieldsListView_distanceMetersAway": {
+    "placeholders": {"distance": {"type": "String"}}
+  },
+  "fieldsListView_distanceKmAway": "{distance}km away",
+  "@fieldsListView_distanceKmAway": {
+    "placeholders": {"distance": {"type": "String"}}
+  },
+  "fieldsListView_priceRangeEgpHour": "{priceRange} EGP/hr",
+  "@fieldsListView_priceRangeEgpHour": {
+    "placeholders": {"priceRange": {"type": "String"}}
+  },
+  "fieldsListView_amenityParking": "Parking",
+  "fieldsListView_amenityRestrooms": "Restrooms",
+  "fieldsListView_amenityCafeteria": "Cafeteria",
+  "fieldsListView_amenityFloodlights": "Floodlights",
+  "fieldsListView_amenityRecording": "Recording",
+  "fieldsListView_noFieldsFound": "No Fields Found",
+  "fieldsListView_noFieldsFoundSubtitle": "Try adjusting your filters or location to find available fields in your area.",
+  "fieldsListView_refresh": "Refresh",
+
+  "bookingDetails_playerLimitReachedSomeAdded": "Player limit reached. Only {availableSlots} friends were added.",
+  "@bookingDetails_playerLimitReachedSomeAdded": {
+    "placeholders": {"availableSlots": {"type": "int"}}
+  },
+  "bookingDetails_playerLimitReachedNoneAdded": "Player limit of {maxPlayers} already reached. Cannot add more players.",
+  "@bookingDetails_playerLimitReachedNoneAdded": {
+    "placeholders": {"maxPlayers": {"type": "int"}}
+  },
+  "bookingDetails_matchSettings": "Match Settings",
+  "bookingDetails_matchSettingsSubtitle": "Configure your match preferences",
+  "bookingDetails_privateMatch": "Private Match",
+  "bookingDetails_privateMatchSubtitlePrivate": "Players cannot request to join. Private game",
+  "bookingDetails_privateMatchSubtitleOpen": "Other players can request to join your match",
+  "bookingDetails_limitMaxPlayers": "Limit Max Players",
+  "bookingDetails_limitMaxPlayersSubtitleLimit": "Set a maximum number of players",
+  "bookingDetails_limitMaxPlayersSubtitleNoLimit": "Allow any number of players to join",
+  "bookingDetails_cannotDecreaseMaxPlayersTitle": "Cannot Decrease Max Players",
+  "bookingDetails_cannotDecreaseMaxPlayersMessage": "Please remove some players to decrease the Max Player number.",
+  "bookingDetails_ok": "OK",
+  "bookingDetails_cameraRecording": "Camera Recording",
+  "bookingDetails_recordingEnabledPrice": "Recording enabled (+{price} EGP)",
+  "@bookingDetails_recordingEnabledPrice": {
+    "placeholders": {"price": {"type": "int"}}
+  },
+  "bookingDetails_enableRecordingPrice": "Enable camera recording of your match (+{price} EGP)",
+  "@bookingDetails_enableRecordingPrice": {
+    "placeholders": {"price": {"type": "int"}}
+  },
+  "bookingDetails_inviteFriendsSubtitle": "Invite friends to join your match",
+  "bookingDetails_playerCountFraction": "{current} / {max} Players",
+  "@bookingDetails_playerCountFraction": {
+    "placeholders": {
+      "current": {"type": "int"},
+      "max": {"type": "int"}
+    }
+  },
+  "bookingDetails_playerCountAbsolute": "{current} Players",
+  "@bookingDetails_playerCountAbsolute": {
+    "placeholders": {"current": {"type": "int"}}
+  },
+  "bookingDetails_invitePlayers": "Invite Players",
+  "bookingDetails_playersInvitedCount": "{count} Players Invited",
+  "@bookingDetails_playersInvitedCount": {
+    "placeholders": {"count": {"type": "int"}}
+  },
+  "bookingDetails_tapToInviteFriends": "Tap to invite friends to your match",
+  "bookingDetails_bringGuests": "Bring Guests",
+  "bookingDetails_addPlayersWithoutAccount": "Add players without an account",
+  "bookingDetails_matchDescription": "Match Description",
+  "bookingDetails_matchDescriptionSubtitle": "Add information for players about your match",
+  "bookingDetails_matchDescriptionHint": "Example: Friendly match, all skill levels welcome! Bring both light and dark jerseys.",
+  "bookingDetails_totalAmount": "Total Amount",
+  "bookingDetails_priceEgp": "{price} EGP",
+  "@bookingDetails_priceEgp": {
+    "placeholders": {"price": {"type": "int"}}
+  },
+  "bookingDetails_continue": "Continue",
+  "bookingDetails_matchType": "Match Type",
+  "bookingDetails_matchTypePrivate": "Private",
+  "bookingDetails_matchTypePrivateSubtitle": "Only invited players",
+  "bookingDetails_matchTypeOpen": "Open",
+  "bookingDetails_matchTypeOpenSubtitle": "Anyone can join",
+  "bookingDetails_durationInMinutes": "{duration} min",
+  "@bookingDetails_durationInMinutes": {
+    "placeholders": {"duration": {"type": "int"}}
+  },
+  "bookingDetails_durationHoursOnly": "{hours}h",
+  "@bookingDetails_durationHoursOnly": {
+    "placeholders": {"hours": {"type": "int"}}
+  },
+  "bookingDetails_durationHoursAndMinutes": "{hours}h {minutes}m",
+  "@bookingDetails_durationHoursAndMinutes": {
+    "placeholders": {
+      "hours": {"type": "int"},
+      "minutes": {"type": "int"}
+    }
+  },
+
+  "paymob_paymentTitle": "Payment",
+
+  "paymentScreen_checkoutTitle": "Checkout",
+  "paymentScreen_bookingSummaryTitle": "Booking Summary",
+  "paymentScreen_fieldLabel": "Field",
+  "paymentScreen_locationLabel": "Location",
+  "paymentScreen_dateLabel": "Date",
+  "paymentScreen_timeLabel": "Time",
+  "paymentScreen_playersLabel": "Players",
+  "paymentScreen_playersCount": "{count} players",
+  "@paymentScreen_playersCount": {
+    "placeholders": {"count": {"type": "int"}}
+  },
+  "paymentScreen_cameraRecordingLabel": "Camera Recording",
+  "paymentScreen_cameraRecordingEnabledPrice": "Enabled (+{price} EGP)",
+  "@paymentScreen_cameraRecordingEnabledPrice": {
+    "placeholders": {"price": {"type": "int"}}
+  },
+  "paymentScreen_fieldRentalLabel": "Field Rental",
+  "paymentScreen_priceEGP": "{price} EGP",
+  "@paymentScreen_priceEGP": {
+    "placeholders": {"price": {"type": "dynamic"}}
+  },
+  "paymentScreen_totalPriceLabel": "Total Price",
+  "paymentScreen_paymentMethodSectionTitle": "Payment Method",
+  "paymentScreen_paymentMethodSectionSubtitle": "Select your preferred payment method",
+  "paymentScreen_creditCardOption": "Credit Card",
+  "paymentScreen_creditCardSubtitle": "Pay with your credit or debit card",
+  "paymentScreen_cashOption": "Cash",
+  "paymentScreen_cashSubtitle": "Pay cash at the field",
+  "paymentScreen_mobileWalletOption": "Mobile Wallet",
+  "paymentScreen_mobileWalletSubtitle": "Pay with your mobile wallet",
+  "paymentScreen_payNowButton": "Pay Now",
+  "paymentScreen_failedToCreateBooking": "Failed to create booking: {e}",
+  "@paymentScreen_failedToCreateBooking": {
+    "placeholders": {"e": {"type": "String"}}
+  },
+  "paymentScreen_selectMobileWalletTitle": "Select Mobile Wallet",
+  "paymentScreen_selectMobileWalletSubtitle": "Choose your preferred payment wallet",
+  "paymentScreen_vodafoneCash": "Vodafone Cash",
+  "paymentScreen_etisalatCash": "Etisalat Cash",
+  "paymentScreen_orangeCash": "Orange Cash",
+  "paymentScreen_otherWallets": "Other Wallets",
+
+  "playerDetails_friendRequestSent": "Friend request sent to {name}",
+  "@playerDetails_friendRequestSent": {
+    "placeholders": {"name": {"type": "String"}}
+  },
+  "playerDetails_errorSendingFriendRequest": "Error sending friend request: {e}",
+  "@playerDetails_errorSendingFriendRequest": {
+    "placeholders": {"e": {"type": "String"}}
+  },
+  "playerDetails_removeFriendTitle": "Remove Friend",
+  "playerDetails_removeFriendConfirmation": "Are you sure you want to remove {name} from your friends list?",
+  "@playerDetails_removeFriendConfirmation": {
+    "placeholders": {"name": {"type": "String"}}
+  },
+  "playerDetails_removeButton": "Remove",
+  "playerDetails_friendRemovedSnackbar": "{name} removed from Friends",
+  "@playerDetails_friendRemovedSnackbar": {
+    "placeholders": {"name": {"type": "String"}}
+  },
+  "playerDetails_errorRemovingFriend": "Error removing friend: {e}",
+  "@playerDetails_errorRemovingFriend": {
+    "placeholders": {"e": {"type": "String"}}
+  },
+  "playerDetails_friendsButton": "Friends",
+  "playerDetails_requestPendingButton": "Request Pending",
+  "playerDetails_addFriendButton": "Add Friend",
+  "playerDetails_playerIDLabel": "ID: {id}",
+  "@playerDetails_playerIDLabel": {
+    "placeholders": {"id": {"type": "String"}}
+  },
+  "playerDetails_statMatches": "Matches",
+  "playerDetails_statFriends": "Friends",
+  "playerDetails_statSquads": "Squads",
+  "playerDetails_playerInfoSectionTitle": "Player Info",
+  "playerDetails_nationalityLabel": "Nationality",
+  "playerDetails_notSet": "Not set",
+  "playerDetails_positionLabel": "Position",
+  "playerDetails_ageLabel": "Age",
+  "playerDetails_ageValue": "{age} years",
+  "@playerDetails_ageValue": {
+    "placeholders": {"age": {"type": "String"}}
+  },
+  "playerDetails_skillLevelLabel": "Skill Level",
+  "playerDetails_memberSinceLabel": "Member Since",
+  "playerDetails_errorParsingJoinedDate": "Error parsing joined date: {e}",
+  "@playerDetails_errorParsingJoinedDate": {
+    "placeholders": {"e": {"type": "String"}}
+  },
+  "playerDetails_addFriendDialogTitle": "Add Friend",
+  "playerDetails_addFriendDialogContent": "Do you want to add {name} as a friend?",
+  "@playerDetails_addFriendDialogContent": {
+    "placeholders": {"name": {"type": "String"}}
+  },
+  "playerDetails_addButton": "Add",
+  "playerDetails_joinSquadDialogTitle": "Join Squad",
+  "playerDetails_joinSquadDialogContent": "Do you want to ask to join the squad {squadName}?",
+  "@playerDetails_joinSquadDialogContent": {
+    "placeholders": {"squadName": {"type": "String"}}
+  },
+  "playerDetails_requestToJoinButton": "Request to Join",
+  "playerDetails_requestSentToJoinSquadSnackbar": "Request sent to join {squadName}",
+  "@playerDetails_requestSentToJoinSquadSnackbar": {
+    "placeholders": {"squadName": {"type": "String"}}
+  },
+
+  "mainScreen_navMatches": "Matches",
+  "mainScreen_navBook": "Book",
+  "mainScreen_navSquads": "Squads",
+  "mainScreen_navProfile": "Profile",
+  "mainScreen_errorGettingLocation": "Error getting location: {e}",
+  "@mainScreen_errorGettingLocation": {
+    "placeholders": {"e": {"type": "String"}}
+  },
+
+  "joinBookings_joinOpenMatchesTitle": "Join Open Matches",
+  "joinBookings_failedToLoadOpenMatches": "Failed to load open matches",
+  "joinBookings_filterMatchesTitle": "Filter Matches",
+  "joinBookings_locationLabel": "Location",
+  "joinBookings_resetButton": "Reset",
+  "joinBookings_applyButton": "Apply",
+  "joinBookings_noOpenMatchesTitle": "No Open Matches",
+  "joinBookings_noOpenMatchesSubtitle": "There are no open matches available for this date. Try another date or create your own booking.",
+  "joinBookings_bookAFieldButton": "Book a Field",
+  "joinBookings_durationInMinutes": "{duration} mins",
+  "@joinBookings_durationInMinutes": {
+    "placeholders": {"duration": {"type": "int"}}
+  },
+  "joinBookings_hostLabel": "Host",
+  "joinBookings_loadingHost": "Loading...",
+  "joinBookings_spotsLeft": "{spotsLeft} Spot(s) Left",
+  "@joinBookings_spotsLeft": {
+    "placeholders": {"spotsLeft": {"type": "int"}}
+  },
+  "joinBookings_matchFull": "Match Full",
+  "joinBookings_playersLabel": "Players",
+  "joinBookings_errorFetchingHostInfo": "Error fetching host info for booking card: {e}",
+  "@joinBookings_errorFetchingHostInfo": {
+    "placeholders": {"e": {"type": "String"}}
+  },
+  "joinBookings_successfullyJoinedMatch": "Successfully joined the match!",
+  "joinBookings_failedToJoinMatch": "Failed to join match. Please try again.",
+
+  "chooseYourPositionTitle": "Choose Your Position",
+  "chooseYourPositionSubtitle": "Select the position that best matches your playing style",
+  "positionGoalkeeperTitle": "Goalkeeper (GK)",
+  "positionGoalkeeperDescription": "Shot-stopper and play initiator.",
+  "positionLastManDefenderTitle": "Last Man Defender",
+  "positionLastManDefenderDescription": "Defensive backbone of the team.",
+  "positionWingerTitle": "Winger",
+  "positionWingerDescription": "Fast player focused on creating chances.",
+  "positionStrikerTitle": "Striker",
+  "positionStrikerDescription": "Forward focused on scoring goals.",
+  "positionAllRounderTitle": "All Rounder",
+  "positionAllRounderDescription": "Versatile player for multiple positions.",
+
+  "selectYourLevelTitle": "Select Your Level",
+  "selectYourLevelSubtitle": "Choose the level that best matches your football skills",
+  "levelExpertLockReason": "Play {gamesPlayed}/10 matches to unlock",
+  "@levelExpertLockReason": {
+    "placeholders": {
+      "gamesPlayed": {
+        "type": "int",
+        "example": "5"
+      }
+    }
+  },
+  "levelUnlockedBadge": "Unlocked!",
+  "levelLockedBadge": "Locked",
+  "levelAlmostUnlockedBadge": "Almost",
+
+  "yourPlayingStyleTitle": "Your Playing Style",
+  "tellUsAboutYourGameTitle": "Tell us about your game",
+  "tellUsAboutYourGameSubtitle": "This helps us match you with the right players and fields",
+  "preferredPositionSectionTitle": "PREFERRED POSITION",
+  "selectYourPositionPlaceholder": "Select your position",
+  "yourLevelSectionTitle": "YOUR LEVEL",
+  "selectYourLevelPlaceholder": "Select your level",
+  "selectedPositionCardLabel": "Position",
+  "selectedLevelCardLabel": "Skill Level",
+  "errorUpdatingProfileSnackbar": "Error updating profile: {error}",
+  "@errorUpdatingProfileSnackbar": {
+    "placeholders": {
+      "error": {"type": "String"}
+    }
+  },
+
+  "partner_loginTitle": "Partner Login",
+  "partner_loginSubtitle": "Sign in to manage your field",
+  "partner_emailLabel": "Email",
+  "partner_emailHint": "Enter your email",
+  "partner_passwordLabel": "Password",
+  "partner_passwordHint": "Enter your password",
+  "partner_signInButton": "Sign In",
+  "partner_signingIn": "Signing in...",
+  "partner_selectLanguage": "Select Language",
+  
+  "partner_bookingsTab": "Bookings",
+  "partner_revenueTab": "Revenue",
+  
+  "partner_bookings_title": "Bookings",
+  "partner_bookings_dateFormat": "EEE, MMM d, yyyy",
+  "partner_bookings_noTimeslotsConfigured": "No timeslots configured",
+  "partner_bookings_available": "Available - Tap to book",
+  "partner_bookings_userBooking": "User Booking",
+  "partner_bookings_partnerBooking": "Partner Booking",
+  "partner_bookings_price": "EGP",
+  "partner_bookings_egp": "EGP",
+  "partner_bookings_weekly": "WEEKLY",
+  "partner_bookings_daily": "DAILY",
+  
+  "partner_bookingDetails_title": "Booking Details",
+  "partner_bookingDetails_host": "Host",
+  "partner_bookingDetails_phone": "Phone",
+  "partner_bookingDetails_price": "Price",
+  "partner_bookingDetails_recurring": "Recurring",
+  "partner_bookingDetails_notes": "Notes",
+  
+  "partner_createBooking_title": "Create Booking",
+  "partner_createBooking_timeAndPrice": "{time} • EGP {price}",
+  "@partner_createBooking_timeAndPrice": {
+    "placeholders": {
+      "time": {"type": "String"},
+      "price": {"type": "int"}
+    }
+  },
+  "partner_createBooking_customerName": "Customer Name *",
+  "partner_createBooking_customerNameHint": "Enter customer name",
+  "partner_createBooking_phoneNumber": "Phone Number *",
+  "partner_createBooking_phoneNumberHint": "Enter phone number",
+  "partner_createBooking_notes": "Notes (Optional)",
+  "partner_createBooking_notesOptional": "Notes (Optional)",
+  "partner_createBooking_notesHint": "Any additional notes",
+  "partner_createBooking_makeRecurring": "Make this a recurring booking",
+  "partner_createBooking_repeat": "Repeat",
+  "partner_createBooking_daily": "Daily",
+  "partner_createBooking_weekly": "Weekly",
+  "partner_createBooking_endDate": "End Date (Optional)",
+  "partner_createBooking_endDateOptional": "End Date (Optional)",
+  "partner_createBooking_selectEndDate": "Select end date (continues indefinitely)",
+  "partner_createBooking_endDateHint": "Select end date (continues indefinitely)",
+  "partner_createBooking_endDateSelected": "MMM d, yyyy",
+  "partner_createBooking_cancelButton": "Cancel",
+  "partner_createBooking_create": "Create Booking",
+  "partner_createBooking_createButton": "Create Booking",
+  "partner_createBooking_fillRequired": "Please fill in all required fields",
+  "partner_createBooking_createdSuccess": "Booking created successfully!",
+  "partner_createBooking_createdSuccessRecurring": "Recurring booking created successfully!",
+  "partner_createBooking_error": "Error creating booking: {error}",
+  "@partner_createBooking_error": {
+    "placeholders": {
+      "error": {"type": "String"}
+    }
+  },
+  
+  "partner_revenue_title": "Revenue",
+  "partner_revenue_settings": "Settings",
+  "partner_revenue_language": "Language",
+  
+  "partner_signOut": "Sign Out",
+  "partner_signOutConfirm": "Are you sure you want to sign out?",
+  "partner_cancel": "Cancel"
+}

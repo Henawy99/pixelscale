@@ -1,0 +1,119 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Helper function to check if user is squad captain
+    function isSquadCaptain(squadId) {
+      let squad = get(/databases/$(database)/documents/PlaymakerSquads/$(squadId));
+      return squad != null && request.auth.uid == squad.data.captain;
+    }
+    
+    function isFieldManagerForField(fieldId) {
+      return exists(/databases/$(database)/documents/fieldManagers/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/fieldManagers/$(request.auth.uid)).data.fieldIds.hasAny([fieldId]);
+    }
+
+    // Helper function to check if the request is from the service account
+    function isServiceAccount() {
+      return request.auth == null && request.serviceAccount != null;
+    }
+
+    // Helper function to check if user is host or confirmed player in a booking
+    function isBookingParticipant(bookingId) {
+      let booking = get(/databases/$(database)/documents/Bookings/$(bookingId));
+      return booking != null && request.auth != null &&
+             (booking.data.host == request.auth.uid ||
+              (booking.data.confirmedPlayerIds != null && request.auth.uid in booking.data.confirmedPlayerIds) ||
+              (booking.data.invitePlayers != null && request.auth.uid in booking.data.invitePlayers)
+             );
+    }
+
+    // Match any document in the 'PlayerProfiles' collection
+    match /PlayerProfiles/{profile} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() && (
+        request.auth.uid == profile ||
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['bookings', 'teamsJoined', 'friends', 'openFriendRequests'])
+      );
+      allow delete: if isAuthenticated() && request.auth.uid == profile;
+    }
+
+    // Match any document in the 'PlaymakerSquads' collection
+    match /PlaymakerSquads/{squad} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() && (
+        isSquadCaptain(squad) || 
+        (request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['pendingRequests', 'squadMembers']))
+      );
+      allow delete: if isAuthenticated() && request.auth.uid == resource.data.captain;
+    }
+
+    // Match any document in the 'FootballFields' collection
+    match /FootballFields/{field} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    // CONSOLIDATED Bookings collection rule (combines both previous rules)
+    match /Bookings/{booking} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      
+      allow update: if isAuthenticated() && (
+        request.auth.uid == resource.data.userId || // User who made the booking can update
+        request.auth.uid == resource.data.host || // Host can update
+        (isFieldManagerForField(resource.data.footballFieldId) &&  // Field manager can update specific fields
+         request.resource.data.diff(resource.data).affectedKeys()
+           .hasAny(['isOpenMatch', 'excludedDates', 'telephoneNumber', 'userId', 'recurringExceptions'])) ||
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['openJoiningRequests', 'invitePlayers']) // Allow updates to join requests and invite players
+      );
+
+      allow delete: if isAuthenticated() && (
+        request.auth.uid == resource.data.userId || // User who made the booking can delete
+        request.auth.uid == resource.data.host || // Host can delete
+        isFieldManagerForField(resource.data.footballFieldId) // Field manager can delete any booking on their field
+      );
+
+      // Allow the service account to read and write without authentication
+      allow read, write: if isServiceAccount();
+
+      // CHAT MESSAGES SUBCOLLECTION - Temporarily simplified read for debugging
+      match /ChatMessages/{messageId} {
+        allow read: if isAuthenticated(); // Temporarily allow any authenticated user to read
+        allow create: if isAuthenticated() && isBookingParticipant(booking);
+        // Allow users to update/delete their own messages
+        allow update, delete: if isAuthenticated() && resource.data.senderId == request.auth.uid;
+      }
+    }
+
+    // Match any document in the 'fieldManagers' collection
+    match /fieldManagers/{manager} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    // Match any document in the 'recordings' collection
+    match /recordings/{recordingId} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    // Match any subcollections of squads (e.g., for messages, events)
+    match /PlaymakerSquads/{squad}/{document=**} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && (
+        isSquadCaptain(squad) ||
+        resource == null
+      );
+    }
+  }
+} 

@@ -1,0 +1,26 @@
+# ============================================
+# Restaurant Admin - iOS Fastlane Configuration
+# ============================================
+#
+# SETUP INSTRUCTIONS:
+# 1. Replace YOUR_TEAM_ID with your Apple Team ID
+#    (Find it at: https://developer.apple.com/account → Membership → Team ID)
+#
+# 2. Replace YOUR_KEY_ID with your App Store Connect API Key ID
+#    (Find it at: App Store Connect → Users and Access → Integrations → App Store Connect API)
+#
+# 3. Replace YOUR_ISSUER_ID with your App Store Connect Issuer ID
+#    (Same page as Key ID)
+#
+# 4. Download your .p8 key file and place it at:
+#    ~/.appstoreconnect/private_keys/AuthKey_YOUR_KEY_ID.p8
+#
+# ============================================
+
+app_identifier("com.mycoolrestaurant.adminapp")  # iOS Bundle ID
+apple_id("")                                      # Your Apple ID email (optional with API key auth)
+team_id("G67XQ5S4QU")                              # Apple Developer Team ID
+
+# App Store Connect API Key Authentication
+# This is more reliable than password-based auth
+# and doesn't require 2FA interaction

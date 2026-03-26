@@ -1,0 +1,17 @@
+# ============================================
+# Restaurant Admin - Android Fastlane Configuration
+# ============================================
+#
+# SETUP INSTRUCTIONS:
+# 1. Go to Google Play Console → Setup → API access
+# 2. Create a service account (or link existing one)
+# 3. Download the JSON key file
+# 4. Place it at: ~/.play-store/play-store-credentials.json
+# 5. Grant the service account these permissions in Play Console:
+#    - "Release to production"
+#    - "Manage testing tracks and edit tester lists"
+#
+# ============================================
+
+json_key_file("~/.play-store/play-store-credentials.json")  # Path to service account JSON
+package_name("com.example.restaurantadmin")                   # Android Package Name

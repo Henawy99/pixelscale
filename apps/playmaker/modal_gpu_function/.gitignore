@@ -1,0 +1,23 @@
+# Modal
+.modal/
+__pycache__/
+*.pyc
+
+# Virtual environments
+venv/
+env/
+
+# Test videos
+*.mp4
+*.mov
+*.avi
+
+# Logs
+*.log
+
+
+
+
+
+
+

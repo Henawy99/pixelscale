@@ -1,0 +1,227 @@
+# Playmaker iOS Fastlane Configuration
+# =====================================
+# Automated build and upload to TestFlight
+#
+# Usage:
+#   bundle exec fastlane ios upload_user        # Upload USER app to TestFlight
+#   bundle exec fastlane ios upload_management  # Upload MANAGEMENT app to TestFlight
+
+default_platform(:ios)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# API KEY CONFIGURATION
+# ═══════════════════════════════════════════════════════════════════════════════
+
+API_KEY_ID = "2GTNSM4DX2"
+API_KEY_ISSUER_ID = "dc9a069b-00fc-45f8-be31-84e435ea4d07"
+API_KEY_PATH = File.expand_path("~/.appstoreconnect/private_keys/AuthKey_2GTNSM4DX2.p8")
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# iOS PLATFORM
+# ═══════════════════════════════════════════════════════════════════════════════
+
+platform :ios do
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Setup API Key for all lanes
+  # ─────────────────────────────────────────────────────────────────────────────
+  
+  before_all do
+    # Configure API key for App Store Connect
+    app_store_connect_api_key(
+      key_id: API_KEY_ID,
+      issuer_id: API_KEY_ISSUER_ID,
+      key_filepath: API_KEY_PATH,
+      in_house: false
+    )
+  end
+
+  # ═══════════════════════════════════════════════════════════════════════════════
+  # USER APP
+  # ═══════════════════════════════════════════════════════════════════════════════
+  
+  desc "Upload USER app to TestFlight"
+  lane :upload_user do
+    UI.header "Uploading Playmaker USER App to TestFlight"
+    
+    archive_and_upload(
+      app_identifier: "com.playmaker.start",
+      app_name: "Playmaker"
+    )
+  end
+
+  # ═══════════════════════════════════════════════════════════════════════════════
+  # MANAGEMENT APP (Admin + Partner Combined)
+  # ═══════════════════════════════════════════════════════════════════════════════
+  
+  desc "Upload MANAGEMENT app to TestFlight"
+  lane :upload_management do |options|
+    UI.header "Uploading Playmaker MANAGEMENT App to TestFlight"
+    
+    archive_and_upload(
+      app_identifier: "com.playmaker.admin",
+      app_name: "PM Management",
+      archive_path: options[:archive_path]
+    )
+  end
+
+  # ═══════════════════════════════════════════════════════════════════════════════
+  # PROMO APP
+  # ═══════════════════════════════════════════════════════════════════════════════
+  
+  desc "Upload PROMO app to TestFlight"
+  lane :upload_promo do
+    UI.header "Uploading Playmaker PROMO App to TestFlight"
+    
+    # Promo app workspace is in subdirectory
+    archive_and_upload(
+      app_identifier: "com.playmaker.promo",
+      app_name: "Playmaker Promo",
+      workspace: "promoapp/ios/Runner.xcworkspace"
+    )
+  end
+
+  # ═══════════════════════════════════════════════════════════════════════════════
+  # LEGACY LANES (for backward compatibility)
+  # ═══════════════════════════════════════════════════════════════════════════════
+  
+  desc "[LEGACY] Use upload_management instead"
+  lane :upload_admin do
+    upload_management
+  end
+  
+  desc "[LEGACY] Use upload_management instead"
+  lane :upload_partner do
+    upload_management
+  end
+
+  # Aliases without upload_ prefix
+  lane :user do
+    upload_user
+  end
+  
+  lane :management do
+    upload_management
+  end
+  
+  lane :admin do
+    upload_management
+  end
+  
+  lane :partner do
+    upload_management
+  end
+  
+  lane :promo do
+    upload_promo
+  end
+
+  # ═══════════════════════════════════════════════════════════════════════════════
+  # HELPER METHODS
+  # ═══════════════════════════════════════════════════════════════════════════════
+  
+  private_lane :archive_and_upload do |options|
+    app_identifier = options[:app_identifier]
+    app_name = options[:app_name]
+    workspace = options[:workspace] || "ios/Runner.xcworkspace"
+    archive_path = options[:archive_path]  # optional: reuse existing archive
+    
+    # Ensure we're in project root
+    project_root = File.expand_path("..", Dir.pwd)
+    workspace_path = File.join(project_root, workspace)
+    
+    UI.message "App: #{app_name}"
+    UI.message "Bundle ID: #{app_identifier}"
+    UI.message "Workspace: #{workspace_path}"
+    
+    if archive_path
+      UI.message "Reusing existing archive: #{archive_path}"
+      
+      # Export IPA from the existing archive
+      gym(
+        workspace: workspace_path,
+        scheme: "Runner",
+        export_method: "app-store",
+        output_directory: File.join(project_root, "build/ios"),
+        output_name: "#{app_name.gsub(' ', '-')}.ipa",
+        skip_build_archive: true,
+        archive_path: archive_path,
+        include_bitcode: false,
+        export_xcargs: "-allowProvisioningUpdates",
+        export_options: {
+          signingStyle: "automatic",
+          teamID: "G67XQ5S4QU",
+          uploadBitcode: false,
+          uploadSymbols: true,
+          compileBitcode: false
+        }
+      )
+    else
+      # Archive from scratch
+      UI.message "Creating IPA archive from scratch..."
+      
+      gym(
+        workspace: workspace_path,
+        scheme: "Runner",
+        export_method: "app-store",
+        output_directory: File.join(project_root, "build/ios"),
+        output_name: "#{app_name.gsub(' ', '-')}.ipa",
+        clean: false,
+        skip_build_archive: false,
+        include_bitcode: false,
+        export_xcargs: "-allowProvisioningUpdates",
+        export_options: {
+          signingStyle: "automatic",
+          uploadBitcode: false,
+          uploadSymbols: true,
+          compileBitcode: false
+        }
+      )
+    end
+    
+    # Get the IPA path
+    ipa_path = lane_context[SharedValues::IPA_OUTPUT_PATH]
+    
+    UI.message "IPA created: #{ipa_path}"
+    UI.message "Uploading to TestFlight..."
+    
+    # Upload to TestFlight
+    upload_to_testflight(
+      ipa: ipa_path,
+      skip_waiting_for_build_processing: true,
+      skip_submission: true,
+      distribute_external: false,
+      notify_external_testers: false
+    )
+    
+    UI.success "#{app_name} uploaded to TestFlight!"
+    UI.message "Check App Store Connect in 5-10 minutes for processing."
+  end
+
+  # ═══════════════════════════════════════════════════════════════════════════════
+  # ERROR HANDLING
+  # ═══════════════════════════════════════════════════════════════════════════════
+  
+  error do |lane, exception|
+    UI.error "Lane #{lane} failed!"
+    UI.error exception.message
+    
+    if exception.message.include?("API") || exception.message.include?("key")
+      UI.important ""
+      UI.important "Check your API key configuration:"
+      UI.important "  Key ID: #{API_KEY_ID}"
+      UI.important "  Key file: #{API_KEY_PATH}"
+      UI.important "  File exists: #{File.exist?(API_KEY_PATH)}"
+    end
+    
+    if exception.message.include?("provisioning") || exception.message.include?("signing")
+      UI.important ""
+      UI.important "Signing issue - check Xcode:"
+      UI.important "  1. Open ios/Runner.xcworkspace"
+      UI.important "  2. Select Runner target"
+      UI.important "  3. Signing & Capabilities"
+      UI.important "  4. Ensure 'Automatically manage signing' is checked"
+    end
+  end
+  
+end

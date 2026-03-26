@@ -1,0 +1,127 @@
+plugins {
+    id "com.android.application"
+    id "org.jetbrains.kotlin.android"
+    id "dev.flutter.flutter-gradle-plugin"
+}
+
+def localProperties = new Properties()
+def localPropertiesFile = rootProject.file('local.properties')
+if (localPropertiesFile.exists()) {
+    localPropertiesFile.withReader('UTF-8') { reader ->
+        localProperties.load(reader)
+    }
+}
+
+def flutterRoot = localProperties.getProperty('flutter.sdk')
+if (flutterRoot == null) {
+}
+
+def flutterVersionCode = localProperties.getProperty('flutter.versionCode')
+if (flutterVersionCode == null) {
+    flutterVersionCode = '1'
+}
+
+def flutterVersionName = localProperties.getProperty('flutter.versionName')
+if (flutterVersionName == null) {
+    flutterVersionName = '1.0'
+}
+
+def keystoreProperties = new Properties()
+def keystorePropertiesFile = rootProject.file('key.properties')
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+}
+
+android {
+    namespace "com.playmakercairo.app"
+    compileSdk 36
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+        coreLibraryDesugaringEnabled true
+    }
+
+    kotlinOptions {
+        jvmTarget = '17'
+    }
+    
+    // Enable data binding for Paymob SDK
+    buildFeatures {
+        dataBinding = true
+    }
+
+    sourceSets {
+        main.java.srcDirs += 'src/main/kotlin'
+    }
+
+    defaultConfig {
+        applicationId "com.playmakercairo.app"
+        minSdk 24
+        targetSdk 35
+        versionCode flutterVersionCode.toInteger()
+        versionName flutterVersionName
+        resValue "string", "server_client_id", "116429864847-jqg1jk1268rlsh2p6uk0e116fqv3fd6o.apps.googleusercontent.com"
+    }
+
+    flavorDimensions "app"
+    productFlavors {
+        user {
+            dimension "app"
+            applicationId "com.playmakercairo.app"
+            resValue "string", "app_name", "Playmaker"
+            // Uses version from pubspec.yaml (flutterVersionCode/flutterVersionName)
+        }
+        admin {
+            dimension "app"
+            applicationId "com.playmakercairo.admin"
+            resValue "string", "app_name", "PM Admin"
+            // Uses version from pubspec.yaml (flutterVersionCode/flutterVersionName)
+        }
+        partner {
+            dimension "app"
+            applicationId "com.playmakeradmincairo.app"
+            resValue "string", "app_name", "PM Partner"
+            // Uses version from pubspec.yaml (flutterVersionCode/flutterVersionName)
+        }
+        management {
+            dimension "app"
+            applicationId "com.playmakercairo.admin"
+            resValue "string", "app_name", "Playmaker Management"
+        }
+    }
+
+    signingConfigs {
+        if (keystoreProperties.containsKey('storeFile')) {
+            release {
+                keyAlias keystoreProperties['keyAlias']
+                keyPassword keystoreProperties['keyPassword']
+                storeFile file(keystoreProperties['storeFile'])
+                storePassword keystoreProperties['storePassword']
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            signingConfig keystoreProperties.containsKey('storeFile') ? signingConfigs.release : null
+        }
+    }
+}
+
+flutter {
+    source '../..'
+}
+
+dependencies {
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
+    implementation 'com.google.firebase:firebase-appcheck-playintegrity:16.0.0'
+    implementation 'com.facebook.android:facebook-android-sdk:latest.release'
+    implementation 'com.google.android.play:integrity:1.1.0'
+    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.0.4'
+    
+    // Paymob Native SDK v1.8.0
+    implementation("com.paymob.sdk:Paymob-SDK:1.8.0")
+}
+
+apply plugin: 'com.google.gms.google-services'

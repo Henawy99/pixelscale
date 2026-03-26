@@ -1,0 +1,272 @@
+# Playmaker Android Fastlane Configuration
+# =========================================
+# Automated build and upload to Google Play Console
+#
+# Usage:
+#   bundle exec fastlane user              # Build + Upload USER app
+#   bundle exec fastlane management        # Build + Upload MANAGEMENT app
+#   bundle exec fastlane promo             # Build PROMO app (APK, no upload)
+#   bundle exec fastlane upload_user       # Upload only (skip build)
+
+default_platform(:android)
+
+# Service account JSON path (relative to android/ directory)
+SERVICE_ACCOUNT_JSON = "playmaker-play-console-service-account.json"
+
+platform :android do
+
+  # ═══════════════════════════════════════════════════════════════════════════════
+  # USER APP (com.playmakercairo.app)
+  # ═══════════════════════════════════════════════════════════════════════════════
+  
+  desc "Build and upload USER app to Google Play Console (Internal Testing)"
+  lane :user do
+    UI.header "Building Playmaker USER App for Play Store"
+    
+    build_and_upload(
+      flavor: "user",
+      entry_point: "lib/main.dart",
+      package_name: "com.playmakercairo.app",
+      icon_config: "flutter_launcher_icons_user.yaml",
+      app_name: "Playmaker"
+    )
+  end
+  
+  desc "Upload existing USER app AAB to Play Console (skip build)"
+  lane :upload_user do
+    aab_path = File.expand_path("../../build/app/outputs/bundle/userRelease/app-user-release.aab")
+    
+    UI.header "Uploading Playmaker USER App"
+    UI.message "AAB path: #{aab_path}"
+    
+    unless File.exist?(aab_path)
+      UI.user_error!("AAB not found at: #{aab_path}\nPlease build first.")
+    end
+    
+    UI.message "File size: #{File.size(aab_path) / 1024 / 1024} MB"
+    
+    upload_to_play_store(
+      track: 'internal',
+      aab: aab_path,
+      json_key: SERVICE_ACCOUNT_JSON,
+      package_name: 'com.playmakercairo.app',
+      skip_upload_metadata: true,
+      skip_upload_changelogs: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true,
+      release_status: 'completed',
+      timeout: 1200
+    )
+    
+    UI.success "USER app uploaded to Play Console (Internal Testing)!"
+  end
+
+  # ═══════════════════════════════════════════════════════════════════════════════
+  # MANAGEMENT APP (Admin + Partner Combined)
+  # ═══════════════════════════════════════════════════════════════════════════════
+  
+  desc "Build and upload MANAGEMENT app to Google Play Console (Internal Testing)"
+  lane :management do
+    UI.header "Building Playmaker MANAGEMENT App for Play Store"
+    
+    build_and_upload(
+      flavor: "admin",
+      entry_point: "lib/main_management.dart",
+      package_name: "com.playmakercairo.admin",
+      icon_config: "flutter_launcher_icons_admin.yaml",
+      app_name: "Playmaker Management"
+    )
+  end
+  
+  desc "Upload existing MANAGEMENT app AAB to Play Console (skip build)"
+  lane :upload_management do
+    aab_path = File.expand_path("../../build/app/outputs/bundle/adminRelease/app-admin-release.aab")
+    
+    UI.header "Uploading Playmaker MANAGEMENT App"
+    UI.message "AAB path: #{aab_path}"
+    
+    unless File.exist?(aab_path)
+      UI.user_error!("AAB not found at: #{aab_path}\nPlease build first.")
+    end
+    
+    upload_to_play_store(
+      track: 'internal',
+      aab: aab_path,
+      json_key: SERVICE_ACCOUNT_JSON,
+      package_name: 'com.playmakercairo.admin',
+      skip_upload_metadata: true,
+      skip_upload_changelogs: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true,
+      release_status: 'completed',
+      timeout: 1200
+    )
+    
+    UI.success "MANAGEMENT app uploaded to Play Console (Internal Testing)!"
+  end
+
+  # ═══════════════════════════════════════════════════════════════════════════════
+  # PROMO APP (APK for TV boxes - no Play Store upload)
+  # ═══════════════════════════════════════════════════════════════════════════════
+  
+  desc "Build PROMO app APK (for Xiaomi Stick/Fire TV - no upload)"
+  lane :promo do
+    UI.header "Building Playmaker PROMO App (APK)"
+    
+    Dir.chdir("../promoapp") do
+      UI.message "Building from promoapp directory..."
+      sh("flutter clean && flutter pub get")
+      sh("flutter build apk --release")
+    end
+    
+    apk_path = "../promoapp/build/app/outputs/flutter-apk/app-release.apk"
+    
+    if File.exist?(apk_path)
+      # Copy to root for easy access
+      FileUtils.cp(apk_path, "../playmaker-promo.apk")
+      
+      UI.success "PROMO APK built successfully!"
+      UI.message "APK location: playmaker-promo.apk"
+      UI.message ""
+      UI.message "Install on device:"
+      UI.message "  adb connect <device-ip>:5555"
+      UI.message "  adb install -r playmaker-promo.apk"
+    else
+      UI.error "APK not found at expected location"
+    end
+  end
+
+  # ═══════════════════════════════════════════════════════════════════════════════
+  # LEGACY LANES (for backward compatibility)
+  # ═══════════════════════════════════════════════════════════════════════════════
+  
+  desc "[LEGACY] Build and upload ADMIN app - use 'management' instead"
+  lane :admin do
+    UI.important "Note: ADMIN lane is deprecated. Using MANAGEMENT lane instead."
+    management
+  end
+  
+  desc "[LEGACY] Build and upload PARTNER app - use 'management' instead"  
+  lane :partner do
+    UI.important "Note: PARTNER lane is deprecated. Using MANAGEMENT lane instead."
+    management
+  end
+  
+  desc "[LEGACY] Upload existing PARTNER AAB - use 'upload_management' instead"
+  lane :upload_partner do
+    UI.important "Note: upload_partner is deprecated. Using upload_management instead."
+    upload_management
+  end
+
+  # ═══════════════════════════════════════════════════════════════════════════════
+  # HELPER METHODS
+  # ═══════════════════════════════════════════════════════════════════════════════
+  
+  private_lane :build_and_upload do |options|
+    flavor = options[:flavor]
+    entry_point = options[:entry_point]
+    package_name = options[:package_name]
+    icon_config = options[:icon_config]
+    app_name = options[:app_name]
+    
+    # Get version info
+    version_info = get_version_info
+    
+    UI.message "Package: #{package_name}"
+    UI.message "Version: #{version_info[:name]} (Build #{version_info[:code]})"
+    UI.message "Track: Internal Testing"
+    
+    # Build in project root
+    Dir.chdir("..") do
+      # Generate icons
+      if icon_config && File.exist?(icon_config)
+        UI.message "Generating app icons..."
+        sh("flutter pub run flutter_launcher_icons:main -f #{icon_config}")
+      end
+      
+      # Clean and build
+      UI.message "Cleaning..."
+      sh("flutter clean && flutter pub get")
+      
+      UI.message "Building Android App Bundle..."
+      if entry_point != "lib/main.dart"
+        sh("flutter build appbundle --release --flavor #{flavor} -t #{entry_point}")
+      else
+        sh("flutter build appbundle --release --flavor #{flavor}")
+      end
+    end
+    
+    aab_path = "../build/app/outputs/bundle/#{flavor}Release/app-#{flavor}-release.aab"
+    
+    unless File.exist?(aab_path)
+      UI.user_error!("AAB not found at: #{aab_path}")
+    end
+    
+    UI.success "Build complete! Uploading to Play Console..."
+    
+    upload_to_play_store(
+      track: 'internal',
+      aab: aab_path,
+      json_key: SERVICE_ACCOUNT_JSON,
+      package_name: package_name,
+      skip_upload_metadata: true,
+      skip_upload_changelogs: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true,
+      release_status: 'completed',
+      version_name: version_info[:name],
+      version_code: version_info[:code],
+      timeout: 1200
+    )
+    
+    UI.success "#{app_name} uploaded to Play Console!"
+    UI.message "Version #{version_info[:name]} (Build #{version_info[:code]}) is now in Internal Testing"
+    UI.message "View in Play Console: https://play.google.com/console"
+  end
+  
+  private_lane :get_version_info do
+    pubspec_path = "../pubspec.yaml"
+    
+    if File.exist?(pubspec_path)
+      content = File.read(pubspec_path)
+      version_line = content.match(/version:\s*(.+)/)
+      
+      if version_line
+        full_version = version_line[1].strip.split('#').first.strip
+        parts = full_version.split('+')
+        
+        {
+          name: parts[0],
+          code: parts[1].to_i
+        }
+      else
+        { name: "1.0.0", code: 1 }
+      end
+    else
+      { name: "1.0.0", code: 1 }
+    end
+  end
+
+  # ═══════════════════════════════════════════════════════════════════════════════
+  # ERROR HANDLING
+  # ═══════════════════════════════════════════════════════════════════════════════
+  
+  error do |lane, exception|
+    UI.error "Lane #{lane} failed with error:"
+    UI.error exception.message
+    
+    if exception.message.include?("json_key") || exception.message.include?("credentials")
+      UI.important ""
+      UI.important "Service account JSON not found or invalid."
+      UI.important "Please place your Google Play service account JSON at:"
+      UI.important "  android/#{SERVICE_ACCOUNT_JSON}"
+      UI.important ""
+      UI.important "Run ./setup_auto_upload.sh for setup instructions."
+    elsif exception.message.include?("version")
+      UI.important ""
+      UI.important "Version code may already exist in Play Console."
+      UI.important "The build script should auto-increment versions."
+    end
+  end
+  
+end

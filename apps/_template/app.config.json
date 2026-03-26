@@ -1,0 +1,11 @@
+{
+  "appName": "TEMPLATE_NAME",
+  "appSlug": "TEMPLATE_SLUG",
+  "framework": "expo",
+  "bundleId": {
+    "ios": "TEMPLATE_BUNDLE_ID",
+    "android": "TEMPLATE_BUNDLE_ID"
+  },
+  "supabasePrefix": "TEMPLATE_SLUG_",
+  "description": "A new PixelScale app"
+}

@@ -1,0 +1,244 @@
+# Playmaker Project - AI Assistant Rules
+
+## 🎯 App Context Keywords
+
+When these keywords appear at the START of a prompt, ONLY respond about that specific app:
+
+- **USERAPP** → Playmaker (Customer booking app) - `lib/main.dart` - Bundle ID: `com.playmaker.app`
+- **ADMIN** → Playmaker Admin (Internal management) - `lib/main_admin.dart` - Bundle ID: `com.playmaker.admin`
+- **PARTNER** → Playmaker Field Owner (Partner portal) - `lib/main_partner.dart` - Bundle ID: `com.example.playmakeradmin` or `com.playmaker.partner`
+
+## 📱 App Definitions
+
+### USERAPP - Playmaker (Customer App)
+**Purpose:** Mobile app for football players to browse and book football fields, create squads, and organize matches.
+
+**Key Features:**
+- Browse and book football fields (map/list view)
+- Payment integration (Paymob)
+- Create and join squads
+- Match management and chat
+- Friend system
+- Player profiles
+
+**Technical:**
+- Entry: `lib/main.dart`
+- Bundle ID: `com.playmaker.app`
+- Theme: Green (#00BF63)
+- Icon: `playmakerappicon.png`
+- Distribution: Public
+- Current Version: 1.0.7+11
+
+**Auth:** Firebase Auth (Google, Apple, Facebook, Email/Password) - Open registration
+
+---
+
+### ADMIN - Playmaker Admin (Internal Management)
+**Purpose:** Internal app for platform administrator to manage users, bookings, fields, and create partner credentials.
+
+**Key Features:**
+- **Users Management:** View all users, statistics, search, details
+- **Bookings Management:** All bookings, revenue tracking, analytics
+- **Fields Management:** Grid view, create fields with owner credentials, auto-generate timeslots
+- **Push Notifications:** New user alerts
+
+**Technical:**
+- Entry: `lib/main_admin.dart`
+- Bundle ID: `com.playmaker.admin`
+- Theme: Light with green accent (#00BF63)
+- Icon: `appstorelogopmpartner.png` (green)
+- Distribution: Internal only (TestFlight)
+- Current Version: 1.0.0+1
+
+**Auth:** Hardcoded admin email only (`youssef@gmail.com`)
+
+**Special Features:**
+- Auto-generate timeslots: Enter opening hours → click "Generate" → creates hourly slots
+- Responsive web design: Grid layouts, table views
+- Create field owner credentials for Partner app
+
+---
+
+### PARTNER - Playmaker Field Owner (Partner Portal)
+**Purpose:** App for field owners to manage their field's bookings, timeslots, and revenue.
+
+**Key Features:**
+- **Dashboard:** Field info, today's stats, overall statistics
+- **Bookings Management:** View bookings for their field, filter by date
+- **Timeslots Management:** ⭐ Toggle switches to open/close timeslots instantly
+- **Revenue Tracking:** Total, today, week, month, average per booking
+
+**Technical:**
+- Entry: `lib/main_partner.dart`
+- Bundle ID: `com.example.playmakeradmin` (OLD) or `com.playmaker.partner` (NEW)
+- App Store Name: "Playmaker Field Owner"
+- Display Name: "Playmaker Partner"
+- Theme: Blue (#2563EB)
+- Icon: `playstorelogopmpartner.png` (blue)
+- Distribution: Public
+- Current Version: 1.0.1+2
+
+**Auth:** Email/password credentials created by admin when adding field
+
+**Special:** Partners can ONLY see their own field's data (field-specific access)
+
+---
+
+## 🏗️ Architecture
+
+All three apps share the SAME codebase with different entry points:
+
+```
+lib/
+├── main.dart              → USERAPP entry
+├── main_admin.dart        → ADMIN entry
+├── main_partner.dart      → PARTNER entry
+├── config/app_config.dart → App flavor configuration
+├── screens/
+│   ├── (user screens)
+│   ├── admin/             → ADMIN screens
+│   └── partner/           → PARTNER screens
+└── services/
+    ├── supabase_service.dart → Shared database
+    ├── admin_notification_service.dart
+    └── partner_service.dart
+```
+
+---
+
+## 🎨 Icon Workflow (IMPORTANT!)
+
+Since all apps share the same iOS folder, icons get overwritten. Always generate icons BEFORE building:
+
+```bash
+# USERAPP icons (green)
+flutter pub run flutter_launcher_icons:main -f flutter_launcher_icons_user.yaml
+
+# ADMIN icons (green)
+flutter pub run flutter_launcher_icons:main -f flutter_launcher_icons_admin.yaml
+
+# PARTNER icons (blue)
+flutter pub run flutter_launcher_icons:main -f flutter_launcher_icons_partner.yaml
+```
+
+**Rule:** Generate icons → Build → Archive (for each app separately)
+
+---
+
+## 🚀 Build Commands
+
+### USERAPP:
+```bash
+flutter pub run flutter_launcher_icons:main -f flutter_launcher_icons_user.yaml
+flutter build ios --release
+# Bundle ID in Xcode: com.playmaker.app
+```
+
+### ADMIN:
+```bash
+flutter pub run flutter_launcher_icons:main -f flutter_launcher_icons_admin.yaml
+flutter build ios --release -t lib/main_admin.dart
+# Bundle ID in Xcode: com.playmaker.admin
+```
+
+### PARTNER:
+```bash
+flutter pub run flutter_launcher_icons:main -f flutter_launcher_icons_partner.yaml
+flutter build ios --release -t lib/main_partner.dart --build-name=1.0.1 --build-number=2
+# Bundle ID in Xcode: com.example.playmakeradmin (for updating existing app)
+```
+
+---
+
+## 🗄️ Database (Supabase)
+
+**Key Tables:**
+- `player_profiles` / `users` → User accounts
+- `football_fields` → Field data
+  - `username` → Field owner email (for PARTNER login)
+  - `password` → Field owner password (for PARTNER login)
+  - `availableTimeSlots` → Timeslots data
+- `bookings` → Booking records
+  - `footballFieldId` → Links to field
+  - `price` → Revenue tracking
+
+---
+
+## 📋 AI Assistant Response Rules
+
+### When prompt starts with "USERAPP":
+- Only discuss customer booking app
+- Reference `lib/main.dart` and user screens
+- Talk about booking, squads, friends, payments
+- Green theme (#00BF63)
+- Bundle ID: `com.playmaker.app`
+
+### When prompt starts with "ADMIN":
+- Only discuss admin management app
+- Reference `lib/main_admin.dart` and `lib/screens/admin/`
+- Talk about user/booking/field management
+- Mention admin-specific features (owner credentials, auto-generate timeslots)
+- Bundle ID: `com.playmaker.admin`
+- Internal distribution only
+
+### When prompt starts with "PARTNER":
+- Only discuss field owner portal app
+- Reference `lib/main_partner.dart` and `lib/screens/partner/`
+- Talk about timeslot toggles, revenue tracking, their field only
+- Blue theme (#2563EB)
+- Bundle ID: `com.example.playmakeradmin` (old) or `com.playmaker.partner` (new)
+- Emphasize field-specific access
+
+### When no keyword:
+- Ask which app they're referring to
+- Or infer from context if obvious
+
+---
+
+## 🔑 Quick Reference
+
+| Keyword | App | Purpose | Bundle ID | Distribution |
+|---------|-----|---------|-----------|--------------|
+| USERAPP | Playmaker | Book fields | com.playmaker.app | Public |
+| ADMIN | Admin | Manage platform | com.playmaker.admin | Internal |
+| PARTNER | Field Owner | Manage field | com.example.playmakeradmin | Public |
+
+---
+
+## ⚠️ Important Notes
+
+1. **PARTNER app migration:** Old app has Bundle ID `com.example.playmakeradmin`. When updating existing app in App Store Connect, use the OLD Bundle ID. For new installations, use `com.playmaker.partner`.
+
+2. **Icon generation:** ALWAYS run icon generation command before building each app (they overwrite each other).
+
+3. **Admin access:** Only `youssef@gmail.com` can access ADMIN app.
+
+4. **Partner access:** Each partner can ONLY see their own field's data.
+
+5. **Shared codebase:** All three apps use the same code but different entry points and configurations.
+
+---
+
+## 📞 Documentation
+
+- Full details: `APP_CONTEXT_RULES.md`
+- Icon workflow: `ICON_WORKFLOW.md`
+- Publishing guides: `PUBLISH_*_APP.md`
+- Build scripts: `./build_*_app.sh`
+
+---
+
+**These rules help the AI assistant understand which app context to use when responding to your questions!**
+
+
+
+
+
+
+
+
+
+
+
+
+

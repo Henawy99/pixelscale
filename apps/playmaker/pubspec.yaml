@@ -1,0 +1,171 @@
+name: playmakerappstart
+description: A new Flutter project.
+
+# The following line prevents the package from being accidentally published to
+# pub.dev using `flutter pub publish`. This is preferred for private packages.
+publish_to: 'none' # Remove this line if you wish to publish to pub.dev
+
+# The following defines the version and build number for your application.
+# A version number is three numbers separated by dots, like 1.2.43
+# followed by an optional build number separated by a +.
+# Both the version and the builder number may be overridden in flutter
+# build by specifying --build-name and --build-number, respectively.
+# In Android, build-name is used as versionName while build-number used as versionCode.
+# Read more about Android versioning at https://developer.android.com/studio/publish/versioning
+# In iOS, build-name is used as CFBundleShortVersionString while build-number is used as CFBundleVersion.
+# Read more about iOS versioning at
+# https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
+# In Windows, build-name is used as the major, minor, and patch parts
+# of the product and file versions while build-number is used as the build suffix.
+version: 1.0.7+1
+
+environment:
+  sdk: ">=2.17.6 <3.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  shared_preferences: ^2.2.2
+  uuid: ^4.0.0
+
+  
+
+# UI Widgets
+
+  cupertino_icons: ^1.0.2
+  smooth_page_indicator: ^1.1.0
+  google_fonts: ^6.1.0
+  video_player: ^2.8.2
+  chewie: ^1.7.5
+  
+
+
+# Firebase
+
+
+  firebase_core: ^3.13.0
+  firebase_auth: ^5.5.3
+  firebase_app_check: ^0.3.2+5  # Downgraded from ^0.3.1+4  
+
+# Social Logins
+
+   
+  google_sign_in: ^6.2.1
+  sign_in_with_apple: ^7.0.1
+
+
+# Payment Providers  
+  # flutter_paymob removed — using native Paymob SDK via MethodChannel (paymob_native_sdk_service.dart)
+  pay: ^2.0.0  # For Apple Pay & Google Pay (Google Pay button widget)
+  crypto: ^3.0.3  # For HMAC validation
+  supabase_flutter: ^2.5.6
+  bloc: ^9.0.0
+  country_icons: ^3.0.0
+  flutter_svg: ^2.0.10+1
+  font_awesome_flutter: ^10.7.0
+  country_picker: ^2.0.24
+  pin_code_fields: ^8.0.1
+  sms_autofill: ^2.3.0
+  flutter_native_splash: ^2.3.10
+  intl: ^0.20.2
+  image_picker: ^1.0.7
+  file_picker: ^8.0.0
+  firebase_storage: ^12.4.5
+  google_maps_flutter: ^2.6.1
+  geolocator: ^14.0.0
+  http: ^1.2.1
+  webview_flutter: ^4.8.0
+  firebase_messaging: ^15.2.5
+  flutter_local_notifications: ^18.0.1
+  cloud_functions: ^5.5.0
+  provider: ^6.1.2
+  flutter_facebook_auth: ^7.0.0
+  url_launcher: ^6.3.0
+  cached_network_image: ^3.4.0
+  shimmer_loading: ^0.0.1
+  shimmer: ^3.0.0
+  flutter_vlc_player: ^7.4.2
+  video_compress: ^3.1.4
+  cloudinary_flutter: ^1.3.0
+  cloudinary_url_gen: ^1.8.0
+  in_app_review: ^2.0.11
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  # The "flutter_lints" package below contains a set of recommended lints to
+  # encourage good coding practices. The lint set provided by the package is
+  # activated in the `analysis_options.yaml` file located at the root of your
+  # package. See that file for information about deactivating specific lint
+  # rules and activating additional ones.
+  flutter_lints: ^5.0.0
+  flutter_launcher_icons: ^0.14.3
+
+
+flutter_icons:
+  android: true
+  ios: true
+  image_path: "assets/images/playmakerappicon.png" 
+  remove_alpha_ios: true
+
+# For information on the generic Dart part of this file, see the
+# following page: https://dart.dev/tools/pub/pubspec
+
+# The following section is specific to Flutter packages.
+flutter:
+
+  # The following line ensures that the Material Icons font is
+  # included with your application, so that you can use the icons in
+  # the material Icons class.
+  uses-material-design: true
+
+  # To add assets to your application, add an assets section, like this:
+  assets:
+    - assets/images/
+    - assets/images/mobile-wallet-logos/etisalat-cash.png
+    - assets/images/mobile-wallet-logos/orange-cash.png
+    - assets/images/mobile-wallet-logos/vodafone-cash.png
+    - lib/config/apple_pay_config.json
+    - lib/config/google_pay_config.json
+  # An image asset can refer to one or more resolution-specific "variants", see
+  # https://flutter.dev/assets-and-images/#resolution-aware
+
+  # For details regarding adding assets from package dependencies, see
+  # https://flutter.dev/assets-and-images/#from-packages
+
+  # To add custom fonts to your application, add a fonts section here,
+  # in this "flutter" section. Each entry in this list should have a
+  # "family" key with the font family name, and a "fonts" key with a
+  # list giving the asset and other descriptors for the font. For
+  # example:
+  fonts:
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/Inter-Regular.ttf
+        - asset: assets/fonts/Inter-Medium.ttf
+        - asset: assets/fonts/Inter-Bold.ttf
+          weight: 700
+  #
+  # For details regarding fonts from package dependencies,
+  # see https://flutter.dev/custom-fonts/#from-packages
+
+  generate: true # Add this line to enable localization generation
+
+# flutter_native_splash configuration disabled - using custom splash screen instead
+# See lib/splash_screen.dart for the new text-based splash screen
+
+# flutter_native_splash:
+#   color: "#00BF63"
+#   image: assets/images/playmakerappicon.png
+#   image_dark: assets/images/playmakerappicon.png
+#   ios_content_mode: scaleAspectFit
+#   android_gravity: center
+#   ios: true
+#   android_12:
+#     image: assets/images/playmakerappicon.png
+#     icon_background_color: "#00BF63"
+#   fullscreen: true
+#   web: false

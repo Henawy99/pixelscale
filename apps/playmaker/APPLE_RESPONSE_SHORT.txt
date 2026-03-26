@@ -1,0 +1,32 @@
+Dear Apple App Review Team,
+
+Thank you for your feedback on Submission ID: 9ea32979-39ae-4a8a-8984-84ca3ede58a0.
+
+We have resolved both issues:
+
+✅ ISSUE 1: iPad Optimization (Guideline 4.0) - RESOLVED
+We have updated the app to fully support iPad devices, including iPad Air (5th generation). All UI layouts now adapt responsively to iPad screen sizes, and we have tested thoroughly on iPad Air (5th generation).
+
+✅ ISSUE 2: Demo Account (Guideline 2.1) - RESOLVED
+We have created a new, verified demo account with full access to all features.
+
+NEW DEMO ACCOUNT CREDENTIALS:
+Email: demo@playmaker.app
+Password: Demo123456!
+
+The account is fully functional and provides complete access to all app features including:
+- Football field browsing and booking
+- Squad creation and management
+- Friend system
+- Payment integration (use test card: 5123456789012346 for testing)
+- All other app features
+
+Both issues have been fully resolved. The app is now optimized for all iPad models and accessible with working demo credentials.
+
+Thank you for your time and consideration.
+
+Best regards,
+[YOUR_NAME]
+Playmaker
+[YOUR_EMAIL]
+

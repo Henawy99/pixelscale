@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "671236247932",
+    "project_id": "restaurantadmin-e2555",
+    "storage_bucket": "restaurantadmin-e2555.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:671236247932:android:e5bce89d9574345b67d4f9",
+        "android_client_info": {
+          "package_name": "com.example.restaurantadmin"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD0j_o5Qrcnr_kA3xr6N5AE8LawgcmfGlc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

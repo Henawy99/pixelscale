@@ -1,0 +1,6 @@
+# Fastlane Appfile for Academy App
+# Google Play Console Service Account JSON
+json_key_file("../play-console-service-account.json")
+
+# Package name
+package_name("com.pixelscale.academy_app")

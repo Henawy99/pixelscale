@@ -1,0 +1,17 @@
+# ════════════════════════════════════════════════════════════════════════════════
+# TENNIS ACADEMY — App Store Connect Configuration
+# ════════════════════════════════════════════════════════════════════════════════
+#
+# Credentials used:
+# Issuer ID: dc9a069b-00fc-45f8-be31-84e435ea4d07
+# Key ID:    2GTNSM4DX2  (same shared key as other apps)
+# Team ID:   G67XQ5S4QU
+# Key File:  ~/.appstoreconnect/private_keys/AuthKey_2GTNSM4DX2.p8
+#
+# ════════════════════════════════════════════════════════════════════════════════
+
+team_id("G67XQ5S4QU")
+itc_team_id("G67XQ5S4QU")
+
+app_identifier("com.pixelscale.tennisacademy")
+apple_id("")   # Optional with API key auth

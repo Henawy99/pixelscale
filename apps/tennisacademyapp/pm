@@ -1,0 +1,80 @@
+#!/bin/bash
+# ============================================
+# 🎾 Academy App – Flutter (User + Admin)
+# ============================================
+
+set -e
+
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+NC='\033[0m'
+
+function show_menu() {
+    clear
+    echo -e "${BLUE}==============================================${NC}"
+    echo -e "${GREEN}   🎾 Academy App (Flutter) 🎾${NC}"
+    echo -e "${BLUE}==============================================${NC}"
+    echo ""
+    echo "Select an action:"
+    echo ""
+    echo -e "${YELLOW}--- RUN ---${NC}"
+    echo "1)  Run on Android (emulator/device)"
+    echo "2)  Run on iOS (simulator)"
+    echo "3)  Run on Chrome (web)"
+    echo ""
+    echo -e "${YELLOW}--- BUILD ---${NC}"
+    echo "4)  Build APK (debug)"
+    echo "5)  Build APK (release)"
+    echo "6)  Build App Bundle (release)"
+    echo ""
+    echo -e "${YELLOW}--- UTILS ---${NC}"
+    echo "7)  Flutter pub get"
+    echo "8)  Back to PixelScale Menu"
+    echo ""
+    read -p "Enter choice [1-8]: " choice
+    run_choice "$choice"
+}
+
+function run_choice() {
+    case $1 in
+        1)
+            echo -e "${GREEN}Running on Android...${NC}"
+            flutter run
+            ;;
+        2)
+            echo -e "${GREEN}Running on iOS...${NC}"
+            flutter run
+            ;;
+        3)
+            echo -e "${GREEN}Running on Chrome...${NC}"
+            flutter run -d chrome
+            ;;
+        4)
+            echo -e "${GREEN}Building debug APK...${NC}"
+            flutter build apk --debug
+            ;;
+        5)
+            echo -e "${GREEN}Building release APK (shareable)...${NC}"
+            "$(dirname "$0")/build-android-release.sh"
+            ;;
+        6)
+            echo -e "${GREEN}Building App Bundle...${NC}"
+            flutter build appbundle --release
+            ;;
+        7)
+            flutter pub get
+            ;;
+        8)
+            exit 0
+            ;;
+        *)
+            echo -e "${RED}Invalid option.${NC}"
+            sleep 1
+            show_menu
+            ;;
+    esac
+}
+
+show_menu

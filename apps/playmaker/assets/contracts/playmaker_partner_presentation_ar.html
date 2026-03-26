@@ -1,0 +1,893 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Playmaker - عرض الشراكة</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 15mm;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Arial', 'Tahoma', sans-serif;
+            line-height: 1.8;
+            color: #2c3e50;
+            background: white;
+            direction: rtl;
+        }
+        
+        .page {
+            width: 210mm;
+            min-height: 297mm;
+            margin: 0 auto 20px;
+            padding: 20mm;
+            background: white;
+            page-break-after: always;
+            position: relative;
+            overflow: visible;
+        }
+        
+        /* Cover Page Styles */
+        .cover-page {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            background: linear-gradient(135deg, #00BF63 0%, #00A055 100%);
+            color: white;
+        }
+        
+        .cover-logo {
+            width: 150px;
+            height: 150px;
+            margin-bottom: 30px;
+            border-radius: 30px;
+            background: white;
+            padding: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+        
+        .cover-title {
+            font-size: 56px;
+            font-weight: bold;
+            margin-bottom: 15px;
+            text-transform: lowercase;
+            letter-spacing: 3px;
+            font-family: 'Arial Black', sans-serif;
+        }
+        
+        .cover-subtitle {
+            font-size: 24px;
+            margin-bottom: 40px;
+            opacity: 0.95;
+        }
+        
+        .cover-tagline {
+            font-size: 18px;
+            max-width: 700px;
+            line-height: 1.9;
+            opacity: 0.9;
+            margin-bottom: 50px;
+        }
+        
+        .cover-footer {
+            font-size: 14px;
+            opacity: 0.85;
+        }
+        
+        /* Header Styles */
+        .header {
+            background: linear-gradient(135deg, #00BF63 0%, #00A055 100%);
+            color: white;
+            padding: 25px 30px;
+            margin-bottom: 30px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .header-right {
+            display: flex;
+            align-items: center;
+        }
+        
+        .header-logo {
+            width: 60px;
+            height: 60px;
+            margin-left: 20px;
+            border-radius: 12px;
+            background: white;
+            padding: 8px;
+        }
+        
+        .header-text h1 {
+            font-size: 32px;
+            font-weight: bold;
+            margin-bottom: 5px;
+            text-transform: lowercase;
+            font-family: 'Arial Black', sans-serif;
+        }
+        
+        .header-text p {
+            font-size: 14px;
+            opacity: 0.95;
+        }
+        
+        /* Section Styles */
+        .section-title {
+            color: #00BF63;
+            font-size: 26px;
+            font-weight: bold;
+            margin-top: 25px;
+            margin-bottom: 18px;
+            padding-bottom: 10px;
+            border-bottom: 3px solid #00BF63;
+        }
+        
+        .content {
+            font-size: 15px;
+            line-height: 2;
+            color: #34495e;
+            margin-bottom: 20px;
+            text-align: justify;
+        }
+        
+        /* Feature Box Styles */
+        .feature-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin: 25px 0;
+        }
+        
+        .feature-box {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            border: 2px solid #00BF63;
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+        }
+        
+        .feature-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+        }
+        
+        .feature-title {
+            color: #00BF63;
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        
+        .feature-description {
+            font-size: 14px;
+            color: #6c757d;
+            line-height: 1.8;
+        }
+        
+        /* Benefit List Styles */
+        .benefit-list {
+            list-style: none;
+            padding: 0;
+            margin: 20px 0;
+        }
+        
+        .benefit-list li {
+            padding: 18px 20px;
+            margin: 12px 0;
+            background: #f8f9fa;
+            border-right: 5px solid #00BF63;
+            border-radius: 5px;
+            font-size: 15px;
+            color: #34495e;
+            line-height: 1.9;
+        }
+        
+        .benefit-list li strong {
+            color: #00BF63;
+            font-size: 16px;
+        }
+        
+        /* Highlight Box */
+        .highlight-box {
+            background: linear-gradient(135deg, #00BF63 0%, #00A055 100%);
+            color: white;
+            padding: 25px 30px;
+            border-radius: 10px;
+            margin: 25px 0;
+            text-align: center;
+            box-shadow: 0 5px 15px rgba(0, 191, 99, 0.3);
+        }
+        
+        .highlight-box h3 {
+            font-size: 24px;
+            margin-bottom: 12px;
+        }
+        
+        .highlight-box p {
+            font-size: 16px;
+            line-height: 1.9;
+            opacity: 0.95;
+        }
+        
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            margin: 25px 0;
+        }
+        
+        .stat-box {
+            background: #f8f9fa;
+            border: 2px solid #00BF63;
+            border-radius: 10px;
+            padding: 25px 20px;
+            text-align: center;
+        }
+        
+        .stat-number {
+            color: #00BF63;
+            font-size: 42px;
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+        
+        .stat-label {
+            color: #6c757d;
+            font-size: 14px;
+            font-weight: 600;
+        }
+        
+        /* Camera Section */
+        .camera-box {
+            background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+            border: 3px solid #00BF63;
+            border-radius: 12px;
+            padding: 30px;
+            margin: 25px 0;
+        }
+        
+        .camera-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .camera-icon {
+            font-size: 64px;
+            margin-left: 20px;
+        }
+        
+        .camera-title {
+            color: #00BF63;
+            font-size: 28px;
+            font-weight: bold;
+        }
+        
+        .camera-features {
+            list-style: none;
+            padding: 0;
+        }
+        
+        .camera-features li {
+            padding: 15px 20px;
+            margin: 10px 0;
+            background: white;
+            border-right: 4px solid #00BF63;
+            border-radius: 5px;
+            font-size: 15px;
+            color: #34495e;
+            line-height: 1.8;
+        }
+        
+        /* CTA Button */
+        .cta-box {
+            background: linear-gradient(135deg, #00BF63 0%, #00A055 100%);
+            color: white;
+            padding: 35px 40px;
+            border-radius: 12px;
+            margin: 30px 0;
+            text-align: center;
+        }
+        
+        .cta-box h2 {
+            font-size: 32px;
+            margin-bottom: 15px;
+        }
+        
+        .cta-box p {
+            font-size: 18px;
+            line-height: 1.9;
+            opacity: 0.95;
+            margin-bottom: 20px;
+        }
+        
+        .cta-button {
+            background: white;
+            color: #00BF63;
+            padding: 15px 40px;
+            border-radius: 8px;
+            font-size: 18px;
+            font-weight: bold;
+            display: inline-block;
+            margin-top: 10px;
+        }
+        
+        /* Footer */
+        .page-footer {
+            position: absolute;
+            bottom: 15mm;
+            left: 20mm;
+            right: 20mm;
+            text-align: center;
+            color: #6c757d;
+            font-size: 12px;
+            border-top: 1px solid #dee2e6;
+            padding-top: 10px;
+        }
+        
+        .watermark {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-45deg);
+            font-size: 100px;
+            color: rgba(0, 191, 99, 0.03);
+            font-weight: bold;
+            pointer-events: none;
+            z-index: 0;
+            font-family: 'Arial Black', sans-serif;
+        }
+        
+        .content-wrapper {
+            position: relative;
+            z-index: 1;
+        }
+        
+        @media print {
+            @page {
+                margin: 15mm;
+                size: A4;
+            }
+            
+            body {
+                margin: 0;
+                padding: 0;
+            }
+            
+            .page {
+                margin: 0;
+                box-shadow: none;
+                page-break-after: always;
+                min-height: 0;
+            }
+            
+            .page:last-child {
+                page-break-after: auto;
+            }
+            
+            .watermark {
+                position: absolute;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- ==================== صفحة الغلاف ==================== -->
+    <div class="page cover-page">
+        <img src="../images/playmakerappicon.png" alt="شعار Playmaker" class="cover-logo">
+        <h1 class="cover-title">playmaker</h1>
+        <p class="cover-subtitle">مستقبل إدارة ملاعب كرة القدم</p>
+        <p class="cover-tagline">
+            حوّل ملعب كرة القدم الخاص بك إلى منشأة رقمية حديثة مع منصة حجز الملاعب الرائدة في مصر.
+            زد من إيراداتك، قلل من مشاكل الإدارة، وأسعد عملاءك.
+        </p>
+        <div class="cover-footer">
+            عرض الشراكة 2025
+        </div>
+    </div>
+    
+    <!-- ==================== الصفحة 1: ما هو Playmaker ==================== -->
+    <div class="page">
+        <div class="watermark">playmaker</div>
+        <div class="content-wrapper">
+            <div class="header">
+                <div style="font-size: 14px;">الصفحة 1 من 5</div>
+                <div class="header-right">
+                    <div class="header-text">
+                        <h1>playmaker</h1>
+                        <p>منصة حجز ملاعب كرة القدم الرقمية</p>
+                    </div>
+                    <img src="../images/playmakerappicon.png" alt="Playmaker" class="header-logo">
+                </div>
+            </div>
+            
+            <h2 class="section-title">ما هو Playmaker؟</h2>
+            <p class="content">
+                <strong>Playmaker</strong> هي المنصة الرقمية الرائدة في مصر التي تربط لاعبي كرة القدم بملاعب عالية الجودة.
+                نجعل من السهل على اللاعبين اكتشاف الملاعب وحجزها والدفع مقابل مباريات كرة القدم في أفضل الأماكن في جميع أنحاء البلاد.
+            </p>
+            
+            <div class="highlight-box">
+                <h3>🎯 مهمتنا</h3>
+                <p>
+                    إحداث ثورة في إدارة ملاعب كرة القدم من خلال الجمع بين الملاك واللاعبين عبر التكنولوجيا المتطورة،
+                    لجعل كل حجز سلساً وكل مباراة لا تُنسى.
+                </p>
+            </div>
+            
+            <h2 class="section-title">من يستخدم Playmaker؟</h2>
+            
+            <div class="feature-grid">
+                <div class="feature-box">
+                    <div class="feature-icon">⚽</div>
+                    <h3 class="feature-title">لاعبو كرة القدم</h3>
+                    <p class="feature-description">
+                        اللاعبون الأفراد والمجموعات الذين يبحثون عن حجوزات ملاعب سهلة وموثوقة مع تأكيد فوري ودفع آمن.
+                    </p>
+                </div>
+                
+                <div class="feature-box">
+                    <div class="feature-icon">👥</div>
+                    <h3 class="feature-title">الفرق والتشكيلات</h3>
+                    <p class="feature-description">
+                        الفرق والتشكيلات المنظمة التي تحتاج إلى فترات مباريات منتظمة وميزات إدارة الفريق وتسجيلات المباريات.
+                    </p>
+                </div>
+                
+                <div class="feature-box">
+                    <div class="feature-icon">🏫</div>
+                    <h3 class="feature-title">المدارس والأندية</h3>
+                    <p class="feature-description">
+                        المؤسسات التعليمية والأندية الرياضية التي تبحث عن وصول منظم للملاعب لطلابهم وأعضائهم.
+                    </p>
+                </div>
+                
+                <div class="feature-box">
+                    <div class="feature-icon">🎉</div>
+                    <h3 class="feature-title">منظمو الفعاليات</h3>
+                    <p class="feature-description">
+                        منظمو البطولات ومخططو الفعاليات الذين يحتاجون إلى حجز أماكن موثوقة للمسابقات والفعاليات الخاصة.
+                    </p>
+                </div>
+            </div>
+            
+            <h2 class="section-title">كيف يعمل Playmaker</h2>
+            <p class="content">
+                توفر منصتنا نظام حجز متكامل. يتصفح اللاعبون الملاعب المتاحة على خريطة تفاعلية، ويشاهدون
+                التوافر في الوقت الفعلي، ويختارون الفترة الزمنية المفضلة لديهم، ويدفعون بشكل آمن عبر التطبيق.
+                يتلقى أصحاب الملاعب إشعارات فورية ومدفوعات تلقائية - بدون مكالمات هاتفية، بدون تنسيق يدوي.
+            </p>
+            
+            <div class="stats-grid">
+                <div class="stat-box">
+                    <div class="stat-number">24/7</div>
+                    <div class="stat-label">حجز على مدار الساعة</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-number">100%</div>
+                    <div class="stat-label">نظام آلي</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-number">⚡</div>
+                    <div class="stat-label">دفع فوري</div>
+                </div>
+            </div>
+        </div>
+        <div class="page-footer">
+            playmaker | عرض الشراكة 2025 | playmakerapp.info
+        </div>
+    </div>
+    
+    <!-- ==================== الصفحة 2: فوائد لأصحاب الملاعب ==================== -->
+    <div class="page">
+        <div class="watermark">playmaker</div>
+        <div class="content-wrapper">
+            <div class="header">
+                <div style="font-size: 14px;">الصفحة 2 من 5</div>
+                <div class="header-right">
+                    <div class="header-text">
+                        <h1>playmaker</h1>
+                        <p>منصة حجز ملاعب كرة القدم الرقمية</p>
+                    </div>
+                    <img src="../images/playmakerappicon.png" alt="Playmaker" class="header-logo">
+                </div>
+            </div>
+            
+            <h2 class="section-title">لماذا تشارك مع Playmaker؟</h2>
+            <p class="content">
+                الانضمام إلى Playmaker يعني أكثر من مجرد إدراج ملعبك - إنه يعني تحويل طريقة إدارة عملك.
+                تجلب شراكتنا التكنولوجيا المتطورة والوصول الموسع والإدارة السهلة إلى منشأتك.
+            </p>
+            
+            <ul class="benefit-list">
+                <li>
+                    <strong>💰 زيادة إيراداتك إلى الحد الأقصى</strong><br>
+                    املأ الفترات الزمنية الفارغة تلقائياً. تقوم منصتنا بالترويج لملعبك لآلاف اللاعبين النشطين،
+                    مما يضمن أقصى استفادة وإيرادات، خاصة خلال ساعات الذروة المنخفضة.
+                </li>
+                
+                <li>
+                    <strong>📱 بدون أي مشاكل إدارية</strong><br>
+                    لا مزيد من المكالمات الهاتفية أو رسائل الواتساب أو الجدولة اليدوية. كل شيء آلي - من الحجوزات
+                    إلى المدفوعات إلى التأكيدات. ركز على توفير ملعب رائع، ونحن نتولى الباقي.
+                </li>
+                
+                <li>
+                    <strong>💳 مدفوعات فورية ومضمونة</strong><br>
+                    احصل على أموالك تلقائياً من خلال التحويلات البنكية الآمنة. لا مطاردة للمدفوعات، لا مخاطر من التعامل النقدي،
+                    لا نزاعات على الدفع. يتم إيداع أرباحك مباشرة في حسابك حسب الجدول الزمني الذي تختاره
+                    (يومي أو أسبوعي أو شهري).
+                </li>
+                
+                <li>
+                    <strong>📊 تحليلات ورؤى في الوقت الفعلي</strong><br>
+                    الوصول إلى تقارير مفصلة عن الحجوزات وساعات الذروة واتجاهات الإيرادات وتعليقات العملاء. اتخذ
+                    قرارات مستنيرة لتحسين التسعير والعمليات.
+                </li>
+                
+                <li>
+                    <strong>🎯 تسويق موجه</strong><br>
+                    يتم الترويج لملعبك للجمهور المناسب - اللاعبون الذين يبحثون بنشاط عن الحجز. تضمن خوارزمياتنا الذكية
+                    ظهور منشأتك بشكل بارز في عمليات البحث ذات الصلة.
+                </li>
+                
+                <li>
+                    <strong>⭐ بناء سمعتك</strong><br>
+                    جمع المراجعات والتقييمات التي تساعد في جذب المزيد من العملاء. الرد على التعليقات وبناء
+                    قاعدة عملاء مخلصين يستمرون في العودة.
+                </li>
+                
+                <li>
+                    <strong>🔒 احترافي وآمن</strong><br>
+                    جميع المعاملات آمنة ومعتمدة. قلل من حالات عدم الحضور من خلال نظام الدفع المسبق وسياسات
+                    الإلغاء التي تحمي إيراداتك.
+                </li>
+                
+                <li>
+                    <strong>📈 النمو معنا</strong><br>
+                    مع توسعنا في جميع أنحاء مصر، يكتسب ملعبك شهرة لشبكة متزايدة باستمرار من اللاعبين.
+                    الشراكة تعني النمو المستمر والفرص.
+                </li>
+            </ul>
+            
+            <div class="highlight-box">
+                <h3>💼 شراكة قائمة على العمولة</h3>
+                <p>
+                    تحتفظ بغالبية كل حجز. نحصل على عمولة صغيرة فقط على الحجوزات الناجحة والمكتملة.
+                    لا توجد تكاليف مقدمة، ولا رسوم شهرية - فقط مشاركة إيرادات بسيطة وشفافة تتماشى مع نجاحنا مع نجاحك.
+                </p>
+            </div>
+        </div>
+        <div class="page-footer">
+            playmaker | عرض الشراكة 2025 | playmakerapp.info
+        </div>
+    </div>
+    
+    <!-- ==================== الصفحة 3: تطبيق الإدارة ==================== -->
+    <div class="page">
+        <div class="watermark">playmaker</div>
+        <div class="content-wrapper">
+            <div class="header">
+                <div style="font-size: 14px;">الصفحة 3 من 5</div>
+                <div class="header-right">
+                    <div class="header-text">
+                        <h1>playmaker</h1>
+                        <p>منصة حجز ملاعب كرة القدم الرقمية</p>
+                    </div>
+                    <img src="../images/playmakerappicon.png" alt="Playmaker" class="header-logo">
+                </div>
+            </div>
+            
+            <h2 class="section-title">مركز التحكم الخاص بك: تطبيق الإدارة</h2>
+            <p class="content">
+                كشريك في Playmaker، تحصل على وصول حصري إلى <strong>تطبيق الإدارة</strong> الخاص بنا - لوحة التحكم الشخصية الخاصة بك
+                لإدارة ملعبك من أي مكان وفي أي وقت. تحكم كامل في متناول يدك.
+            </p>
+            
+            <div class="camera-box">
+                <div class="camera-header">
+                    <div>
+                        <h3 class="camera-title">ميزات تطبيق الإدارة</h3>
+                        <p style="color: #6c757d; margin-top: 5px;">كل ما تحتاجه لإدارة ملعبك بكفاءة</p>
+                    </div>
+                    <div class="camera-icon">📱</div>
+                </div>
+            </div>
+            
+            <h2 class="section-title">ما يمكنك فعله من خلال تطبيق الإدارة</h2>
+            
+            <ul class="benefit-list">
+                <li>
+                    <strong>📅 إدارة التوافر والفترات الزمنية</strong><br>
+                    حدد ساعات العمل لكل يوم من أيام الأسبوع. احجز الوقت للصيانة أو الفعاليات الخاصة.
+                    افتح أو أغلق الفترات الزمنية على الفور - تنعكس التغييرات فوراً لجميع المستخدمين.
+                </li>
+                
+                <li>
+                    <strong>👀 عرض جميع الحجوزات في الوقت الفعلي</strong><br>
+                    شاهد كل حجز عند حدوثه. اعرف بالضبط من يلعب ومتى ولمدة كم من الوقت. احصل على إشعارات
+                    فورية للحجوزات الجديدة.
+                </li>
+                
+                <li>
+                    <strong>💰 تتبع إيراداتك</strong><br>
+                    عرض التقارير المالية المفصلة. شاهد الأرباح اليومية والأسبوعية والشهرية. تصدير التقارير لأغراض
+                    المحاسبة. شفافية كاملة في كل معاملة.
+                </li>
+                
+                <li>
+                    <strong>⚙️ تحديث معلومات الملعب</strong><br>
+                    تغيير الأسعار وتحديث صور الملعب وتعديل الأوصاف وضبط قائمة المرافق - كل ذلك من
+                    التطبيق دون الاتصال بالدعم.
+                </li>
+                
+                <li>
+                    <strong>📊 الوصول إلى تحليلات الأداء</strong><br>
+                    افهم أكثر ساعاتك ازدحاماً والأيام الأكثر شعبية واتجاهات الحجز. استخدم الرؤى لتحسين
+                    التسعير وزيادة الإيرادات إلى الحد الأقصى.
+                </li>
+                
+                <li>
+                    <strong>💬 التواصل مع العملاء</strong><br>
+                    الرد على المراجعات والإجابة على الأسئلة وبناء علاقات مع لاعبيك مباشرة من خلال
+                    المنصة.
+                </li>
+                
+                <li>
+                    <strong>🎥 الوصول إلى تسجيلات الكاميرا</strong><br>
+                    عرض وإدارة جميع تسجيلات المباريات من كاميرا ملعبك. قم بتنزيل اللقطات للتسويق الخاص بك
+                    أو أغراض المراجعة.
+                </li>
+                
+                <li>
+                    <strong>🚨 إدارة المشاكل والدعم</strong><br>
+                    الإبلاغ عن المشاكل التقنية وطلب الصيانة للمعدات والحصول على دعم فوري من
+                    فريقنا عندما تحتاج إليه.
+                </li>
+            </ul>
+            
+            <div class="highlight-box">
+                <h3>🎯 بسيط وبديهي وقوي</h3>
+                <p>
+                    تم تصميم تطبيق الإدارة لسهولة الاستخدام. لا حاجة لخبرة تقنية. نحن نوفر التدريب الكامل
+                    والدعم المستمر لضمان حصولك على أقصى استفادة من المنصة.
+                </p>
+            </div>
+        </div>
+        <div class="page-footer">
+            playmaker | عرض الشراكة 2025 | playmakerapp.info
+        </div>
+    </div>
+    
+    <!-- ==================== الصفحة 4: نظام الكاميرا ==================== -->
+    <div class="page">
+        <div class="watermark">playmaker</div>
+        <div class="content-wrapper">
+            <div class="header">
+                <div style="font-size: 14px;">الصفحة 4 من 5</div>
+                <div class="header-right">
+                    <div class="header-text">
+                        <h1>playmaker</h1>
+                        <p>منصة حجز ملاعب كرة القدم الرقمية</p>
+                    </div>
+                    <img src="../images/playmakerappicon.png" alt="Playmaker" class="header-logo">
+                </div>
+            </div>
+            
+            <h2 class="section-title">ميزة متميزة: تسجيل المباريات الآلي</h2>
+            <p class="content">
+                تميز عن المنافسة مع <strong>نظام التسجيل الاحترافي للمباريات</strong> الخاص بنا. نقوم بتركيب
+                كاميرا عالية الجودة في ملعبك تلتقط تلقائياً كل مباراة يتم حجزها من خلال Playmaker.
+            </p>
+            
+            <div class="camera-box">
+                <div class="camera-header">
+                    <div>
+                        <h3 class="camera-title">تقنية الكاميرا الذكية</h3>
+                        <p style="color: #6c757d; margin-top: 5px;">تسجيل احترافي بدون أي جهد</p>
+                    </div>
+                    <div class="camera-icon">🎥</div>
+                </div>
+                
+                <ul class="camera-features">
+                    <li>
+                        <strong>🎬 تسجيل آلي بالكامل</strong><br>
+                        تبدأ الكاميرا التسجيل تلقائياً عندما تبدأ المباراة المحجوزة وتتوقف عند انتهائها.
+                        لا حاجة لعملية يدوية - تلقائية بالكامل.
+                    </li>
+                    
+                    <li>
+                        <strong>📹 فيديو عالي الدقة HD</strong><br>
+                        كاميرا احترافية تلتقط لقطات واضحة وعالية الدقة من الزاوية المثالية.
+                        يمكن للاعبين إعادة أفضل لحظاتهم بجودة واضحة تماماً.
+                    </li>
+                    
+                    <li>
+                        <strong>☁️ تخزين سحابي ووصول فوري</strong><br>
+                        يتم تحميل جميع التسجيلات تلقائياً إلى التخزين السحابي الآمن. يمكن للاعبين مشاهدة مبارياتهم
+                        في غضون دقائق بعد انتهاء المباراة - مباشرة من هواتفهم.
+                    </li>
+                    
+                    <li>
+                        <strong>✅ بدون تكلفة عليك</strong><br>
+                        نحن نقوم بالتركيب والصيانة وإدارة نظام الكاميرا بالكامل دون أي رسوم. التركيب والصيانة
+                        والإصلاحات والترقيات كلها يغطيها Playmaker.
+                    </li>
+                    
+                    <li>
+                        <strong>🔧 تركيب وصيانة احترافية</strong><br>
+                        يتولى فريقنا التقني كل شيء - من تركيب الكاميرا بأمان إلى ضمان عملها بشكل
+                        مثالي. نقوم بالصيانة الدورية للحفاظ على تشغيلها بسلاسة.
+                    </li>
+                    
+                    <li>
+                        <strong>🛡️ ملعبك، ملكيتك</strong><br>
+                        بينما تنتمي الكاميرا إلى Playmaker، فإن لقطات ملعبك متاحة لك.
+                        الوصول إلى التسجيلات من خلال تطبيق الإدارة الخاص بك في أي وقت.
+                    </li>
+                    
+                    <li>
+                        <strong>📱 وصول كامل من خلال تطبيق الإدارة</strong><br>
+                        عرض جميع التسجيلات من ملعبك. قم بتنزيل اللقطات لمقاطع الفيديو الترويجية ومحتوى وسائل التواصل الاجتماعي
+                        أو مقاطع الأبرز. مادة تسويقية مجانية رائعة!
+                    </li>
+                    
+                    <li>
+                        <strong>🎁 ميزة تسويقية</strong><br>
+                        الملاعب التي لديها كاميرات تسجيل تجذب المزيد من الحجوزات. يحب اللاعبون مشاهدة مبارياتهم
+                        ومستعدون لدفع أسعار أعلى لهذه الميزة الحصرية.
+                    </li>
+                </ul>
+            </div>
+            
+            <div class="highlight-box">
+                <h3>🌟 تجربة متميزة = حجوزات متميزة</h3>
+                <p>
+                    يبحث اللاعبون على وجه التحديد عن الملاعب التي بها كاميرات تسجيل. هذه الميزة تميز منشأتك،
+                    وتجذب المزيد من العملاء، وتتيح لك فرض أسعار أعلى. إنها فوز كامل.
+                </p>
+            </div>
+            
+            <h2 class="section-title">كيف يعمل</h2>
+            <p class="content" style="font-size: 16px; line-height: 2;">
+                <strong>1.</strong> نقوم بتركيب الكاميرا في ملعبك (إعداد لمرة واحدة)<br>
+                <strong>2.</strong> تتزامن الكاميرا مع جدول الحجز تلقائياً<br>
+                <strong>3.</strong> يبدأ التسجيل عند بدء المباريات ويتوقف عند انتهائها<br>
+                <strong>4.</strong> يتم تحميل اللقطات إلى السحابة تلقائياً<br>
+                <strong>5.</strong> يتلقى اللاعبون فيديو المباراة الخاص بهم في غضون دقائق<br>
+                <strong>6.</strong> يمكنك الوصول إلى جميع التسجيلات من خلال تطبيق الإدارة الخاص بك
+            </p>
+        </div>
+        <div class="page-footer">
+            playmaker | عرض الشراكة 2025 | playmakerapp.info
+        </div>
+    </div>
+    
+    <!-- ==================== الصفحة 5: دعوة للعمل ==================== -->
+    <div class="page">
+        <div class="watermark">playmaker</div>
+        <div class="content-wrapper">
+            <div class="header">
+                <div style="font-size: 14px;">الصفحة 5 من 5</div>
+                <div class="header-right">
+                    <div class="header-text">
+                        <h1>playmaker</h1>
+                        <p>منصة حجز ملاعب كرة القدم الرقمية</p>
+                    </div>
+                    <img src="../images/playmakerappicon.png" alt="Playmaker" class="header-logo">
+                </div>
+            </div>
+            
+            <h2 class="section-title">نظرة عامة على الشراكة</h2>
+            
+            <div class="feature-grid">
+                <div class="feature-box">
+                    <div class="feature-icon">✅</div>
+                    <h3 class="feature-title">ما تحصل عليه</h3>
+                    <p class="feature-description">
+                        • الوصول إلى آلاف اللاعبين<br>
+                        • تطبيق إدارة احترافي<br>
+                        • نظام حجز آلي<br>
+                        • كاميرا تسجيل المباريات (مركبة ومصانة)<br>
+                        • تحويلات دفع فورية<br>
+                        • التسويق والترويج<br>
+                        • تحليلات في الوقت الفعلي<br>
+                        • فريق دعم مخصص
+                    </p>
+                </div>
+                
+                <div class="feature-box">
+                    <div class="feature-icon">💵</div>
+                    <h3 class="feature-title">كيف تكسب</h3>
+                    <p class="feature-description">
+                        • احتفظ بغالبية رسوم الحجز<br>
+                        • نحصل على عمولة صغيرة فقط<br>
+                        • الدفع على الحجوزات المكتملة<br>
+                        • اختر تكرار الدفع<br>
+                        • لا توجد تكاليف مقدمة<br>
+                        • لا توجد رسوم شهرية<br>
+                        • مشاركة إيرادات شفافة 100%
+                    </p>
+                </div>
+            </div>
+            
+            <h2 class="section-title">عملية الشراكة البسيطة</h2>
+            
+            <ul class="benefit-list">
+                <li>
+                    <strong>📝 الخطوة 1: توقيع اتفاقية الشراكة</strong><br>
+                    عقد سريع ومباشر. سنشرح كل شيء بوضوح ونجيب على جميع أسئلتك.
+                </li>
+                
+                <li>
+                    <strong>📸 الخطوة 2: إعداد الملعب</strong><br>
+                    نقوم بتصوير ملعبك وجمع التفاصيل الأساسية وإنشاء قائمة احترافية على المنصة.
+                </li>
+                
+                <li>
+                    <strong>🎥 الخطوة 3: تركيب الكاميرا (اختياري)</strong><br>
+                    يقوم فريقنا التقني بتركيب كاميرا التسجيل - عادة ما يستغرق بضع ساعات فقط.
+                </li>
+                
+                <li>
+                    <strong>📱 الخطوة 4: تدريب على تطبيق الإدارة</strong><br>
+                    ندربك أنت وموظفيك على استخدام تطبيق الإدارة. جلسة بسيطة لمدة 30 دقيقة تغطي كل شيء.
+                </li>
+                
+                <li>
+                    <strong>🚀 الخطوة 5: انطلق!</strong><br>
+                    يصبح ملعبك مباشراً على Playmaker. ابدأ في تلقي الحجوزات فوراً. نحن هنا على مدار الساعة طوال أيام الأسبوع للدعم.
+                </li>
+            </ul>
+            
+            <div class="cta-box">
+                <h2>هل أنت مستعد لتحويل عملك؟</h2>
+                <p>
+                    انضم إلى منصة حجز ملاعب كرة القدم الأسرع نمواً في مصر وابدأ في زيادة إيراداتك إلى الحد الأقصى اليوم.
+                </p>
+                <div class="cta-button">
+                    لنبدأ الآن
+                </div>
+            </div>
+            
+            <h2 class="section-title">اتصل بنا</h2>
+            
+            <div style="background: #f8f9fa; padding: 30px; border-radius: 10px; border: 2px solid #00BF63; text-align: center;">
+                <p style="font-size: 18px; color: #00BF63; font-weight: bold; margin-bottom: 15px;">
+                    تواصل معنا اليوم
+                </p>
+                <p style="font-size: 16px; color: #34495e; line-height: 2; margin-bottom: 20px;">
+                    📞 <strong>الهاتف:</strong> +201151994181<br>
+                    📧 <strong>البريد الإلكتروني:</strong> partners@playmaker.com<br>
+                    🌐 <strong>الموقع:</strong> playmakerapp.info<br>
+                    📱 <strong>الواتساب:</strong> +201151994181
+                </p>
+                <p style="font-size: 14px; color: #6c757d; margin-top: 20px;">
+                    قم بتنزيل تطبيق <strong>Playmaker</strong> من App Store أو Google Play لرؤية المنصة في العمل.
+                </p>
+            </div>
+            
+            <div style="text-align: center; margin-top: 40px; color: #00A055; font-size: 16px; font-weight: 600;">
+                معاً، نبني مستقبل كرة القدم في مصر 🇪🇬⚽
+            </div>
+        </div>
+        <div class="page-footer">
+            playmaker | عرض الشراكة 2025 | www.playmaker.com | شكراً لاهتمامك بـ Playmaker!
+        </div>
+    </div>
+</body>
+</html>
+

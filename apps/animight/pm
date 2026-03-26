@@ -1,0 +1,267 @@
+#!/bin/bash
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ANIMIGHT INTERACTIVE COMMAND MENU
+# ═══════════════════════════════════════════════════════════════════════════════
+# Usage:
+#   ./pm run       - Interactive menu to run the app
+#   ./pm build     - Interactive menu to build the app
+#   ./pm ios       - Build iOS (TestFlight)
+#   ./pm android   - Build Android (Play Console)
+#   ./pm help      - Show help
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+MAGENTA='\033[0;35m'
+NC='\033[0m'
+BOLD='\033[1m'
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# RUN MENU
+# ═══════════════════════════════════════════════════════════════════════════════
+run_menu() {
+    clear
+    echo -e "${CYAN}═══════════════════════════════════════════════════════════════${NC}"
+    echo -e "${BOLD}${GREEN}  🚀 ANIMIGHT - RUN APP${NC}"
+    echo -e "${CYAN}═══════════════════════════════════════════════════════════════${NC}"
+    echo ""
+    echo -e "${BOLD}📱 iOS (Device/Simulator)${NC}"
+    echo -e "  ${GREEN}1)${NC} Run on iOS    ${YELLOW}flutter run${NC}"
+    echo ""
+    echo -e "${BOLD}🤖 Android (Device/Emulator)${NC}"
+    echo -e "  ${GREEN}2)${NC} Run on Android  ${YELLOW}flutter run${NC}"
+    echo ""
+    echo -e "${CYAN}═══════════════════════════════════════════════════════════════${NC}"
+    echo -e "  ${RED}0)${NC} Cancel"
+    echo -e "${CYAN}═══════════════════════════════════════════════════════════════${NC}"
+    echo ""
+    echo -ne "${BOLD}Select option [0-2]: ${NC}"
+    read -r choice
+
+    case $choice in
+        1)
+            echo -e "\n${GREEN}▶ Running Animight on iOS...${NC}\n"
+            flutter run -d "$(flutter devices | grep -i iphone | head -1 | awk -F'•' '{print $2}' | xargs)" || flutter run
+            ;;
+        2)
+            echo -e "\n${GREEN}▶ Running Animight on Android...${NC}\n"
+            flutter run -d "$(flutter devices | grep -i android | head -1 | awk -F'•' '{print $2}' | xargs)" || flutter run
+            ;;
+        0|"")
+            echo -e "\n${YELLOW}Cancelled.${NC}"
+            ;;
+        *)
+            echo -e "\n${RED}Invalid option. Please try again.${NC}"
+            ;;
+    esac
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# BUILD MENU
+# ═══════════════════════════════════════════════════════════════════════════════
+build_menu() {
+    clear
+    echo -e "${CYAN}═══════════════════════════════════════════════════════════════${NC}"
+    echo -e "${BOLD}${GREEN}  📦 ANIMIGHT - BUILD APP${NC}"
+    echo -e "${CYAN}═══════════════════════════════════════════════════════════════${NC}"
+    echo ""
+    echo -e "${BOLD}🍎 iOS (TestFlight)${NC}"
+    echo -e "  ${GREEN}1)${NC} Build + Upload iOS     ${YELLOW}cd fastlane && bundle exec fastlane ios upload${NC}"
+    echo -e "  ${GREEN}2)${NC} Upload existing IPA    ${YELLOW}cd fastlane && bundle exec fastlane ios upload_only${NC}"
+    echo ""
+    echo -e "${BOLD}🤖 Android (Play Console)${NC}"
+    echo -e "  ${GREEN}3)${NC} Build + Upload Android  ${YELLOW}cd android && bundle exec fastlane upload${NC} ${MAGENTA}✨ Auto-uploads${NC}"
+    echo -e "  ${GREEN}4)${NC} Build only (AAB)        ${YELLOW}cd android && bundle exec fastlane build${NC}"
+    echo -e "  ${GREEN}5)${NC} Upload existing AAB     ${YELLOW}cd android && bundle exec fastlane upload_only${NC}"
+    echo ""
+    echo -e "${BOLD}🚀 Build Both${NC}"
+    echo -e "  ${GREEN}6)${NC} iOS + Android           ${MAGENTA}Both platforms${NC}"
+    echo ""
+    echo -e "${CYAN}═══════════════════════════════════════════════════════════════${NC}"
+    echo -e "  ${RED}0)${NC} Cancel"
+    echo -e "${CYAN}═══════════════════════════════════════════════════════════════${NC}"
+    echo ""
+    echo -ne "${BOLD}Select option [0-6]: ${NC}"
+    read -r choice
+
+    case $choice in
+        1)
+            echo -e "\n${GREEN}▶ Building + Uploading Animight to TestFlight...${NC}\n"
+            build_ios
+            ;;
+        2)
+            echo -e "\n${GREEN}▶ Uploading existing IPA to TestFlight...${NC}\n"
+            cd fastlane && bundle exec fastlane ios upload_only
+            ;;
+        3)
+            echo -e "\n${GREEN}▶ Building + Uploading Animight to Play Console...${NC}\n"
+            build_android
+            ;;
+        4)
+            echo -e "\n${GREEN}▶ Building Android AAB only...${NC}\n"
+            cd android && bundle exec fastlane build
+            ;;
+        5)
+            echo -e "\n${GREEN}▶ Uploading existing AAB to Play Console...${NC}\n"
+            cd android && bundle exec fastlane upload_only
+            ;;
+        6)
+            echo -e "\n${GREEN}▶ Building Animight for iOS + Android...${NC}\n"
+            build_both
+            ;;
+        0|"")
+            echo -e "\n${YELLOW}Cancelled.${NC}"
+            ;;
+        *)
+            echo -e "\n${RED}Invalid option. Please try again.${NC}"
+            ;;
+    esac
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# BUILD FUNCTIONS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+build_ios() {
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${BOLD}🍎 Building Animight for iOS (TestFlight)${NC}"
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    cd fastlane && bundle exec fastlane ios upload
+    echo -e "\n${GREEN}✅ iOS build complete!${NC}"
+}
+
+build_android() {
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${BOLD}🤖 Building Animight for Android (Play Console)${NC}"
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    cd android && bundle exec fastlane upload
+    echo -e "\n${GREEN}✅ Android build complete!${NC}"
+}
+
+build_both() {
+    local start_time=$(date +%s)
+
+    echo -e "${CYAN}╔═══════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${CYAN}║${NC}  ${BOLD}⚡ BUILDING ANIMIGHT - iOS + ANDROID${NC}                        ${CYAN}║${NC}"
+    echo -e "${CYAN}╚═══════════════════════════════════════════════════════════════╝${NC}"
+
+    echo -e "\n${MAGENTA}[1/2]${NC} ${BOLD}iOS (TestFlight)${NC}"
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    build_ios
+
+    echo -e "\n${MAGENTA}[2/2]${NC} ${BOLD}Android (Play Console)${NC}"
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    build_android
+
+    local end_time=$(date +%s)
+    local duration=$((end_time - start_time))
+    local minutes=$((duration / 60))
+    local seconds=$((duration % 60))
+
+    echo -e "\n${GREEN}╔═══════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${GREEN}║${NC}  ${BOLD}🎉 ALL BUILDS COMPLETE!${NC}                                     ${GREEN}║${NC}"
+    echo -e "${GREEN}║${NC}                                                               ${GREEN}║${NC}"
+    echo -e "${GREEN}║${NC}  ✅ iOS uploaded to TestFlight                               ${GREEN}║${NC}"
+    echo -e "${GREEN}║${NC}  ✅ Android uploaded to Play Console (Internal Testing)      ${GREEN}║${NC}"
+    echo -e "${GREEN}║${NC}  ⏱️  Total time: ${minutes}m ${seconds}s                                      ${GREEN}║${NC}"
+    echo -e "${GREEN}╚═══════════════════════════════════════════════════════════════╝${NC}"
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# HELP
+# ═══════════════════════════════════════════════════════════════════════════════
+show_help() {
+    echo -e "${CYAN}═══════════════════════════════════════════════════════════════${NC}"
+    echo -e "${BOLD}${GREEN}  📖 ANIMIGHT QUICK COMMANDS${NC}"
+    echo -e "${CYAN}═══════════════════════════════════════════════════════════════${NC}"
+    echo ""
+    echo -e "${BOLD}Usage:${NC}"
+    echo -e "  ${GREEN}./pm run${NC}      Interactive menu to run the app"
+    echo -e "  ${GREEN}./pm build${NC}    Interactive menu to build the app"
+    echo -e "  ${GREEN}./pm ios${NC}      Build + Upload to TestFlight"
+    echo -e "  ${GREEN}./pm android${NC}  Build + Upload to Play Console"
+    echo -e "  ${GREEN}./pm help${NC}     Show this help message"
+    echo ""
+    echo -e "${BOLD}Examples:${NC}"
+    echo -e "  ${YELLOW}./pm run${NC}     → Shows menu to pick iOS or Android device"
+    echo -e "  ${YELLOW}./pm build${NC}   → Shows build menu with all options"
+    echo -e "  ${YELLOW}./pm ios${NC}     → Directly builds + uploads to TestFlight"
+    echo -e "  ${YELLOW}./pm android${NC} → Directly builds + uploads to Play Console"
+    echo ""
+    echo -e "${CYAN}═══════════════════════════════════════════════════════════════${NC}"
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# MAIN
+# ═══════════════════════════════════════════════════════════════════════════════
+main() {
+    cd "$(dirname "$0")" || exit 1
+
+    case "${1:-}" in
+        run|r)
+            run_menu
+            ;;
+        build|b)
+            build_menu
+            ;;
+        ios)
+            build_ios
+            ;;
+        android)
+            build_android
+            ;;
+        help|h|-h|--help)
+            show_help
+            ;;
+        "")
+            clear
+            echo -e "${CYAN}═══════════════════════════════════════════════════════════════${NC}"
+            echo -e "${BOLD}${GREEN}  ⚡ ANIMIGHT QUICK COMMANDS${NC}"
+            echo -e "${CYAN}═══════════════════════════════════════════════════════════════${NC}"
+            echo ""
+            echo -e "  ${GREEN}1)${NC} 🚀 Run App     ${YELLOW}Development/Testing${NC}"
+            echo -e "  ${GREEN}2)${NC} 📦 Build App   ${YELLOW}Production Release${NC}"
+            echo -e "  ${GREEN}3)${NC} 🍎 iOS Only    ${YELLOW}Build + Upload to TestFlight${NC}"
+            echo -e "  ${GREEN}4)${NC} 🤖 Android Only${YELLOW} Build + Upload to Play Console${NC}"
+            echo ""
+            echo -e "${CYAN}═══════════════════════════════════════════════════════════════${NC}"
+            echo -e "  ${RED}0)${NC} Exit"
+            echo -e "${CYAN}═══════════════════════════════════════════════════════════════${NC}"
+            echo ""
+            echo -ne "${BOLD}Select option [0-4]: ${NC}"
+            read -r choice
+
+            case $choice in
+                1)
+                    run_menu
+                    ;;
+                2)
+                    build_menu
+                    ;;
+                3)
+                    build_ios
+                    ;;
+                4)
+                    build_android
+                    ;;
+                0|"")
+                    echo -e "\n${YELLOW}Goodbye!${NC}"
+                    ;;
+                *)
+                    echo -e "\n${RED}Invalid option.${NC}"
+                    ;;
+            esac
+            ;;
+        *)
+            echo -e "${RED}Unknown command: $1${NC}"
+            echo -e "Run ${GREEN}./pm help${NC} for usage"
+            ;;
+    esac
+}
+
+main "$@"

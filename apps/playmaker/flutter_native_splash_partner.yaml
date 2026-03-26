@@ -1,0 +1,39 @@
+flutter_native_splash:
+  # Partner app splash screen - Blue theme with "PM Partner" text logo
+  
+  # Background color (partner blue)
+  color: "#2563EB"
+  color_dark: "#2563EB"
+  
+  # Custom "PM Partner" logo on blue background
+  # Create this image: Blue background with white "PM Partner" text
+  # Size: 512x512px or larger, PNG format
+  image: assets/splash_partner.png
+  image_dark: assets/splash_partner.png
+  
+  # Android 12+ specific settings
+  android_12:
+    # Use partner blue
+    color: "#2563EB"
+    color_dark: "#2563EB"
+    
+    # PM Partner branding logo
+    image: assets/splash_partner.png
+    branding: assets/splash_partner.png
+    branding_dark: assets/splash_partner.png
+  
+  # iOS specific
+  ios: true
+  ios_content_mode: center
+  
+  # Android specific  
+  android: true
+  android_gravity: center
+  
+  # Fullscreen mode
+  fullscreen: true
+  
+  # Info plist settings (iOS)
+  info_plist_files:
+    - 'ios/Runner/Info.plist'
+

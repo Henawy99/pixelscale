@@ -1,0 +1,48 @@
+# ════════════════════════════════════════════════════════════════════════════════
+# CURSORIGNORE - Files hidden from Cursor AI
+# ════════════════════════════════════════════════════════════════════════════════
+
+# Build outputs
+**/build/
+/build/
+promoapp/build/
+*.aab
+*.apk
+*.ipa
+
+# Screenshots and images at root
+/*.png
+/*.jpg
+/*.jpeg
+/*.gif
+/*.mov
+/*.mp4
+
+# Dependencies
+node_modules/
+**/Pods/
+**/.gradle/
+
+# Generated files
+**/Generated.xcconfig
+**/flutter_export_environment.sh
+**/.dart_tool/
+**/.pub-cache/
+
+# IDE
+.idea/
+.vscode/
+
+# Credentials (security)
+*.p8
+**/playmaker-play-console-service-account.json
+
+# Albaseet website
+albaseet-website/
+
+# Large folders
+promoapp/android/
+promoapp/ios/
+promoapp/macos/
+promoapp/linux/
+promoapp/windows/

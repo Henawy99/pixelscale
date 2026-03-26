@@ -1,0 +1,11 @@
+# Copy to key.properties and fill in your release keystore details.
+# key.properties is gitignored; never commit real passwords.
+#
+# Create a keystore (one-time):
+#   keytool -genkey -v -keystore release.keystore -alias academy -keyalg RSA -keysize 2048 -validity 10000
+#
+# Then set:
+storePassword=your_store_password
+keyPassword=your_key_password
+keyAlias=academy
+storeFile=../release.keystore

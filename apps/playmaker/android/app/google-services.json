@@ -1,0 +1,243 @@
+{
+  "project_info": {
+    "project_number": "116429864847",
+    "project_id": "playmaker-4af3d",
+    "storage_bucket": "playmaker-4af3d.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:116429864847:android:9731439067a434e207d5fb",
+        "android_client_info": {
+          "package_name": "com.playmakeradmincairo.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "116429864847-jqg1jk1268rlsh2p6uk0e116fqv3fd6o.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAXs-QIdgrFn-Pqqtr39pt1ZYq8zhza2bY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "116429864847-jqg1jk1268rlsh2p6uk0e116fqv3fd6o.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "116429864847-374eeetj4uin7uu0p8q6u023ih2of5ts.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.playmakerappstart"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:116429864847:android:9731439067a434e207d5fa",
+        "android_client_info": {
+          "package_name": "com.example.playmakeradmin"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "116429864847-jqg1jk1268rlsh2p6uk0e116fqv3fd6o.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAXs-QIdgrFn-Pqqtr39pt1ZYq8zhza2bY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "116429864847-jqg1jk1268rlsh2p6uk0e116fqv3fd6o.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "116429864847-374eeetj4uin7uu0p8q6u023ih2of5ts.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.playmakerappstart"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:116429864847:android:8e9f3400daa858e707d5fa",
+        "android_client_info": {
+          "package_name": "com.example.playmakerappstart"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "116429864847-ertphrjmgcblkj0qa0da9q3u8rml4t6f.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.playmakerappstart",
+            "certificate_hash": "c956b2296ccb4bef720a31fa30dc892a836d9896"
+          }
+        },
+        {
+          "client_id": "116429864847-jqg1jk1268rlsh2p6uk0e116fqv3fd6o.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAXs-QIdgrFn-Pqqtr39pt1ZYq8zhza2bY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "116429864847-jqg1jk1268rlsh2p6uk0e116fqv3fd6o.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "116429864847-374eeetj4uin7uu0p8q6u023ih2of5ts.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.playmakerappstart"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:116429864847:android:aff23d21b91e90d607d5fa",
+        "android_client_info": {
+          "package_name": "com.playmakercairo.admin"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "116429864847-jqg1jk1268rlsh2p6uk0e116fqv3fd6o.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAXs-QIdgrFn-Pqqtr39pt1ZYq8zhza2bY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "116429864847-jqg1jk1268rlsh2p6uk0e116fqv3fd6o.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:116429864847:android:aff23d21b91e90d607d5fa",
+        "android_client_info": {
+          "package_name": "com.playmakercairo.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "116429864847-v7hn7f7ijtp4hphc186o6hsdrfe5pl80.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.playmakercairo.app",
+            "certificate_hash": "c956b2296ccb4bef720a31fa30dc892a836d9896"
+          }
+        },
+        {
+          "client_id": "116429864847-jqg1jk1268rlsh2p6uk0e116fqv3fd6o.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAXs-QIdgrFn-Pqqtr39pt1ZYq8zhza2bY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "116429864847-jqg1jk1268rlsh2p6uk0e116fqv3fd6o.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "116429864847-374eeetj4uin7uu0p8q6u023ih2of5ts.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.playmakerappstart"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:116429864847:android:edd912096e76c19b07d5fa",
+        "android_client_info": {
+          "package_name": "com.playmakeregypt.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "116429864847-5l28642vh2lbvvu1i77eeua9ifensmg8.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.playmakeregypt.app",
+            "certificate_hash": "c956b2296ccb4bef720a31fa30dc892a836d9896"
+          }
+        },
+        {
+          "client_id": "116429864847-jqg1jk1268rlsh2p6uk0e116fqv3fd6o.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAXs-QIdgrFn-Pqqtr39pt1ZYq8zhza2bY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "116429864847-jqg1jk1268rlsh2p6uk0e116fqv3fd6o.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "116429864847-374eeetj4uin7uu0p8q6u023ih2of5ts.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.playmakerappstart"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

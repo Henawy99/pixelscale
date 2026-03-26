@@ -1,0 +1,828 @@
+{
+  "@@locale": "ar",
+  "appTitle": "صانع اللعب",
+  "next": "التالي",
+  "skip": "تخطي",
+  "done": "تم",
+  "cancel": "إلغاء",
+  "save": "حفظ",
+  "edit": "تعديل",
+  "delete": "حذف",
+  "search": "بحث",
+  "submit": "إرسال",
+  "login": "تسجيل الدخول",
+  "register": "تسجيل",
+  "logout": "تسجيل الخروج",
+
+  "personalInformation": "المعلومات الشخصية",
+  "playerDetails": "تفاصيل اللاعب",
+  "settings": "الإعدادات",
+  "deleteAccount": "حذف الحساب",
+  "profileUpdated": "تم تحديث الملف الشخصي بنجاح",
+  
+  "name": "الاسم",
+  "email": "البريد الإلكتروني",
+  "password": "كلمة المرور",
+  "phoneNumber": "رقم الهاتف",
+  "age": "العمر",
+  "nationality": "الجنسية",
+  "playerId": "معرف اللاعب",
+  "position": "المركز",
+  "level": "المستوى",
+  "joined": "انضم في",
+
+  "beginner": "مبتدئ",
+  "levelBeginnerDescription": "جديد في كرة القدم، يتعلم الأساسيات.",
+  "casual": "عادي",
+  "levelCasualDescription": "يلعب بانتظام، يفهم اللعبة.",
+  "skilled": "ماهر",
+  "levelSkilledDescription": "مهارات فنية جيدة، وعي تكتيكي.",
+  "elite": "نخبة",
+  "levelEliteDescription": "لاعب قوي، يحدث تأثيرًا.",
+  "expert": "خبير",
+  "levelExpertDescription": "مهارات عالية المستوى، يسيطر على المباريات.",
+  "skillLevel": "مستوى المهارة",
+  
+  "matches": "المباريات",
+  "squads": "الفرق",
+  "friends": "الأصدقاء",
+  "profile": "الملف الشخصي",
+  "fields": "الملاعب",
+  
+  "enterYourName": "أدخل اسمك الكامل",
+  "selectPositionAndLevel": "اختر المركز والمستوى",
+  "preferredPosition": "المركز المفضل",
+  "completeProfileButton": "إكمال الملف الشخصي",
+  
+  "playMoreToUnlock": "العب {count} مباريات لفتح القفل",
+  "@playMoreToUnlock": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "example": "10"
+      }
+    }
+  },
+  "almostUnlocked": "على وشك الفتح",
+  "justUnlocked": "تم الفتح!",
+  
+  "privacyPolicy": "سياسة الخصوصية",
+  "termsConditions": "الشروط والأحكام",
+  "deleteAccountConfirmation": "هذا الإجراء دائم. سيتم حذف ملفك الشخصي وحجوزاتك وجميع البيانات المرتبطة بشكل دائم.",
+  "typeToConfirm": "اكتب \"{word}\" لتأكيد الحذف:",
+  
+  "languageSettingsTitle": "إعدادات اللغة",
+  "rtlLayoutInfo": "سيدعم التطبيق تلقائيًا التخطيط من اليمين إلى اليسار عند تحديد اللغة العربية. يؤثر هذا على جميع الشاشات والمكونات، مما يوفر تجربة سلسة للمستخدمين العرب.",
+  "birthDateTitle": "تاريخ الميلاد",
+  "hintDD": "يوم",
+  "hintMM": "شهر",
+  "hintYYYY": "سنة",
+  "phoneNumberTitle": "رقم الهاتف",
+  "hintPhoneNumber": "رقم الهاتف",
+  "fullNameTitle": "الاسم الكامل",
+  "hintEnterFullName": "أدخل اسمك الكامل",
+  "couldNotFetchUpdatedProfile": "لم نتمكن من جلب الملف الشخصي المحدث بعد تحميل الصورة.",
+  "deleteAccountWarningMessage": "هذا الإجراء دائم. سيتم حذف ملفك الشخصي وحجوزاتك وجميع البيانات المرتبطة بشكل دائم.",
+  "typeToConfirmDeletion": "اكتب \"{word}\" لتأكيد الحذف:",
+  "@typeToConfirmDeletion": {
+    "placeholders": {
+      "word": {
+        "type": "String",
+        "example": "playmaker"
+      }
+    }
+  },
+  "pleaseTypeExactly": "الرجاء كتابة \"{word}\" بالضبط",
+  "@pleaseTypeExactly": {
+    "placeholders": {
+      "word": {
+        "type": "String",
+        "example": "playmaker"
+      }
+    }
+  },
+  "accountDeletedSuccess": "تم حذف الحساب بنجاح",
+  "errorDeletingAccount": "خطأ في حذف الحساب: {error}",
+  "@errorDeletingAccount": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "logoutConfirmationMessage": "هل أنت متأكد أنك تريد تسجيل الخروج من حسابك؟",
+  "createProfileTitle": "إنشاء ملف شخصي",
+  "signUpToAccessFeatures": "سجل للدخول إلى جميع الميزات:",
+  "featureBookFields": "حجز ملاعب كرة القدم",
+  "featureJoinCreateSquads": "الانضمام وإنشاء الفرق",
+  "featureScheduleMatches": "جدولة المباريات",
+  "featureConnectPlayers": "التواصل مع اللاعبين",
+  "getStarted": "ابدأ الآن",
+  "statGames": "مباريات",
+  "statFriends": "أصدقاء",
+  "statSquads": "فرق",
+  "phoneLabel": "الهاتف",
+
+  "squadsTabTitle": "الفرق",
+  "friendsCardTitle": "الأصدقاء",
+  "connectWithPlayersSubtitle": "تواصل مع اللاعبين",
+  "friendsStatLabel": "أصدقاء",
+  "mySquadsCardTitle": "فرقي",
+  "mySquadsCardSubtitle": "عرض وإدارة فرقك",
+  "teamsStatLabel": "فرق",
+  "joinSquadsCardTitle": "انضم إلى فرق",
+  "joinSquadsCardSubtitle": "ابحث وانضم إلى فرق في منطقتك",
+  "createSquadCardTitle": "أنشئ فريق",
+  "createSquadCardSubtitle": "ابدأ فريقك الخاص وجند لاعبين",
+  "createAccountDialogTitle": "أنشئ حساب",
+  "createAccountDialogMessage": "يرجى إنشاء حساب للوصول إلى هذه الميزة.",
+  "signUpButton": "تسجيل",
+
+  "playTabTitle": "العب",
+  "bookAFieldCardTitle": "احجز ملعب",
+  "bookAFieldCardSubtitle": "ابحث واحجز ملاعب كرة قدم بالقرب منك",
+  "joinMatchesCardTitle": "انضم إلى مباريات",
+  "joinMatchesCardSubtitle": "العب مع الآخرين في مباريات مجدولة",
+  "openMatchesStatLabel": "مباريات متاحة",
+  "failedToLoadBookingsSnackbar": "فشل تحميل الحجوزات",
+  "errorFetchingFieldDetailsSnackbar": "خطأ في جلب تفاصيل الملعب",
+  "recentlyPlayedFieldsTitle": "ملاعب تم اللعب بها مؤخرًا",
+  "yourFavoritePlacesToPlaySubtitle": "أماكنك المفضلة للعب",
+  "bookAgainButton": "احجز مرة أخرى",
+  "noRecentlyPlayedFields": "لا توجد ملاعب تم اللعب بها مؤخرًا",
+  "errorLoadingFields": "خطأ في تحميل الملاعب",
+
+  "matchDetailsTitle": "تفاصيل المباراة",
+  "detailsTab": "التفاصيل",
+  "chatTab": "الدردشة",
+  "openInGoogleMaps": "فتح في خرائط جوجل",
+  "couldNotLaunchGoogleMaps": "تعذر تشغيل خرائط جوجل",
+  "openInAppleMaps": "فتح في خرائط آبل",
+  "couldNotLaunchAppleMaps": "تعذر تشغيل خرائط آبل",
+  "failedToAcceptJoinRequest": "فشل قبول طلب الانضمام",
+  "joinRequestPending": "طلب الانضمام معلق",
+  "joinMatchButton": "انضم للمباراة",
+  "matchInformationSectionTitle": "معلومات المباراة",
+  "dateLabel": "التاريخ",
+  "timeLabel": "الوقت",
+  "hostLabel": "المضيف",
+  "youSuffix": "أنت",
+  "unableToLoadHost": "تعذر تحميل المضيف",
+  "joinRequestsSectionTitle": "طلبات الانضمام",
+  "playersSectionTitle": "اللاعبون",
+  "playersJoinedCount": "{count} انضموا",
+  "@playersJoinedCount": {
+    "placeholders": {
+      "count": {"type": "String"}
+    }
+  },
+  "playersMaxCount": "{current} / {max}",
+  "@playersMaxCount": {
+    "placeholders": {
+      "current": {"type": "String"},
+      "max": {"type": "String"}
+    }
+  },
+  "addPlayersButton": "إضافة",
+  "guestLabel": "ضيف {number}",
+  "@guestLabel": {
+    "placeholders": {
+      "number": {"type": "String"}
+    }
+  },
+  "invalidGuestEntry": "إدخال ضيف غير صالح",
+  "locationSectionTitle": "الموقع",
+  "locationAccessRequired": "مطلوب الوصول إلى الموقع",
+  "getDirectionsButton": "الحصول على الاتجاهات",
+  "joinMatchSheetTitle": "الانضمام للمباراة",
+  "joinAloneOption": "الانضمام بمفردك",
+  "joinAloneSubtitle": "العب مع لاعبين آخرين",
+  "joinWithGuestsOption": "الانضمام مع ضيوف",
+  "joinWithGuestsSubtitle": "أحضر أصدقائك معك",
+  "numberOfGuestsLabel": "عدد الضيوف",
+  "joinWithXGuestsButton": "الانضمام مع {count} ضيف/ضيوف",
+  "@joinWithXGuestsButton": {
+    "placeholders": {
+      "count": {"type": "String"}
+    }
+  },
+  "joinRequestSent": "تم إرسال طلب الانضمام!",
+  "failedToSendJoinRequest": "فشل إرسال طلب الانضمام: {error}",
+  "@failedToSendJoinRequest": {
+    "placeholders": {
+      "error": {"type": "String"}
+    }
+  },
+  "addPlayersSheetTitle": "إضافة لاعبين",
+  "addGuestsOption": "إضافة ضيوف",
+  "addGuestsSubtitle": "إضافة لاعبين ضيوف",
+  "addFriendsOption": "إضافة أصدقاء",
+  "addFriendsSubtitle": "إضافة من قائمة أصدقائك",
+  "addSquadOption": "إضافة فريق",
+  "addSquadSubtitle": "إضافة لاعبين من فريقك",
+  "selectAction": "اختر إجراء",
+  "addedXGuestsSnackbar": "تمت إضافة {count} ضيف/ضيوف إلى المباراة",
+  "@addedXGuestsSnackbar": {
+    "placeholders": {
+      "count": {"type": "String"}
+    }
+  },
+  "errorAddingGuestsSnackbar": "خطأ في إضافة الضيوف: {error}",
+  "@errorAddingGuestsSnackbar": {
+    "placeholders": {
+      "error": {"type": "String"}
+    }
+  },
+  "addedXPlayersSnackbar": "تمت إضافة {count} لاعب/لاعبين إلى المباراة",
+  "@addedXPlayersSnackbar": {
+    "placeholders": {
+      "count": {"type": "String"}
+    }
+  },
+  "errorAddingPlayersSnackbar": "خطأ في إضافة اللاعبين: {error}",
+  "@errorAddingPlayersSnackbar": {
+    "placeholders": {
+      "error": {"type": "String"}
+    }
+  },
+  "allSquadMembersAlreadyInMatch": "جميع أعضاء الفريق موجودون بالفعل في المباراة",
+  "cannotAddSquadMembersLimitReached": "لا يمكن إضافة أعضاء الفريق من {squadName}. تم الوصول إلى الحد الأقصى وهو {maxPlayers}.",
+  "@cannotAddSquadMembersLimitReached": {
+    "placeholders": {
+      "squadName": {"type": "String"},
+      "maxPlayers": {"type": "String"}
+    }
+  },
+  "sentXFriendJoinRequests": "تم إرسال {count} طلب/طلبات انضمام صديق",
+  "@sentXFriendJoinRequests": {
+    "placeholders": {
+      "count": {"type": "String"}
+    }
+  },
+  "sentXSquadJoinRequests": "تم إرسال {count} طلب/طلبات انضمام لأعضاء من {squadName}",
+  "@sentXSquadJoinRequests": {
+    "placeholders": {
+      "count": {"type": "String"},
+      "squadName": {"type": "String"}
+    }
+  },
+  "requestedToAddXGuests": "تم طلب إضافة {count} ضيف/ضيوف",
+  "@requestedToAddXGuests": {
+    "placeholders": {
+      "count": {"type": "String"}
+    }
+  },
+  "failedToSendGuestAddRequest": "فشل إرسال طلب إضافة ضيف: {error}",
+  "@failedToSendGuestAddRequest": {
+    "placeholders": {
+      "error": {"type": "String"}
+    }
+  },
+  "minsSuffix": "دقائق",
+  "cannotAcceptRequestMaxPlayers": "لا يمكن قبول الطلب. إضافة {count} لاعب/لاعبين سيتجاوز الحد الأقصى وهو {maxPlayers}.",
+  "@cannotAcceptRequestMaxPlayers": {
+    "placeholders": {
+      "count": {"type": "String"},
+      "maxPlayers": {"type": "String"}
+    }
+  },
+  "playerAddedToMatchSnackbar": "تمت إضافة {playerName} إلى المباراة",
+  "@playerAddedToMatchSnackbar": {
+    "placeholders": {
+      "playerName": {"type": "String"}
+    }
+  },
+  "playerAddedWithGuestsSnackbar": "تمت إضافة {playerName} إلى المباراة مع {guestCount} ضيوف",
+  "@playerAddedWithGuestsSnackbar": {
+    "placeholders": {
+      "playerName": {"type": "String"},
+      "guestCount": {"type": "String"}
+    }
+  },
+  "guestRequestApprovedSnackbar": "تمت الموافقة على طلب {playerName} لإضافة {guestCount} ضيوف",
+  "@guestRequestApprovedSnackbar": {
+    "placeholders": {
+      "playerName": {"type": "String"},
+      "guestCount": {"type": "String"}
+    }
+  },
+  "declinedJoinRequestSnackbar": "تم رفض طلب الانضمام",
+  "failedToDeclineJoinRequestSnackbar": "فشل رفض طلب الانضمام",
+  "errorParsingJoinRequest": "خطأ في تحليل طلب الانضمام: {error}",
+    "@errorParsingJoinRequest": {
+    "placeholders": {
+      "error": {"type": "String"}
+    }
+  },
+  "errorRefreshingBooking": "خطأ في إعادة جلب الحجز: {error}",
+  "@errorRefreshingBooking": {
+    "placeholders": {
+      "error": {"type": "String"}
+    }
+  },
+  "bookingNotFound": "الحجز غير موجود",
+  "youAreNotMemberOfSquads": "أنت لست عضوا في أي فرق",
+  "selectSquadToRequestTitle": "اختر فريقا لطلب الانضمام",
+  "selectSquadTitle": "اختر فريق",
+  "membersSuffix": "أعضاء",
+
+  "matchesTab_errorLoadingFields": "خطأ في تحميل الملاعب: {e}",
+  "@matchesTab_errorLoadingFields": {
+    "placeholders": {"e": {"type": "String"}}
+  },
+  "matchesTab_unknownPlayer": "لاعب غير معروف",
+  "matchesTab_errorFetchingHostInfo": "خطأ في جلب معلومات المضيف: {e}",
+  "@matchesTab_errorFetchingHostInfo": {
+    "placeholders": {"e": {"type": "String"}}
+  },
+  "matchesTab_matchInProgress": "المباراة جارية",
+  "matchesTab_timeLeftDaysHours": "متبقي {days} يوم (أيام), {hours} ساعة (ساعات)",
+  "@matchesTab_timeLeftDaysHours": {
+    "placeholders": {
+      "days": {"type": "int"},
+      "hours": {"type": "int"}
+    }
+  },
+  "matchesTab_timeLeftHoursMinutes": "متبقي {hours} ساعة (ساعات), {minutes} دقيقة (دقائق)",
+  "@matchesTab_timeLeftHoursMinutes": {
+    "placeholders": {
+      "hours": {"type": "int"},
+      "minutes": {"type": "int"}
+    }
+  },
+  "matchesTab_timeLeftMinutes": "متبقي {minutes} دقيقة (دقائق)",
+  "@matchesTab_timeLeftMinutes": {
+    "placeholders": {"minutes": {"type": "int"}}
+  },
+  "matchesTab_startingSoon": "تبدأ قريباً",
+  "matchesTab_errorGeneric": "خطأ: {error}",
+  "@matchesTab_errorGeneric": {
+    "placeholders": {"error": {"type": "String"}}
+  },
+  "matchesTab_upcoming": "القادمة",
+  "matchesTab_past": "السابقة",
+  "matchesTab_noMatchesFound": "لم يتم العثور على مباريات",
+  "matchesTab_startByJoiningOrBooking": "ابدأ بالانضمام إلى مباراة أو حجز ملعب",
+  "matchesTab_joinAMatch": "انضم إلى مباراة",
+  "matchesTab_loading": "جاري التحميل...",
+  "matchesTab_completed": "مكتملة",
+  "matchesTab_spotsLeft": "متبقي {spotsLeft} مكان/أماكن",
+  "@matchesTab_spotsLeft": {
+    "placeholders": {"spotsLeft": {"type": "int"}}
+  },
+  "matchesTab_matchFull": "المباراة ممتلئة",
+
+  "fieldBooking_errorParsingRecurringOriginalDate": "خطأ في تحليل recurringOriginalDate ('{date}'): {e}",
+  "@fieldBooking_errorParsingRecurringOriginalDate": {
+    "placeholders": {
+      "date": {"type": "String"},
+      "e": {"type": "String"}
+    }
+  },
+  "fieldBooking_errorParsingRecurringEndDate": "خطأ في تحليل recurringEndDate ('{date}'): {e}",
+  "@fieldBooking_errorParsingRecurringEndDate": {
+    "placeholders": {
+      "date": {"type": "String"},
+      "e": {"type": "String"}
+    }
+  },
+  "fieldBooking_streetAddressNotAvailable": "عنوان الشارع غير متوفر",
+  "fieldBooking_directions": "الاتجاهات",
+  "fieldBooking_priceRangeEGP": "{priceRange} جنيه مصري",
+  "@fieldBooking_priceRangeEGP": {
+    "placeholders": {"priceRange": {"type": "String"}}
+  },
+  "fieldBooking_selectDate": "اختر التاريخ",
+  "fieldBooking_today": "اليوم",
+  "fieldBooking_availableTimeSlots": "الأوقات المتاحة",
+  "fieldBooking_noTimeSlotsAvailable": "لا توجد أوقات متاحة",
+  "fieldBooking_trySelectingAnotherDate": "حاول اختيار تاريخ آخر",
+  "fieldBooking_errorParsingTimeSlotForPastCheck": "خطأ في تحليل وقت الفترة للتحقق من 'isPast': {e}",
+  "@fieldBooking_errorParsingTimeSlotForPastCheck": {
+    "placeholders": {"e": {"type": "String"}}
+  },
+  "fieldBooking_booked": "محجوز",
+  "fieldBooking_pastTimeSlot": "فاتت",
+  "fieldBooking_continueToBooking": "متابعة إلى الحجز",
+  "fieldBooking_bookingCreatedSuccessfully": "تم إنشاء الحجز بنجاح",
+  "fieldBooking_available": "متاح",
+  "fieldBooking_openMatchStatus": "مباراة مفتوحة",
+  "fieldBooking_durationHours": "{duration} ساعات",
+  "@fieldBooking_durationHours": {
+    "placeholders": {"duration": {"type": "int"}}
+  },
+  "fieldBooking_durationHoursMinutes": "{hours}:{minutes} ساعات",
+  "@fieldBooking_durationHoursMinutes": {
+    "placeholders": {
+      "hours": {"type": "int"},
+      "minutes": {"type": "String"}
+    }
+  },
+  "fieldBooking_priceEGP": "{price} جنيه مصري",
+  "@fieldBooking_priceEGP": {
+    "placeholders": {"price": {"type": "dynamic"}}
+  },
+  "fieldBooking_photoCounter": "{current} / {totalPhotos}",
+  "@fieldBooking_photoCounter": {
+    "placeholders": {
+      "current": {"type": "int"},
+      "totalPhotos": {"type": "int"}
+    }
+  },
+
+  "fieldsListView_locationNewCairo": "القاهرة الجديدة",
+  "fieldsListView_locationNasrCity": "مدينة نصر",
+  "fieldsListView_locationShorouk": "الشروق",
+  "fieldsListView_locationMaadi": "المعادي",
+  "fieldsListView_locationSheikhZayed": "الشيخ زايد",
+  "fieldsListView_locationOctober": "أكتوبر",
+  "fieldsListView_errorCheckingLocationPermission": "خطأ في التحقق من إذن الموقع: {e}",
+  "@fieldsListView_errorCheckingLocationPermission": {
+    "placeholders": {"e": {"type": "String"}}
+  },
+  "fieldsListView_errorFetchingFields": "خطأ في جلب الملاعب: {e}",
+  "@fieldsListView_errorFetchingFields": {
+    "placeholders": {"e": {"type": "String"}}
+  },
+  "fieldsListView_viewMap": "عرض الخريطة",
+  "fieldsListView_filter": "تصفية",
+  "fieldsListView_withinRadiusKm": "في نطاق {radius} كم",
+  "@fieldsListView_withinRadiusKm": {
+    "placeholders": {"radius": {"type": "int"}}
+  },
+  "fieldsListView_createAccountToBook": "يرجى إنشاء حساب لحجز ملعب.",
+  "fieldsListView_filterFields": "تصفية الملاعب",
+  "fieldsListView_location": "الموقع",
+  "fieldsListView_distance": "المسافة",
+  "fieldsListView_anyDistance": "أي مسافة",
+  "fieldsListView_radiusKm": "{radius} كم",
+  "@fieldsListView_radiusKm": {
+    "placeholders": {"radius": {"type": "int"}}
+  },
+  "fieldsListView_minRadius": "1 كم",
+  "fieldsListView_maxRadius": "20 كم",
+  "fieldsListView_applyFilters": "تطبيق الفلاتر",
+  "fieldsListView_distanceMetersAway": "{distance}م",
+  "@fieldsListView_distanceMetersAway": {
+    "placeholders": {"distance": {"type": "String"}}
+  },
+  "fieldsListView_distanceKmAway": "{distance}كم",
+  "@fieldsListView_distanceKmAway": {
+    "placeholders": {"distance": {"type": "String"}}
+  },
+  "fieldsListView_priceRangeEgpHour": "{priceRange} ج.م/ساعة",
+  "@fieldsListView_priceRangeEgpHour": {
+    "placeholders": {"priceRange": {"type": "String"}}
+  },
+  "fieldsListView_amenityParking": "موقف سيارات",
+  "fieldsListView_amenityRestrooms": "دورات مياه",
+  "fieldsListView_amenityCafeteria": "كافيتريا",
+  "fieldsListView_amenityFloodlights": "أضواء كاشفة",
+  "fieldsListView_amenityRecording": "تسجيل",
+  "fieldsListView_noFieldsFound": "لم يتم العثور على ملاعب",
+  "fieldsListView_noFieldsFoundSubtitle": "حاول تعديل الفلاتر أو الموقع للعثور على ملاعب متاحة في منطقتك.",
+  "fieldsListView_refresh": "تحديث",
+
+  "bookingDetails_playerLimitReachedSomeAdded": "تم الوصول إلى حد اللاعبين. تمت إضافة {availableSlots} أصدقاء فقط.",
+  "@bookingDetails_playerLimitReachedSomeAdded": {
+    "placeholders": {"availableSlots": {"type": "int"}}
+  },
+  "bookingDetails_playerLimitReachedNoneAdded": "تم الوصول إلى حد اللاعبين وهو {maxPlayers}. لا يمكن إضافة المزيد من اللاعبين.",
+  "@bookingDetails_playerLimitReachedNoneAdded": {
+    "placeholders": {"maxPlayers": {"type": "int"}}
+  },
+  "bookingDetails_matchSettings": "إعدادات المباراة",
+  "bookingDetails_matchSettingsSubtitle": "قم بتكوين تفضيلات المباراة الخاصة بك",
+  "bookingDetails_privateMatch": "مباراة خاصة",
+  "bookingDetails_privateMatchSubtitlePrivate": "لا يمكن للاعبين طلب الانضمام. لعبة خاصة",
+  "bookingDetails_privateMatchSubtitleOpen": "يمكن للاعبين الآخرين طلب الانضمام إلى مباراتك",
+  "bookingDetails_limitMaxPlayers": "تحديد الحد الأقصى للاعبين",
+  "bookingDetails_limitMaxPlayersSubtitleLimit": "حدد الحد الأقصى لعدد اللاعبين",
+  "bookingDetails_limitMaxPlayersSubtitleNoLimit": "السماح لأي عدد من اللاعبين بالانضمام",
+  "bookingDetails_cannotDecreaseMaxPlayersTitle": "لا يمكن تقليل الحد الأقصى للاعبين",
+  "bookingDetails_cannotDecreaseMaxPlayersMessage": "يرجى إزالة بعض اللاعبين لتقليل عدد الحد الأقصى للاعبين.",
+  "bookingDetails_ok": "موافق",
+  "bookingDetails_cameraRecording": "تسجيل بالكاميرا",
+  "bookingDetails_recordingEnabledPrice": "التسجيل مفعل (+{price} جنيه مصري)",
+  "@bookingDetails_recordingEnabledPrice": {
+    "placeholders": {"price": {"type": "int"}}
+  },
+  "bookingDetails_enableRecordingPrice": "تفعيل تسجيل المباراة بالكاميرا (+{price} جنيه مصري)",
+  "@bookingDetails_enableRecordingPrice": {
+    "placeholders": {"price": {"type": "int"}}
+  },
+  "bookingDetails_inviteFriendsSubtitle": "ادعُ الأصدقاء للانضمام إلى مباراتك",
+  "bookingDetails_playerCountFraction": "{current} / {max} لاعبين",
+  "@bookingDetails_playerCountFraction": {
+    "placeholders": {
+      "current": {"type": "int"},
+      "max": {"type": "int"}
+    }
+  },
+  "bookingDetails_playerCountAbsolute": "{current} لاعبين",
+  "@bookingDetails_playerCountAbsolute": {
+    "placeholders": {"current": {"type": "int"}}
+  },
+  "bookingDetails_invitePlayers": "دعوة لاعبين",
+  "bookingDetails_playersInvitedCount": "تم دعوة {count} لاعبين",
+  "@bookingDetails_playersInvitedCount": {
+    "placeholders": {"count": {"type": "int"}}
+  },
+  "bookingDetails_tapToInviteFriends": "انقر لدعوة الأصدقاء إلى مباراتك",
+  "bookingDetails_bringGuests": "إحضار ضيوف",
+  "bookingDetails_addPlayersWithoutAccount": "إضافة لاعبين بدون حساب",
+  "bookingDetails_matchDescription": "وصف المباراة",
+  "bookingDetails_matchDescriptionSubtitle": "أضف معلومات للاعبين حول مباراتك",
+  "bookingDetails_matchDescriptionHint": "مثال: مباراة ودية، جميع مستويات المهارة مرحب بها! أحضروا قمصانًا فاتحة وداكنة.",
+  "bookingDetails_totalAmount": "المبلغ الإجمالي",
+  "bookingDetails_priceEgp": "{price} جنيه مصري",
+  "@bookingDetails_priceEgp": {
+    "placeholders": {"price": {"type": "int"}}
+  },
+  "bookingDetails_continue": "متابعة",
+  "bookingDetails_matchType": "نوع المباراة",
+  "bookingDetails_matchTypePrivate": "خاصة",
+  "bookingDetails_matchTypePrivateSubtitle": "اللاعبون المدعوون فقط",
+  "bookingDetails_matchTypeOpen": "مفتوحة",
+  "bookingDetails_matchTypeOpenSubtitle": "يمكن لأي شخص الانضمام",
+  "bookingDetails_durationInMinutes": "{duration} دقيقة",
+  "@bookingDetails_durationInMinutes": {
+    "placeholders": {"duration": {"type": "int"}}
+  },
+  "bookingDetails_durationHoursOnly": "{hours} س",
+  "@bookingDetails_durationHoursOnly": {
+    "placeholders": {"hours": {"type": "int"}}
+  },
+  "bookingDetails_durationHoursAndMinutes": "{hours} س {minutes} د",
+  "@bookingDetails_durationHoursAndMinutes": {
+    "placeholders": {
+      "hours": {"type": "int"},
+      "minutes": {"type": "int"}
+    }
+  },
+
+  "paymob_paymentTitle": "الدفع",
+
+  "paymentScreen_checkoutTitle": "الدفع",
+  "paymentScreen_bookingSummaryTitle": "ملخص الحجز",
+  "paymentScreen_fieldLabel": "الملعب",
+  "paymentScreen_locationLabel": "الموقع",
+  "paymentScreen_dateLabel": "التاريخ",
+  "paymentScreen_timeLabel": "الوقت",
+  "paymentScreen_playersLabel": "اللاعبون",
+  "paymentScreen_playersCount": "{count} لاعبين",
+  "@paymentScreen_playersCount": {
+    "placeholders": {"count": {"type": "int"}}
+  },
+  "paymentScreen_cameraRecordingLabel": "تسجيل بالكاميرا",
+  "paymentScreen_cameraRecordingEnabledPrice": "مفعل (+{price} جنيه مصري)",
+  "@paymentScreen_cameraRecordingEnabledPrice": {
+    "placeholders": {"price": {"type": "int"}}
+  },
+  "paymentScreen_fieldRentalLabel": "إيجار الملعب",
+  "paymentScreen_priceEGP": "{price} جنيه مصري",
+  "@paymentScreen_priceEGP": {
+    "placeholders": {"price": {"type": "dynamic"}}
+  },
+  "paymentScreen_totalPriceLabel": "السعر الإجمالي",
+  "paymentScreen_paymentMethodSectionTitle": "طريقة الدفع",
+  "paymentScreen_paymentMethodSectionSubtitle": "اختر طريقة الدفع المفضلة لديك",
+  "paymentScreen_creditCardOption": "بطاقة ائتمان",
+  "paymentScreen_creditCardSubtitle": "ادفع ببطاقة الائتمان أو الخصم الخاصة بك",
+  "paymentScreen_cashOption": "نقداً",
+  "paymentScreen_cashSubtitle": "ادفع نقداً في الملعب",
+  "paymentScreen_mobileWalletOption": "محفظة الهاتف المحمول",
+  "paymentScreen_mobileWalletSubtitle": "ادفع بمحفظة الهاتف المحمول الخاصة بك",
+  "paymentScreen_payNowButton": "ادفع الآن",
+  "paymentScreen_failedToCreateBooking": "فشل إنشاء الحجز: {e}",
+  "@paymentScreen_failedToCreateBooking": {
+    "placeholders": {"e": {"type": "String"}}
+  },
+  "paymentScreen_selectMobileWalletTitle": "اختر محفظة الهاتف المحمول",
+  "paymentScreen_selectMobileWalletSubtitle": "اختر محفظة الدفع المفضلة لديك",
+  "paymentScreen_vodafoneCash": "فودافون كاش",
+  "paymentScreen_etisalatCash": "اتصالات كاش",
+  "paymentScreen_orangeCash": "أورانج كاش",
+  "paymentScreen_otherWallets": "محافظ أخرى",
+
+  "playerDetails_friendRequestSent": "تم إرسال طلب صداقة إلى {name}",
+  "@playerDetails_friendRequestSent": {
+    "placeholders": {"name": {"type": "String"}}
+  },
+  "playerDetails_errorSendingFriendRequest": "خطأ في إرسال طلب الصداقة: {e}",
+  "@playerDetails_errorSendingFriendRequest": {
+    "placeholders": {"e": {"type": "String"}}
+  },
+  "playerDetails_removeFriendTitle": "إزالة صديق",
+  "playerDetails_removeFriendConfirmation": "هل أنت متأكد أنك تريد إزالة {name} من قائمة أصدقائك؟",
+  "@playerDetails_removeFriendConfirmation": {
+    "placeholders": {"name": {"type": "String"}}
+  },
+  "playerDetails_removeButton": "إزالة",
+  "playerDetails_friendRemovedSnackbar": "تمت إزالة {name} من الأصدقاء",
+  "@playerDetails_friendRemovedSnackbar": {
+    "placeholders": {"name": {"type": "String"}}
+  },
+  "playerDetails_errorRemovingFriend": "خطأ في إزالة الصديق: {e}",
+  "@playerDetails_errorRemovingFriend": {
+    "placeholders": {"e": {"type": "String"}}
+  },
+  "playerDetails_friendsButton": "أصدقاء",
+  "playerDetails_requestPendingButton": "الطلب معلق",
+  "playerDetails_addFriendButton": "إضافة صديق",
+  "playerDetails_playerIDLabel": "المعرف: {id}",
+  "@playerDetails_playerIDLabel": {
+    "placeholders": {"id": {"type": "String"}}
+  },
+  "playerDetails_statMatches": "مباريات",
+  "playerDetails_statFriends": "أصدقاء",
+  "playerDetails_statSquads": "فرق",
+  "playerDetails_playerInfoSectionTitle": "معلومات اللاعب",
+  "playerDetails_nationalityLabel": "الجنسية",
+  "playerDetails_notSet": "غير محدد",
+  "playerDetails_positionLabel": "المركز",
+  "playerDetails_ageLabel": "العمر",
+  "playerDetails_ageValue": "{age} سنوات",
+  "@playerDetails_ageValue": {
+    "placeholders": {"age": {"type": "String"}}
+  },
+  "playerDetails_skillLevelLabel": "مستوى المهارة",
+  "playerDetails_memberSinceLabel": "عضو منذ",
+  "playerDetails_errorParsingJoinedDate": "خطأ في تحليل تاريخ الانضمام: {e}",
+  "@playerDetails_errorParsingJoinedDate": {
+    "placeholders": {"e": {"type": "String"}}
+  },
+  "playerDetails_addFriendDialogTitle": "إضافة صديق",
+  "playerDetails_addFriendDialogContent": "هل تريد إضافة {name} كصديق؟",
+  "@playerDetails_addFriendDialogContent": {
+    "placeholders": {"name": {"type": "String"}}
+  },
+  "playerDetails_addButton": "إضافة",
+  "playerDetails_joinSquadDialogTitle": "الانضمام إلى فريق",
+  "playerDetails_joinSquadDialogContent": "هل تريد طلب الانضمام إلى فريق {squadName}؟",
+  "@playerDetails_joinSquadDialogContent": {
+    "placeholders": {"squadName": {"type": "String"}}
+  },
+  "playerDetails_requestToJoinButton": "طلب الانضمام",
+  "playerDetails_requestSentToJoinSquadSnackbar": "تم إرسال طلب الانضمام إلى {squadName}",
+  "@playerDetails_requestSentToJoinSquadSnackbar": {
+    "placeholders": {"squadName": {"type": "String"}}
+  },
+
+  "mainScreen_navMatches": "المباريات",
+  "mainScreen_navBook": "احجز",
+  "mainScreen_navSquads": "الفرق",
+  "mainScreen_navProfile": "الملف الشخصي",
+  "mainScreen_errorGettingLocation": "خطأ في الحصول على الموقع: {e}",
+  "@mainScreen_errorGettingLocation": {
+    "placeholders": {"e": {"type": "String"}}
+  },
+
+  "joinBookings_joinOpenMatchesTitle": "الانضمام إلى المباريات المفتوحة",
+  "joinBookings_failedToLoadOpenMatches": "فشل تحميل المباريات المفتوحة",
+  "joinBookings_filterMatchesTitle": "تصفية المباريات",
+  "joinBookings_locationLabel": "الموقع",
+  "joinBookings_resetButton": "إعادة تعيين",
+  "joinBookings_applyButton": "تطبيق",
+  "joinBookings_noOpenMatchesTitle": "لا توجد مباريات مفتوحة",
+  "joinBookings_noOpenMatchesSubtitle": "لا توجد مباريات مفتوحة متاحة لهذا التاريخ. حاول تاريخًا آخر أو قم بإنشاء حجز خاص بك.",
+  "joinBookings_bookAFieldButton": "احجز ملعبًا",
+  "joinBookings_durationInMinutes": "{duration} دقيقة",
+  "@joinBookings_durationInMinutes": {
+    "placeholders": {"duration": {"type": "int"}}
+  },
+  "joinBookings_hostLabel": "المضيف",
+  "joinBookings_loadingHost": "جاري التحميل...",
+  "joinBookings_spotsLeft": "متبقي {spotsLeft} مكان/أماكن",
+  "@joinBookings_spotsLeft": {
+    "placeholders": {"spotsLeft": {"type": "int"}}
+  },
+  "joinBookings_matchFull": "المباراة ممتلئة",
+  "joinBookings_playersLabel": "اللاعبون",
+  "joinBookings_errorFetchingHostInfo": "خطأ في جلب معلومات المضيف لبطاقة الحجز: {e}",
+  "@joinBookings_errorFetchingHostInfo": {
+    "placeholders": {"e": {"type": "String"}}
+  },
+  "joinBookings_successfullyJoinedMatch": "تم الانضمام إلى المباراة بنجاح!",
+  "joinBookings_failedToJoinMatch": "فشل الانضمام إلى المباراة. يرجى المحاولة مرة أخرى.",
+
+  "chooseYourPositionTitle": "اختر مركزك",
+  "chooseYourPositionSubtitle": "اختر المركز الذي يناسب أسلوب لعبك بشكل أفضل",
+  "positionGoalkeeperTitle": "حارس مرمى (GK)",
+  "positionGoalkeeperDescription": "حارس مرمى ومبادر باللعب.",
+  "positionLastManDefenderTitle": "آخر مدافع",
+  "positionLastManDefenderDescription": "العمود الفقري الدفاعي للفريق.",
+  "positionWingerTitle": "جناح",
+  "positionWingerDescription": "لاعب سريع يركز على خلق الفرص.",
+  "positionStrikerTitle": "مهاجم",
+  "positionStrikerDescription": "مهاجم يركز على تسجيل الأهداف.",
+  "positionAllRounderTitle": "لاعب شامل",
+  "positionAllRounderDescription": "لاعب متعدد الاستخدامات لعدة مراكز.",
+
+  "selectYourLevelTitle": "اختر مستواك",
+  "selectYourLevelSubtitle": "اختر المستوى الذي يناسب مهاراتك في كرة القدم بشكل أفضل",
+  "levelExpertLockReason": "العب {gamesPlayed}/10 مباريات لفتح القفل",
+  "@levelExpertLockReason": {
+    "placeholders": {
+      "gamesPlayed": {
+        "type": "int",
+        "example": "5"
+      }
+    }
+  },
+  "levelUnlockedBadge": "تم الفتح!",
+  "levelLockedBadge": "مقفل",
+  "levelAlmostUnlockedBadge": "وشيك",
+
+  "yourPlayingStyleTitle": "أسلوب لعبك",
+  "tellUsAboutYourGameTitle": "أخبرنا عن لعبك",
+  "tellUsAboutYourGameSubtitle": "يساعدنا هذا في التوفيق بينك وبين اللاعبين والملاعب المناسبة",
+  "preferredPositionSectionTitle": "المركز المفضل",
+  "selectYourPositionPlaceholder": "اختر مركزك",
+  "yourLevelSectionTitle": "مستواك",
+  "selectYourLevelPlaceholder": "اختر مستواك",
+  "selectedPositionCardLabel": "المركز",
+  "selectedLevelCardLabel": "مستوى المهارة",
+  "errorUpdatingProfileSnackbar": "خطأ في تحديث الملف الشخصي: {error}",
+  "@errorUpdatingProfileSnackbar": {
+    "placeholders": {
+      "error": {"type": "String"}
+    }
+  },
+
+  "partner_loginTitle": "تسجيل دخول الشريك",
+  "partner_loginSubtitle": "قم بتسجيل الدخول لإدارة ملعبك",
+  "partner_emailLabel": "البريد الإلكتروني",
+  "partner_emailHint": "أدخل بريدك الإلكتروني",
+  "partner_passwordLabel": "كلمة المرور",
+  "partner_passwordHint": "أدخل كلمة المرور",
+  "partner_signInButton": "تسجيل الدخول",
+  "partner_signingIn": "جاري تسجيل الدخول...",
+  "partner_selectLanguage": "اختر اللغة",
+  
+  "partner_bookingsTab": "الحجوزات",
+  "partner_revenueTab": "الإيرادات",
+  
+  "partner_bookings_title": "الحجوزات",
+  "partner_bookings_dateFormat": "EEE، d MMM، yyyy",
+  "partner_bookings_noTimeslotsConfigured": "لا توجد أوقات محددة",
+  "partner_bookings_available": "متاح - اضغط للحجز",
+  "partner_bookings_userBooking": "حجز مستخدم",
+  "partner_bookings_partnerBooking": "حجز شريك",
+  "partner_bookings_price": "جنيه",
+  "partner_bookings_egp": "جنيه",
+  "partner_bookings_weekly": "أسبوعي",
+  "partner_bookings_daily": "يومي",
+  
+  "partner_bookingDetails_title": "تفاصيل الحجز",
+  "partner_bookingDetails_host": "المضيف",
+  "partner_bookingDetails_phone": "الهاتف",
+  "partner_bookingDetails_price": "السعر",
+  "partner_bookingDetails_recurring": "متكرر",
+  "partner_bookingDetails_notes": "ملاحظات",
+  
+  "partner_createBooking_title": "إنشاء حجز",
+  "partner_createBooking_timeAndPrice": "{time} • {price} جنيه",
+  "@partner_createBooking_timeAndPrice": {
+    "placeholders": {
+      "time": {"type": "String"},
+      "price": {"type": "int"}
+    }
+  },
+  "partner_createBooking_customerName": "اسم العميل *",
+  "partner_createBooking_customerNameHint": "أدخل اسم العميل",
+  "partner_createBooking_phoneNumber": "رقم الهاتف *",
+  "partner_createBooking_phoneNumberHint": "أدخل رقم الهاتف",
+  "partner_createBooking_notes": "ملاحظات (اختياري)",
+  "partner_createBooking_notesOptional": "ملاحظات (اختياري)",
+  "partner_createBooking_notesHint": "أي ملاحظات إضافية",
+  "partner_createBooking_makeRecurring": "اجعل هذا حجزًا متكررًا",
+  "partner_createBooking_repeat": "تكرار",
+  "partner_createBooking_daily": "يومي",
+  "partner_createBooking_weekly": "أسبوعي",
+  "partner_createBooking_endDate": "تاريخ الانتهاء (اختياري)",
+  "partner_createBooking_endDateOptional": "تاريخ الانتهاء (اختياري)",
+  "partner_createBooking_selectEndDate": "اختر تاريخ الانتهاء (يستمر إلى أجل غير مسمى)",
+  "partner_createBooking_endDateHint": "اختر تاريخ الانتهاء (يستمر إلى أجل غير مسمى)",
+  "partner_createBooking_endDateSelected": "d MMM، yyyy",
+  "partner_createBooking_cancelButton": "إلغاء",
+  "partner_createBooking_create": "إنشاء حجز",
+  "partner_createBooking_createButton": "إنشاء حجز",
+  "partner_createBooking_fillRequired": "يرجى ملء جميع الحقول المطلوبة",
+  "partner_createBooking_createdSuccess": "تم إنشاء الحجز بنجاح!",
+  "partner_createBooking_createdSuccessRecurring": "تم إنشاء الحجز المتكرر بنجاح!",
+  "partner_createBooking_error": "خطأ في إنشاء الحجز: {error}",
+  "@partner_createBooking_error": {
+    "placeholders": {
+      "error": {"type": "String"}
+    }
+  },
+  
+  "partner_revenue_title": "الإيرادات",
+  "partner_revenue_settings": "الإعدادات",
+  "partner_revenue_language": "اللغة",
+  
+  "partner_signOut": "تسجيل الخروج",
+  "partner_signOutConfirm": "هل أنت متأكد أنك تريد تسجيل الخروج؟",
+  "partner_cancel": "إلغاء"
+}

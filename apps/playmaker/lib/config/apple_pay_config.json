@@ -1,0 +1,14 @@
+{
+  "provider": "apple_pay",
+  "data": {
+    "merchantIdentifier": "merchant.com.playmaker.app",
+    "displayName": "Playmaker",
+    "merchantCapabilities": ["3DS", "debit", "credit"],
+    "supportedNetworks": ["amex", "visa", "masterCard", "discover"],
+    "countryCode": "EG",
+    "currencyCode": "EGP",
+    "requiredBillingContactFields": ["emailAddress", "name", "phoneNumber"],
+    "requiredShippingContactFields": []
+  }
+}
+

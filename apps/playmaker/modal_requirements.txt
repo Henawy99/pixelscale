@@ -1,0 +1,10 @@
+# Modal.com Ball Tracking Requirements
+# These are installed in the Modal image (see modal_app.py)
+
+modal>=0.56.0
+opencv-python-headless==4.8.1.78
+numpy==1.24.3
+ultralytics==8.0.196
+supabase==2.3.0
+requests==2.31.0
+

@@ -1,0 +1,5 @@
+class Constants {
+  static const String apiKey =
+      "ZXlKaGJHY2lPaUpJVXpVeE1pSXNJblI1Y0NJNklrcFhWQ0o5LmV5SmpiR0Z6Y3lJNklrMWxjbU5vWVc1MElpd2ljSEp2Wm1sc1pWOXdheUk2T1RjNU56TTRMQ0p1WVcxbElqb2lhVzVwZEdsaGJDSjkuTlpSZUZ1TW4zOHFhSGwwUXlNYVVtTGFnZndJakFLTHRzT0Z3d0k3QzZSNXdLR0ZqWXBETWlDejkxd2pmakpJeFBZbHBXX2dfMlIwTWhUYnRkaVVtTmc=";
+  static const String paymentIntegration = "4590175";
+}

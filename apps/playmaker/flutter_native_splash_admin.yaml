@@ -1,0 +1,39 @@
+flutter_native_splash:
+  # Admin app splash screen - Black theme with "PM ADMIN" text logo
+  
+  # Background color (black)
+  color: "#000000"
+  color_dark: "#000000"
+  
+  # Custom "PM ADMIN" logo on black background
+  # Create this image: Black background with white "PM ADMIN" text
+  # Size: 512x512px or larger, PNG format
+  image: assets/splash_admin.png
+  image_dark: assets/splash_admin.png
+  
+  # Android 12+ specific settings
+  android_12:
+    # Use same black background
+    color: "#000000"
+    color_dark: "#000000"
+    
+    # PM ADMIN branding logo
+    image: assets/splash_admin.png
+    branding: assets/splash_admin.png
+    branding_dark: assets/splash_admin.png
+  
+  # iOS specific
+  ios: true
+  ios_content_mode: center
+  
+  # Android specific  
+  android: true
+  android_gravity: center
+  
+  # Fullscreen mode
+  fullscreen: true
+  
+  # Info plist settings (iOS)
+  info_plist_files:
+    - 'ios/Runner/Info.plist'
+

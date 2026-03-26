@@ -1,0 +1,61 @@
+---
+description: PixelScale multi-app workspace — which app we're in and shared Supabase
+alwaysApply: true
+---
+
+# PixelScale Multi-App Workspace
+
+## Workspace layout
+
+- **Open the `pixelscale` folder** in Cursor (File → Open Folder → pixelscale) so the file view shows all apps:
+  - `apps/academy-app` — Tennis Academy (Expo/React Native)
+  - `apps/amazon-manager` — Amazon Manager (Flutter)
+  - `apps/playmakerstart` — Playmaker (Flutter) - **Reference App**
+
+## 🚨 APP STANDARDS (MANDATORY)
+
+Every app in `apps/` MUST have:
+1.  **`./pm`**: An interactive shell script menu for running/building (e.g., `1) Run Android`, `2) Build Release`).
+2.  **`QUICK_COMMANDS.md`**: Documentation of common commands.
+3.  **Release Pipeline**: A bullet-proof build script (Fastlane or local Gradle/Expo) that produces a release artifact.
+
+## App Overview & Purpose
+
+### 1. Academy App (`apps/academy-app`)
+- **Tech Stack:** Expo / React Native (TypeScript).
+- **Purpose:** Tennis Academy management.
+- **Pipeline:** Uses `eas build` (Cloud) or `./build-release-apk.sh` (Local).
+- **Auth:** Supabase Auth (Shared).
+
+### 2. Amazon Manager (`apps/amazon-manager`)
+- **Tech Stack:** Flutter (Dart).
+- **Purpose:** Dashboard for managing Amazon store operations.
+- **Pipeline:** Standard Flutter build (`flutter build apk`).
+- **Auth:** Supabase Auth (Shared).
+
+### 3. Playmaker (`apps/playmakerstart`)
+- **Tech Stack:** Flutter (Dart).
+- **Purpose:** **Reference / Legacy App**.
+- **Pipeline:** Custom scripts (`build_android_user_release.sh`) with Fastlane.
+- **Auth:** **SEPARATE SUPABASE PROJECT.**
+
+## Which app we're working on
+
+- When the user **names an app** at the start of the conversation, **continue in that app**.
+- **Do not switch apps** until the user explicitly says to work on the other app.
+- If the user says "do it like in Playmaker", **read code from `apps/playmakerstart`** but **write code to the active target app**.
+
+## Shared Supabase (Academy & Amazon)
+
+- **Academy & Amazon use the same Supabase project.**
+- Config lives in `shared/supabase.config.ts` (TS) and `shared/supabase.config.dart` (Dart).
+- Academy-app uses: `profiles`, `court_schedules`, etc.
+- Amazon-manager uses tables with `amazon_` prefix.
+
+## Service role key
+
+- **Always use the same service role key** for every app in the workspace (`.env.pixelscale`).
+
+## Running SQL
+
+- **Prefer using MCP** to run SQL (`.cursor/mcp.json`).

@@ -1,0 +1,891 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Playmaker - Partner Presentation</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 15mm;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Arial', 'Segoe UI', sans-serif;
+            line-height: 1.6;
+            color: #2c3e50;
+            background: white;
+        }
+        
+        .page {
+            width: 210mm;
+            min-height: 297mm;
+            margin: 0 auto 20px;
+            padding: 20mm;
+            background: white;
+            page-break-after: always;
+            position: relative;
+            overflow: visible;
+        }
+        
+        /* Cover Page Styles */
+        .cover-page {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            background: linear-gradient(135deg, #00BF63 0%, #00A055 100%);
+            color: white;
+        }
+        
+        .cover-logo {
+            width: 150px;
+            height: 150px;
+            margin-bottom: 30px;
+            border-radius: 30px;
+            background: white;
+            padding: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+        
+        .cover-title {
+            font-size: 56px;
+            font-weight: bold;
+            margin-bottom: 15px;
+            text-transform: lowercase;
+            letter-spacing: 3px;
+            font-family: 'Arial Black', sans-serif;
+        }
+        
+        .cover-subtitle {
+            font-size: 24px;
+            margin-bottom: 40px;
+            opacity: 0.95;
+        }
+        
+        .cover-tagline {
+            font-size: 18px;
+            max-width: 600px;
+            line-height: 1.8;
+            opacity: 0.9;
+            margin-bottom: 50px;
+        }
+        
+        .cover-footer {
+            font-size: 14px;
+            opacity: 0.85;
+        }
+        
+        /* Header Styles */
+        .header {
+            background: linear-gradient(135deg, #00BF63 0%, #00A055 100%);
+            color: white;
+            padding: 25px 30px;
+            margin-bottom: 30px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .header-left {
+            display: flex;
+            align-items: center;
+        }
+        
+        .header-logo {
+            width: 60px;
+            height: 60px;
+            margin-right: 20px;
+            border-radius: 12px;
+            background: white;
+            padding: 8px;
+        }
+        
+        .header-text h1 {
+            font-size: 32px;
+            font-weight: bold;
+            margin-bottom: 5px;
+            text-transform: lowercase;
+            font-family: 'Arial Black', sans-serif;
+        }
+        
+        .header-text p {
+            font-size: 14px;
+            opacity: 0.95;
+        }
+        
+        /* Section Styles */
+        .section-title {
+            color: #00BF63;
+            font-size: 26px;
+            font-weight: bold;
+            margin-top: 25px;
+            margin-bottom: 18px;
+            padding-bottom: 10px;
+            border-bottom: 3px solid #00BF63;
+        }
+        
+        .content {
+            font-size: 15px;
+            line-height: 1.9;
+            color: #34495e;
+            margin-bottom: 20px;
+            text-align: justify;
+        }
+        
+        /* Feature Box Styles */
+        .feature-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin: 25px 0;
+        }
+        
+        .feature-box {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            border: 2px solid #00BF63;
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+        }
+        
+        .feature-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+        }
+        
+        .feature-title {
+            color: #00BF63;
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        
+        .feature-description {
+            font-size: 14px;
+            color: #6c757d;
+            line-height: 1.7;
+        }
+        
+        /* Benefit List Styles */
+        .benefit-list {
+            list-style: none;
+            padding: 0;
+            margin: 20px 0;
+        }
+        
+        .benefit-list li {
+            padding: 18px 20px;
+            margin: 12px 0;
+            background: #f8f9fa;
+            border-left: 5px solid #00BF63;
+            border-radius: 5px;
+            font-size: 15px;
+            color: #34495e;
+            line-height: 1.8;
+        }
+        
+        .benefit-list li strong {
+            color: #00BF63;
+            font-size: 16px;
+        }
+        
+        /* Highlight Box */
+        .highlight-box {
+            background: linear-gradient(135deg, #00BF63 0%, #00A055 100%);
+            color: white;
+            padding: 25px 30px;
+            border-radius: 10px;
+            margin: 25px 0;
+            text-align: center;
+            box-shadow: 0 5px 15px rgba(0, 191, 99, 0.3);
+        }
+        
+        .highlight-box h3 {
+            font-size: 24px;
+            margin-bottom: 12px;
+        }
+        
+        .highlight-box p {
+            font-size: 16px;
+            line-height: 1.8;
+            opacity: 0.95;
+        }
+        
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            margin: 25px 0;
+        }
+        
+        .stat-box {
+            background: #f8f9fa;
+            border: 2px solid #00BF63;
+            border-radius: 10px;
+            padding: 25px 20px;
+            text-align: center;
+        }
+        
+        .stat-number {
+            color: #00BF63;
+            font-size: 42px;
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+        
+        .stat-label {
+            color: #6c757d;
+            font-size: 14px;
+            font-weight: 600;
+        }
+        
+        /* Camera Section */
+        .camera-box {
+            background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+            border: 3px solid #00BF63;
+            border-radius: 12px;
+            padding: 30px;
+            margin: 25px 0;
+        }
+        
+        .camera-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .camera-icon {
+            font-size: 64px;
+            margin-right: 20px;
+        }
+        
+        .camera-title {
+            color: #00BF63;
+            font-size: 28px;
+            font-weight: bold;
+        }
+        
+        .camera-features {
+            list-style: none;
+            padding: 0;
+        }
+        
+        .camera-features li {
+            padding: 15px 20px;
+            margin: 10px 0;
+            background: white;
+            border-left: 4px solid #00BF63;
+            border-radius: 5px;
+            font-size: 15px;
+            color: #34495e;
+        }
+        
+        /* CTA Button */
+        .cta-box {
+            background: linear-gradient(135deg, #00BF63 0%, #00A055 100%);
+            color: white;
+            padding: 35px 40px;
+            border-radius: 12px;
+            margin: 30px 0;
+            text-align: center;
+        }
+        
+        .cta-box h2 {
+            font-size: 32px;
+            margin-bottom: 15px;
+        }
+        
+        .cta-box p {
+            font-size: 18px;
+            line-height: 1.8;
+            opacity: 0.95;
+            margin-bottom: 20px;
+        }
+        
+        .cta-button {
+            background: white;
+            color: #00BF63;
+            padding: 15px 40px;
+            border-radius: 8px;
+            font-size: 18px;
+            font-weight: bold;
+            display: inline-block;
+            margin-top: 10px;
+        }
+        
+        /* Footer */
+        .page-footer {
+            position: absolute;
+            bottom: 15mm;
+            left: 20mm;
+            right: 20mm;
+            text-align: center;
+            color: #6c757d;
+            font-size: 12px;
+            border-top: 1px solid #dee2e6;
+            padding-top: 10px;
+        }
+        
+        .watermark {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-45deg);
+            font-size: 100px;
+            color: rgba(0, 191, 99, 0.03);
+            font-weight: bold;
+            pointer-events: none;
+            z-index: 0;
+            font-family: 'Arial Black', sans-serif;
+        }
+        
+        .content-wrapper {
+            position: relative;
+            z-index: 1;
+        }
+        
+        @media print {
+            @page {
+                margin: 15mm;
+                size: A4;
+            }
+            
+            body {
+                margin: 0;
+                padding: 0;
+            }
+            
+            .page {
+                margin: 0;
+                box-shadow: none;
+                page-break-after: always;
+                min-height: 0;
+            }
+            
+            .page:last-child {
+                page-break-after: auto;
+            }
+            
+            .watermark {
+                position: absolute;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- ==================== COVER PAGE ==================== -->
+    <div class="page cover-page">
+        <img src="../images/playmakerappicon.png" alt="Playmaker Logo" class="cover-logo">
+        <h1 class="cover-title">playmaker</h1>
+        <p class="cover-subtitle">The Future of Football Field Management</p>
+        <p class="cover-tagline">
+            Transform your football field into a modern, digital venue with Egypt's leading field booking platform. 
+            Maximize revenue, reduce management hassle, and delight your customers.
+        </p>
+        <div class="cover-footer">
+            Partner Presentation 2025
+        </div>
+    </div>
+    
+    <!-- ==================== PAGE 1: WHAT IS PLAYMAKER ==================== -->
+    <div class="page">
+        <div class="watermark">playmaker</div>
+        <div class="content-wrapper">
+            <div class="header">
+                <div class="header-left">
+                    <img src="../images/playmakerappicon.png" alt="Playmaker" class="header-logo">
+                    <div class="header-text">
+                        <h1>playmaker</h1>
+                        <p>Digital Football Field Booking Platform</p>
+                    </div>
+                </div>
+                <div style="font-size: 14px;">Page 1 of 5</div>
+            </div>
+            
+            <h2 class="section-title">What is Playmaker?</h2>
+            <p class="content">
+                <strong>Playmaker</strong> is Egypt's premier digital platform connecting football players with quality fields. 
+                We make it simple for players to discover, book, and pay for football matches at the best venues across the country.
+            </p>
+            
+            <div class="highlight-box">
+                <h3>🎯 Our Mission</h3>
+                <p>
+                    To revolutionize football field management by bringing owners and players together through 
+                    cutting-edge technology, making every booking seamless and every match memorable.
+                </p>
+            </div>
+            
+            <h2 class="section-title">Who Uses Playmaker?</h2>
+            
+            <div class="feature-grid">
+                <div class="feature-box">
+                    <div class="feature-icon">⚽</div>
+                    <h3 class="feature-title">Football Players</h3>
+                    <p class="feature-description">
+                        Individual players and groups looking for convenient, reliable field bookings with instant confirmation and secure payments.
+                    </p>
+                </div>
+                
+                <div class="feature-box">
+                    <div class="feature-icon">👥</div>
+                    <h3 class="feature-title">Squads & Teams</h3>
+                    <p class="feature-description">
+                        Organized teams and squads that need regular match slots, team management features, and match recordings.
+                    </p>
+                </div>
+                
+                <div class="feature-box">
+                    <div class="feature-icon">🏫</div>
+                    <h3 class="feature-title">Schools & Clubs</h3>
+                    <p class="feature-description">
+                        Educational institutions and sports clubs seeking organized field access for their students and members.
+                    </p>
+                </div>
+                
+                <div class="feature-box">
+                    <div class="feature-icon">🎉</div>
+                    <h3 class="feature-title">Event Organizers</h3>
+                    <p class="feature-description">
+                        Tournament organizers and event planners who need reliable venue booking for competitions and special events.
+                    </p>
+                </div>
+            </div>
+            
+            <h2 class="section-title">How Playmaker Works</h2>
+            <p class="content">
+                Our platform provides a complete booking ecosystem. Players browse available fields on an interactive map, 
+                view real-time availability, select their preferred time slot, and pay securely through the app. 
+                Field owners receive instant notifications and automated payments—no phone calls, no manual coordination.
+            </p>
+            
+            <div class="stats-grid">
+                <div class="stat-box">
+                    <div class="stat-number">24/7</div>
+                    <div class="stat-label">Booking Access</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-number">100%</div>
+                    <div class="stat-label">Automated</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-number">⚡</div>
+                    <div class="stat-label">Instant Payments</div>
+                </div>
+            </div>
+        </div>
+        <div class="page-footer">
+            playmaker | Partner Presentation 2025 | playmakerapp.info
+        </div>
+    </div>
+    
+    <!-- ==================== PAGE 2: BENEFITS FOR FIELD OWNERS ==================== -->
+    <div class="page">
+        <div class="watermark">playmaker</div>
+        <div class="content-wrapper">
+            <div class="header">
+                <div class="header-left">
+                    <img src="../images/playmakerappicon.png" alt="Playmaker" class="header-logo">
+                    <div class="header-text">
+                        <h1>playmaker</h1>
+                        <p>Digital Football Field Booking Platform</p>
+                    </div>
+                </div>
+                <div style="font-size: 14px;">Page 2 of 5</div>
+            </div>
+            
+            <h2 class="section-title">Why Partner With Playmaker?</h2>
+            <p class="content">
+                Joining Playmaker means more than just listing your field—it means transforming how you do business. 
+                Our partnership brings cutting-edge technology, expanded reach, and hassle-free management to your venue.
+            </p>
+            
+            <ul class="benefit-list">
+                <li>
+                    <strong>💰 Maximize Your Revenue</strong><br>
+                    Fill empty time slots automatically. Our platform promotes your field to thousands of active players, 
+                    ensuring maximum utilization and revenue, especially during off-peak hours.
+                </li>
+                
+                <li>
+                    <strong>📱 Zero Management Hassle</strong><br>
+                    No more phone calls, WhatsApp messages, or manual scheduling. Everything is automated—from bookings 
+                    to payments to confirmations. Focus on providing a great field, we handle the rest.
+                </li>
+                
+                <li>
+                    <strong>💳 Instant, Guaranteed Payments</strong><br>
+                    Get paid automatically through secure bank transfers. No chasing payments, no cash handling risks, 
+                    no payment disputes. Your earnings are deposited directly to your account on your chosen schedule 
+                    (daily, weekly, or monthly).
+                </li>
+                
+                <li>
+                    <strong>📊 Real-Time Analytics & Insights</strong><br>
+                    Access detailed reports on bookings, peak hours, revenue trends, and customer feedback. Make 
+                    data-driven decisions to optimize your pricing and operations.
+                </li>
+                
+                <li>
+                    <strong>🎯 Targeted Marketing</strong><br>
+                    Your field gets promoted to the right audience—players actively looking to book. Our smart algorithms 
+                    ensure your venue appears prominently in relevant searches.
+                </li>
+                
+                <li>
+                    <strong>⭐ Build Your Reputation</strong><br>
+                    Collect reviews and ratings that help attract more customers. Respond to feedback and build a 
+                    loyal customer base that keeps coming back.
+                </li>
+                
+                <li>
+                    <strong>🔒 Professional & Secure</strong><br>
+                    All transactions are secure and verified. Reduce no-shows with our prepayment system and 
+                    cancellation policies that protect your revenue.
+                </li>
+                
+                <li>
+                    <strong>📈 Grow With Us</strong><br>
+                    As we expand across Egypt, your field gains exposure to an ever-growing network of players. 
+                    Partnership means continuous growth and opportunities.
+                </li>
+            </ul>
+            
+            <div class="highlight-box">
+                <h3>💼 Commission-Based Partnership</h3>
+                <p>
+                    You keep the majority of every booking. We earn a small commission only on successful, completed bookings. 
+                    No upfront costs, no monthly fees—just simple, transparent revenue sharing that aligns our success with yours.
+                </p>
+            </div>
+        </div>
+        <div class="page-footer">
+            playmaker | Partner Presentation 2025 | playmakerapp.info
+        </div>
+    </div>
+    
+    <!-- ==================== PAGE 3: ADMIN APP ==================== -->
+    <div class="page">
+        <div class="watermark">playmaker</div>
+        <div class="content-wrapper">
+            <div class="header">
+                <div class="header-left">
+                    <img src="../images/playmakerappicon.png" alt="Playmaker" class="header-logo">
+                    <div class="header-text">
+                        <h1>playmaker</h1>
+                        <p>Digital Football Field Booking Platform</p>
+                    </div>
+                </div>
+                <div style="font-size: 14px;">Page 3 of 5</div>
+            </div>
+            
+            <h2 class="section-title">Your Control Center: The Admin App</h2>
+            <p class="content">
+                As a Playmaker partner, you get exclusive access to our <strong>Admin App</strong>—your personal dashboard 
+                to manage your field from anywhere, at any time. Complete control at your fingertips.
+            </p>
+            
+            <div class="camera-box">
+                <div class="camera-header">
+                    <div class="camera-icon">📱</div>
+                    <div>
+                        <h3 class="camera-title">Admin App Features</h3>
+                        <p style="color: #6c757d; margin-top: 5px;">Everything you need to run your field efficiently</p>
+                    </div>
+                </div>
+            </div>
+            
+            <h2 class="section-title">What You Can Do With The Admin App</h2>
+            
+            <ul class="benefit-list">
+                <li>
+                    <strong>📅 Manage Availability & Time Slots</strong><br>
+                    Set your operating hours for each day of the week. Block off time for maintenance or private events. 
+                    Open or close slots instantly—changes reflect immediately for all users.
+                </li>
+                
+                <li>
+                    <strong>👀 View All Bookings in Real-Time</strong><br>
+                    See every booking as it happens. Know exactly who's playing, when, and for how long. Get instant 
+                    notifications for new reservations.
+                </li>
+                
+                <li>
+                    <strong>💰 Track Your Revenue</strong><br>
+                    View detailed financial reports. See daily, weekly, and monthly earnings. Export reports for 
+                    accounting purposes. Complete transparency on every transaction.
+                </li>
+                
+                <li>
+                    <strong>⚙️ Update Field Information</strong><br>
+                    Change prices, update field photos, modify descriptions, and adjust amenities list—all from 
+                    the app without calling support.
+                </li>
+                
+                <li>
+                    <strong>📊 Access Performance Analytics</strong><br>
+                    Understand your busiest hours, most popular days, and booking trends. Use insights to optimize 
+                    pricing and maximize revenue.
+                </li>
+                
+                <li>
+                    <strong>💬 Communicate With Customers</strong><br>
+                    Respond to reviews, answer questions, and build relationships with your players directly through 
+                    the platform.
+                </li>
+                
+                <li>
+                    <strong>🎥 Access Camera Recordings</strong><br>
+                    View and manage all match recordings from your field's camera. Download footage for your own 
+                    marketing or review purposes.
+                </li>
+                
+                <li>
+                    <strong>🚨 Manage Issues & Support</strong><br>
+                    Report technical problems, request maintenance for equipment, and get instant support from 
+                    our team when you need it.
+                </li>
+            </ul>
+            
+            <div class="highlight-box">
+                <h3>🎯 Simple, Intuitive, Powerful</h3>
+                <p>
+                    The Admin App is designed for ease of use. No technical expertise required. We provide full 
+                    training and ongoing support to ensure you get the most out of the platform.
+                </p>
+            </div>
+        </div>
+        <div class="page-footer">
+            playmaker | Partner Presentation 2025 | playmakerapp.info
+        </div>
+    </div>
+    
+    <!-- ==================== PAGE 4: CAMERA SYSTEM ==================== -->
+    <div class="page">
+        <div class="watermark">playmaker</div>
+        <div class="content-wrapper">
+            <div class="header">
+                <div class="header-left">
+                    <img src="../images/playmakerappicon.png" alt="Playmaker" class="header-logo">
+                    <div class="header-text">
+                        <h1>playmaker</h1>
+                        <p>Digital Football Field Booking Platform</p>
+                    </div>
+                </div>
+                <div style="font-size: 14px;">Page 4 of 5</div>
+            </div>
+            
+            <h2 class="section-title">Premium Feature: Automated Match Recording</h2>
+            <p class="content">
+                Stand out from the competition with our <strong>professional match recording system</strong>. We install 
+                a high-quality camera at your field that automatically captures every match booked through Playmaker.
+            </p>
+            
+            <div class="camera-box">
+                <div class="camera-header">
+                    <div class="camera-icon">🎥</div>
+                    <div>
+                        <h3 class="camera-title">Smart Camera Technology</h3>
+                        <p style="color: #6c757d; margin-top: 5px;">Professional recording, zero effort</p>
+                    </div>
+                </div>
+                
+                <ul class="camera-features">
+                    <li>
+                        <strong>🎬 Fully Automated Recording</strong><br>
+                        The camera automatically starts recording when a booked match begins and stops when it ends. 
+                        No manual operation needed—completely hands-free.
+                    </li>
+                    
+                    <li>
+                        <strong>📹 High-Quality HD Video</strong><br>
+                        Professional-grade camera captures clear, high-definition footage from the perfect angle. 
+                        Players can relive their best moments in crystal-clear quality.
+                    </li>
+                    
+                    <li>
+                        <strong>☁️ Cloud Storage & Instant Access</strong><br>
+                        All recordings are automatically uploaded to secure cloud storage. Players can watch their 
+                        matches within minutes after the game ends—right from their phones.
+                    </li>
+                    
+                    <li>
+                        <strong>✅ Zero Cost to You</strong><br>
+                        We install, maintain, and manage the entire camera system at no charge. Installation, 
+                        maintenance, repairs, and upgrades are all covered by Playmaker.
+                    </li>
+                    
+                    <li>
+                        <strong>🔧 Professional Installation & Maintenance</strong><br>
+                        Our technical team handles everything—from mounting the camera safely to ensuring it works 
+                        perfectly. We perform regular maintenance to keep it running smoothly.
+                    </li>
+                    
+                    <li>
+                        <strong>🛡️ Your Field, Your Property</strong><br>
+                        While the camera belongs to Playmaker, the footage of your field is available to you. 
+                        Access recordings through your Admin App anytime.
+                    </li>
+                    
+                    <li>
+                        <strong>📱 Full Access Through Admin App</strong><br>
+                        View all recordings from your field. Download footage for promotional videos, social media 
+                        content, or highlight reels. Great free marketing material!
+                    </li>
+                    
+                    <li>
+                        <strong>🎁 Marketing Advantage</strong><br>
+                        Fields with recording cameras attract more bookings. Players love watching their matches 
+                        and are willing to pay premium rates for this exclusive feature.
+                    </li>
+                </ul>
+            </div>
+            
+            <div class="highlight-box">
+                <h3>🌟 Premium Experience = Premium Bookings</h3>
+                <p>
+                    Players specifically search for fields with recording cameras. This feature sets your venue apart, 
+                    attracts more customers, and allows you to charge higher rates. It's a complete win-win.
+                </p>
+            </div>
+            
+            <h2 class="section-title">How It Works</h2>
+            <p class="content" style="font-size: 16px; line-height: 2;">
+                <strong>1.</strong> We install the camera at your field (one-time setup)<br>
+                <strong>2.</strong> Camera syncs with booking schedule automatically<br>
+                <strong>3.</strong> Recording starts when matches begin, stops when they end<br>
+                <strong>4.</strong> Footage uploads to cloud automatically<br>
+                <strong>5.</strong> Players receive their match video within minutes<br>
+                <strong>6.</strong> You can access all recordings through your Admin App
+            </p>
+        </div>
+        <div class="page-footer">
+            playmaker | Partner Presentation 2025 | playmakerapp.info
+        </div>
+    </div>
+    
+    <!-- ==================== PAGE 5: CALL TO ACTION ==================== -->
+    <div class="page">
+        <div class="watermark">playmaker</div>
+        <div class="content-wrapper">
+            <div class="header">
+                <div class="header-left">
+                    <img src="../images/playmakerappicon.png" alt="Playmaker" class="header-logo">
+                    <div class="header-text">
+                        <h1>playmaker</h1>
+                        <p>Digital Football Field Booking Platform</p>
+                    </div>
+                </div>
+                <div style="font-size: 14px;">Page 5 of 5</div>
+            </div>
+            
+            <h2 class="section-title">Partnership Overview</h2>
+            
+            <div class="feature-grid">
+                <div class="feature-box">
+                    <div class="feature-icon">✅</div>
+                    <h3 class="feature-title">What You Get</h3>
+                    <p class="feature-description">
+                        • Access to thousands of players<br>
+                        • Professional admin app<br>
+                        • Automated booking system<br>
+                        • Match recording camera (installed & maintained)<br>
+                        • Instant payment transfers<br>
+                        • Marketing & promotion<br>
+                        • Real-time analytics<br>
+                        • Dedicated support team
+                    </p>
+                </div>
+                
+                <div class="feature-box">
+                    <div class="feature-icon">💵</div>
+                    <h3 class="feature-title">How You Earn</h3>
+                    <p class="feature-description">
+                        • Keep majority of booking fees<br>
+                        • We take small commission only<br>
+                        • Paid on completed bookings<br>
+                        • Choose payment frequency<br>
+                        • No upfront costs<br>
+                        • No monthly fees<br>
+                        • 100% transparent revenue sharing
+                    </p>
+                </div>
+            </div>
+            
+            <h2 class="section-title">Simple Partnership Process</h2>
+            
+            <ul class="benefit-list">
+                <li>
+                    <strong>📝 Step 1: Sign Partnership Agreement</strong><br>
+                    Quick and straightforward contract. We'll explain everything clearly and answer all your questions.
+                </li>
+                
+                <li>
+                    <strong>📸 Step 2: Field Setup</strong><br>
+                    We photograph your field, gather essential details, and create your professional listing on the platform.
+                </li>
+                
+                <li>
+                    <strong>🎥 Step 3: Camera Installation (Optional)</strong><br>
+                    Our technical team installs the recording camera—usually takes just a few hours.
+                </li>
+                
+                <li>
+                    <strong>📱 Step 4: Admin App Training</strong><br>
+                    We train you and your staff on using the Admin App. Simple 30-minute session covers everything.
+                </li>
+                
+                <li>
+                    <strong>🚀 Step 5: Go Live!</strong><br>
+                    Your field goes live on Playmaker. Start receiving bookings immediately. We're here 24/7 for support.
+                </li>
+            </ul>
+            
+            <div class="cta-box">
+                <h2>Ready to Transform Your Business?</h2>
+                <p>
+                    Join Egypt's fastest-growing football field booking platform and start maximizing your revenue today.
+                </p>
+                <div class="cta-button">
+                    LET'S GET STARTED
+                </div>
+            </div>
+            
+            <h2 class="section-title">Contact Us</h2>
+            
+            <div style="background: #f8f9fa; padding: 30px; border-radius: 10px; border: 2px solid #00BF63; text-align: center;">
+                <p style="font-size: 18px; color: #00BF63; font-weight: bold; margin-bottom: 15px;">
+                    Get in Touch Today
+                </p>
+                <p style="font-size: 16px; color: #34495e; line-height: 2; margin-bottom: 20px;">
+                    📞 <strong>Phone:</strong> +201151994181<br>
+                    📧 <strong>Email:</strong> partners@playmaker.com<br>
+                    🌐 <strong>Website:</strong> playmakerapp.info<br>
+                    📱 <strong>WhatsApp:</strong> +201151994181
+                </p>
+                <p style="font-size: 14px; color: #6c757d; margin-top: 20px;">
+                    Download the <strong>Playmaker</strong> app from the App Store or Google Play to see the platform in action.
+                </p>
+            </div>
+            
+            <div style="text-align: center; margin-top: 40px; color: #00A055; font-size: 16px; font-weight: 600;">
+                Together, we're building the future of football in Egypt 🇪🇬⚽
+            </div>
+        </div>
+        <div class="page-footer">
+            playmaker | Partner Presentation 2025 | www.playmaker.com | Thank you for considering Playmaker!
+        </div>
+    </div>
+</body>
+</html>
+

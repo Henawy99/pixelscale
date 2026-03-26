@@ -1,0 +1,102 @@
+#!/bin/bash
+# ============================================
+# 🎮 PixelScale Unified Command Center
+# Manage all apps: Academy, Amazon, Playmaker
+# ============================================
+
+set -e
+
+# Colors
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+NC='\033[0m' # No Color
+
+function show_menu() {
+    clear
+    echo -e "${BLUE}==============================================${NC}"
+    echo -e "${GREEN}   🎮 PixelScale Command Center 🎮${NC}"
+    echo -e "${BLUE}==============================================${NC}"
+    echo ""
+    echo "Select an app to manage:"
+    echo ""
+    echo -e "${YELLOW}--- APPS ---${NC}"
+    echo "1)  🎾 Academy App (Expo)"
+    echo "2)  📦 Amazon Manager (Flutter)"
+    echo "3)  ⚽ Playmaker (Flutter)"
+    echo ""
+    echo -e "${YELLOW}--- GLOBAL ---${NC}"
+    echo "4)  🚀 Build ALL Apps (Release Sequence)"
+    echo "5)  Exit"
+    echo ""
+    read -p "Enter choice [1-5]: " choice
+    run_choice "$choice"
+}
+
+function run_choice() {
+    case $1 in
+        1)
+            cd apps/academy-app && ./pm
+            ;;
+        2)
+            cd apps/amazon-manager && ./pm
+            ;;
+        3)
+            # Check if pm exists in playmaker, otherwise run script directly or create a wrapper
+            if [ -f "apps/playmakerstart/pm" ]; then
+                cd apps/playmakerstart && ./pm
+            else
+                # Fallback if Playmaker doesn't have a 'pm' script yet
+                echo -e "${YELLOW}Playmaker 'pm' script not found. Using run script...${NC}"
+                cd apps/playmakerstart && ./run_user_app_android.sh
+            fi
+            ;;
+        4)
+            build_all
+            ;;
+        5)
+            echo "Exiting..."
+            exit 0
+            ;;
+        *)
+            echo -e "${RED}Invalid option.${NC}"
+            sleep 1
+            show_menu
+            ;;
+    esac
+}
+
+function build_all() {
+    echo -e "${BLUE}==============================================${NC}"
+    echo -e "${YELLOW}🚀 STARTING GLOBAL BUILD SEQUENCE 🚀${NC}"
+    echo -e "${BLUE}==============================================${NC}"
+    
+    # 1. Playmaker
+    echo -e "\n${GREEN}1/3 Building Playmaker...${NC}"
+    cd apps/playmakerstart
+    # Use existing build scripts
+    ./build_android_user_release.sh || echo -e "${RED}Playmaker Android Failed${NC}"
+    # ./build_ios_user_release.sh # Uncomment if on Mac with Xcode
+    cd ../..
+
+    # 2. Academy App
+    echo -e "\n${GREEN}2/3 Building Academy App...${NC}"
+    cd apps/academy-app
+    # Use the pm script or direct build
+    ./build-release-apk.sh || echo -e "${RED}Academy APK Failed${NC}"
+    cd ../..
+
+    # 3. Amazon Manager
+    echo -e "\n${GREEN}3/3 Building Amazon Manager...${NC}"
+    cd apps/amazon-manager
+    flutter build apk --release || echo -e "${RED}Amazon APK Failed${NC}"
+    cd ../..
+
+    echo -e "\n${BLUE}==============================================${NC}"
+    echo -e "${GREEN}✅ GLOBAL BUILD SEQUENCE COMPLETED${NC}"
+    echo -e "${BLUE}==============================================${NC}"
+}
+
+# Run menu
+show_menu

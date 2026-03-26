@@ -1,0 +1,38 @@
+{
+  "provider": "google_pay",
+  "data": {
+    "environment": "PRODUCTION",
+    "apiVersion": 2,
+    "apiVersionMinor": 0,
+    "allowedPaymentMethods": [
+      {
+        "type": "CARD",
+        "tokenizationSpecification": {
+          "type": "PAYMENT_GATEWAY",
+          "parameters": {
+            "gateway": "paymob",
+            "gatewayMerchantId": "YOUR_PAYMOB_MERCHANT_ID"
+          }
+        },
+        "parameters": {
+          "allowedCardNetworks": ["VISA", "MASTERCARD", "AMEX"],
+          "allowedAuthMethods": ["PAN_ONLY", "CRYPTOGRAM_3DS"],
+          "billingAddressRequired": true,
+          "billingAddressParameters": {
+            "format": "MIN",
+            "phoneNumberRequired": true
+          }
+        }
+      }
+    ],
+    "merchantInfo": {
+      "merchantName": "Playmaker",
+      "merchantId": "YOUR_GOOGLE_PAY_MERCHANT_ID"
+    },
+    "transactionInfo": {
+      "countryCode": "EG",
+      "currencyCode": "EGP"
+    }
+  }
+}
+

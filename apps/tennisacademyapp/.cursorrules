@@ -1,0 +1,1 @@
+After each code adjustment, always perform a hot restart (using 'R' or 'Shift + R' in Flutter) instead of a regular hot reload.

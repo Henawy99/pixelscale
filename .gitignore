@@ -1,0 +1,34 @@
+# PixelScale workspace gitignore
+node_modules/
+.expo/
+dist/
+build/
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+.env
+.env.*
+shared/play-store-key.json
+.version_history
+*.apk
+*.aab
+*.ipa
+
+# Flutter
+.dart_tool/
+.packages
+.pub-cache/
+.pub/
+
+# macOS
+.DS_Store
+*.swp
+
+# Excluded large files and secrets
+apps/animight/animight-handoff.zip
+apps/playmaker/assets/advideo.MP4
+apps/playmaker/playmaker-4af3d-firebase-adminsdk-bcwnf-7d40b91925.json
+apps/tennisacademyapp/android/play-console-service-account.json

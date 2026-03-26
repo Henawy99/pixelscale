@@ -1,0 +1,52 @@
+# Miscellaneous
+*.class
+*.lock
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.buildlog/
+.history
+.svn/
+
+# Flutter specific
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.dart_tool/
+build/
+linux/flutter/ephemeral/
+macos/flutter/ephemeral/
+windows/flutter/ephemeral/
+ios/Flutter/ephemeral/
+ios/Pods/
+ios/.symlinks/
+ios/Flutter/Flutter.podspec
+
+# IntelliJ
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# Visual Studio Code
+.vscode/
+
+# Android Studio
+.gradle/
+captures/
+local.properties
+
+# Sensitive files - IMPORTANT
+# If you have a .env file with actual secrets, ensure it's ignored.
+# We are moving to --dart-define for web, but you might still use .env for local mobile dev.
+.env
+*.env
+
+# If you're using Android Studio's emulator system images,
+# you can ignore the .android/avd folder to avoid pushing big files.
+# .android/avd/
+
+# Local Netlify folder
+.netlify

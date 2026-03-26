@@ -1,0 +1,932 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>اتفاقية حجز ملعب كرة القدم - Playmaker Field Partnership Agreement</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 0;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Arial', 'Tahoma', sans-serif;
+            line-height: 1.8;
+            color: #333;
+            background: white;
+        }
+        
+        .page {
+            width: 210mm;
+            height: 297mm;
+            margin: 0 auto 20px;
+            padding: 20mm;
+            background: white;
+            page-break-after: always;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+        }
+        
+        .rtl {
+            direction: rtl;
+        }
+        
+        .ltr {
+            direction: ltr;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #00BF63 0%, #00A055 100%);
+            color: white;
+            padding: 25px 30px;
+            text-align: center;
+            margin-bottom: 25px;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0,191,99,0.3);
+            position: relative;
+        }
+        
+        .logo-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 15px;
+        }
+        
+        .logo-image {
+            width: 60px;
+            height: 60px;
+            margin: 0 15px;
+            border-radius: 12px;
+            background: white;
+            padding: 5px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
+        
+        .logo {
+            font-size: 36px;
+            font-weight: bold;
+            letter-spacing: 2px;
+            text-transform: lowercase;
+            font-family: 'Arial Black', sans-serif;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .logo-tagline {
+            font-size: 12px;
+            opacity: 0.95;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+        }
+        
+        .header h1 {
+            font-size: 26px;
+            margin: 10px 0 8px 0;
+            font-weight: bold;
+        }
+        
+        .header p {
+            font-size: 14px;
+            opacity: 0.95;
+        }
+        
+        .watermark {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-45deg);
+            font-size: 90px;
+            color: rgba(0, 191, 99, 0.04);
+            font-weight: bold;
+            pointer-events: none;
+            z-index: 0;
+            font-family: 'Arial Black', sans-serif;
+        }
+        
+        .content-wrapper {
+            position: relative;
+            z-index: 1;
+        }
+        
+        .date-section {
+            text-align: right;
+            margin: 20px 0;
+            font-size: 14px;
+            background: linear-gradient(to left, #f0fff4, #ffffff);
+            padding: 15px 20px;
+            border-right: 5px solid #00BF63;
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        
+        .ltr .date-section {
+            text-align: left;
+            background: linear-gradient(to right, #f0fff4, #ffffff);
+            border-right: none;
+            border-left: 5px solid #00BF63;
+        }
+        
+        .parties-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            box-shadow: 0 3px 6px rgba(0,0,0,0.1);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        
+        .parties-table th {
+            background: linear-gradient(135deg, #00BF63, #00A055);
+            color: white;
+            padding: 15px;
+            font-size: 16px;
+            font-weight: bold;
+            border: none;
+        }
+        
+        .parties-table td {
+            padding: 15px;
+            border: 1px solid #e0e0e0;
+            font-size: 14px;
+            background: white;
+        }
+        
+        .section-title {
+            color: #00BF63;
+            font-size: 18px;
+            font-weight: bold;
+            margin-top: 25px;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 3px solid #00BF63;
+            position: relative;
+        }
+        
+        .section-title::after {
+            content: '';
+            position: absolute;
+            bottom: -3px;
+            right: 0;
+            width: 60px;
+            height: 3px;
+            background: #00D66C;
+        }
+        
+        .ltr .section-title::after {
+            right: auto;
+            left: 0;
+        }
+        
+        .content {
+            font-size: 14px;
+            text-align: justify;
+            margin-bottom: 15px;
+            line-height: 2;
+        }
+        
+        .list {
+            margin: 15px 0;
+            padding-right: 25px;
+            font-size: 14px;
+        }
+        
+        .ltr .list {
+            padding-right: 0;
+            padding-left: 25px;
+        }
+        
+        .list li {
+            margin: 12px 0;
+            line-height: 1.9;
+        }
+        
+        .sub-list {
+            margin-top: 10px;
+            padding-right: 25px;
+            font-size: 13px;
+        }
+        
+        .ltr .sub-list {
+            padding-right: 0;
+            padding-left: 25px;
+        }
+        
+        .sub-list li {
+            margin: 8px 0;
+        }
+        
+        .highlight {
+            background: linear-gradient(120deg, #fff9c4 0%, #fff59d 100%);
+            padding: 3px 8px;
+            font-weight: bold;
+            border-radius: 3px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        .schedule-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            box-shadow: 0 3px 6px rgba(0,0,0,0.1);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        
+        .schedule-table th {
+            background: linear-gradient(135deg, #00BF63, #00A055);
+            color: white;
+            padding: 14px;
+            border: none;
+            font-size: 15px;
+            font-weight: bold;
+        }
+        
+        .schedule-table td {
+            padding: 15px 12px;
+            border: 1px solid #e0e0e0;
+            text-align: center;
+            font-size: 14px;
+            background: white;
+        }
+        
+        .schedule-table tr:nth-child(even) td {
+            background: #f9f9f9;
+        }
+        
+        .time-input-box {
+            display: inline-block;
+            border: 2px solid #00BF63;
+            background: white;
+            width: 120px;
+            height: 35px;
+            border-radius: 5px;
+            box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        .input-box {
+            display: inline-block;
+            border-bottom: 2px solid #00BF63;
+            min-width: 150px;
+            height: 25px;
+            margin: 0 5px;
+        }
+        
+        .signature-section {
+            margin-top: 50px;
+            margin-bottom: 30px;
+        }
+        
+        .signature-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 25px;
+            margin-top: 20px;
+        }
+        
+        .signature-box {
+            border: 4px solid #00BF63;
+            border-radius: 12px;
+            padding: 25px 20px;
+            background: linear-gradient(to bottom, #ffffff, #f0fff4);
+            box-shadow: 0 4px 12px rgba(0,191,99,0.2);
+            min-height: 280px;
+        }
+        
+        .signature-box h3 {
+            color: white;
+            background: linear-gradient(135deg, #00BF63, #00A055);
+            font-size: 17px;
+            margin: -25px -20px 20px -20px;
+            padding: 15px 20px;
+            text-align: center;
+            border-radius: 8px 8px 0 0;
+            font-weight: bold;
+        }
+        
+        .signature-field {
+            margin: 18px 0;
+        }
+        
+        .signature-field label {
+            display: block;
+            color: #00A055;
+            font-size: 13px;
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+        
+        .signature-field .field-line {
+            border: 2px solid #00BF63;
+            background: white;
+            height: 40px;
+            border-radius: 5px;
+            box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        .signature-field .signature-area {
+            border: 2px solid #00BF63;
+            background: white;
+            height: 70px;
+            border-radius: 5px;
+            box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        .signature-field .stamp-area {
+            border: 2px solid #00BF63;
+            background: white;
+            height: 65px;
+            border-radius: 5px;
+            box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        .footer-note {
+            text-align: center;
+            color: #00BF63;
+            font-size: 13px;
+            margin-top: 25px;
+            font-style: italic;
+            font-weight: bold;
+        }
+        
+        .page-number {
+            text-align: center;
+            color: #999;
+            font-size: 12px;
+            position: absolute;
+            bottom: 15mm;
+            left: 0;
+            right: 0;
+        }
+        
+        .page-header-small {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            color: #00BF63;
+            font-size: 12px;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: linear-gradient(to left, #f0fff4, #ffffff);
+            border-radius: 8px;
+            border: 1px solid #00BF63;
+        }
+        
+        .ltr .page-header-small {
+            background: linear-gradient(to right, #f0fff4, #ffffff);
+        }
+        
+        .page-header-small img {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+        }
+        
+        .contact-box {
+            margin-top: 40px;
+            text-align: center;
+            padding: 25px;
+            background: linear-gradient(135deg, #f0fff4, #e8f5e9);
+            border-radius: 10px;
+            border: 3px solid #00BF63;
+            box-shadow: 0 3px 8px rgba(0,191,99,0.2);
+        }
+        
+        .contact-box .logo-large {
+            font-size: 32px;
+            font-weight: bold;
+            color: #00BF63;
+            margin-bottom: 8px;
+            font-family: 'Arial Black', sans-serif;
+        }
+        
+        .contact-box .tagline {
+            font-size: 14px;
+            color: #00BF63;
+            margin-bottom: 12px;
+        }
+        
+        .contact-box .info {
+            font-size: 12px;
+            color: #666;
+        }
+        
+        .payment-highlight {
+            background: linear-gradient(135deg, #fff9c4, #fff59d);
+            border: 3px solid #FFC107;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+            box-shadow: 0 3px 8px rgba(255,193,7,0.3);
+        }
+        
+        .payment-highlight strong {
+            color: #F57C00;
+            font-size: 16px;
+        }
+        
+        @media print {
+            body {
+                margin: 0;
+                padding: 0;
+            }
+            
+            .page {
+                margin: 0;
+                box-shadow: none;
+                page-break-after: always;
+            }
+            
+            .page:last-child {
+                page-break-after: auto;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- ==================== ARABIC VERSION - صفحة 1 ==================== -->
+    <div class="page rtl">
+        <div class="watermark">playmaker</div>
+        <div class="content-wrapper">
+            <div class="header">
+                <div class="logo-container">
+                    <img src="../images/playmakerappicon.png" alt="Playmaker Logo" class="logo-image">
+                    <div class="logo">playmaker</div>
+                </div>
+                <div class="logo-tagline">منصة حجز ملاعب كرة القدم الرقمية</div>
+                <h1>اتفاقية شراكة حجز ملاعب كرة القدم</h1>
+                <p>عقد التعاون مع المنصة الرقمية</p>
+            </div>
+            
+            <div class="date-section">
+                <strong>📅 تاريخ الاتفاقية:</strong> تم إبرام هذه الاتفاقية في يوم <span class="input-box"></span> من شهر <span class="input-box"></span> لسنة <strong>2025</strong>
+            </div>
+            
+            <table class="parties-table">
+                <tr>
+                    <th>🏟️ مالك الملعب (الطرف الأول)</th>
+                    <th>💼 ممثل Playmaker (الطرف الثاني)</th>
+                </tr>
+                <tr>
+                    <td>الاسم: <span class="input-box"></span></td>
+                    <td>الاسم: <span class="input-box"></span></td>
+                </tr>
+                <tr>
+                    <td>الرقم القومي: <span class="input-box"></span></td>
+                    <td>الرقم القومي: <span class="input-box"></span></td>
+                </tr>
+                <tr>
+                    <td>رقم الهاتف: <span class="input-box"></span></td>
+                    <td>رقم الهاتف: <span class="input-box"></span></td>
+                </tr>
+                <tr>
+                    <td>العنوان: <span class="input-box"></span></td>
+                    <td>العنوان: <span class="input-box"></span></td>
+                </tr>
+            </table>
+            
+            <h2 class="section-title">📋 المادة الأولى: الغرض والنطاق</h2>
+            <p class="content">
+                بموجب هذه الاتفاقية يهدف الطرفان إلى تسهيل حجز وإدارة الفترات الزمنية لملعب كرة القدم المذكور في العنوان المحدد أعلاه. يتم الحجز عبر تطبيق وموقع <strong>Playmaker</strong>، ويوافق مالك الملعب على الالتزام بجميع الحجوزات التي تتم من خلال المنصة بالأسعار والسياسات المحددة مسبقًا.
+            </p>
+            
+            <h2 class="section-title">💰 المادة الثانية: شروط الحجز - نظام العمولة</h2>
+            <p class="content">
+                تعمل هذه الاتفاقية على أساس نظام العمولة حيث يتم دفع مبلغ لمالك الملعب عن كل حجز مكتمل.
+            </p>
+            
+            <div class="payment-highlight">
+                <strong>⚡ الدفع اليومي:</strong> يتم تسوية المدفوعات مع مالك الملعب بشكل يومي لضمان السيولة المالية السريعة والشفافية الكاملة.
+            </div>
+            
+            <ol class="list">
+                <li>
+                    <strong>نظام العمولة:</strong> لكل حجز يتم من خلال تطبيق Playmaker يتحصل مالك الملعب على <span class="input-box" style="min-width: 80px;"></span>% من السعر الإجمالي. على سبيل المثال إذا كان سعر الحجز 300 جنيه يتحصل مالك الملعب على <span class="input-box" style="min-width: 80px;"></span> جنيه.
+                </li>
+                <li>
+                    <strong>آلية الدفع:</strong>
+                    <ul class="sub-list">
+                        <li>✅ <strong>التسوية اليومية:</strong> يتم الدفع بشكل يومي في نهاية كل يوم عمل</li>
+                        <li>💳 تتم التسويات عبر التحويل البنكي الفوري إلى حساب مالك الملعب</li>
+                        <li>📊 يتم احتساب العمولة فقط على الحجوزات المكتملة والمستخدمة فعليًا</li>
+                        <li>📱 تقارير يومية مفصلة عن جميع الحجوزات والمدفوعات عبر تطبيق الشركاء</li>
+                    </ul>
+                </li>
+                <li>
+                    <strong>الشفافية:</strong> سيتم توفير تقارير مفصلة عن جميع الحجوزات والمدفوعات من خلال تطبيق الشركاء.
+                </li>
+            </ol>
+            
+            <h2 class="section-title">📹 المادة الثالثة: تركيب الكاميرا والوصول</h2>
+            <p class="content">
+                يحق لشركة Playmaker تركيب كاميرا مراقبة في الملعب لأغراض تسويقية وأمنية وتأكيد الحجوزات.
+            </p>
+            <ul class="list">
+                <li><span class="highlight">💵 تكلفة الكاميرا: 15,000 جنيه مصري (تُدفع من مالك الملعب)</span></li>
+                <li>🎥 يتم استخدام اللقطات فقط لأغراض التحقق من الحجوزات وتحسين الخدمة</li>
+                <li>🔒 لن يتم مشاركة اللقطات مع أطراف ثالثة دون موافقة صريحة من مالك الملعب</li>
+                <li>🔧 يتم تركيب الكاميرا مجانًا وتكون مسؤولية الصيانة على Playmaker</li>
+            </ul>
+            
+            <h2 class="section-title">📅 المادة الرابعة: جدول توافر الملعب الأسبوعي</h2>
+            <p class="content">
+                يرجى تحديد أوقات العمل اليومية للملعب من الأحد إلى السبت:
+            </p>
+            <table class="schedule-table">
+                <tr>
+                    <th style="width: 35%;">اليوم</th>
+                    <th style="width: 32.5%;">وقت البداية</th>
+                    <th style="width: 32.5%;">وقت النهاية</th>
+                </tr>
+                <tr>
+                    <td><strong>الأحد</strong></td>
+                    <td><div class="time-input-box"></div></td>
+                    <td><div class="time-input-box"></div></td>
+                </tr>
+                <tr>
+                    <td><strong>الإثنين</strong></td>
+                    <td><div class="time-input-box"></div></td>
+                    <td><div class="time-input-box"></div></td>
+                </tr>
+                <tr>
+                    <td><strong>الثلاثاء</strong></td>
+                    <td><div class="time-input-box"></div></td>
+                    <td><div class="time-input-box"></div></td>
+                </tr>
+                <tr>
+                    <td><strong>الأربعاء</strong></td>
+                    <td><div class="time-input-box"></div></td>
+                    <td><div class="time-input-box"></div></td>
+                </tr>
+                <tr>
+                    <td><strong>الخميس</strong></td>
+                    <td><div class="time-input-box"></div></td>
+                    <td><div class="time-input-box"></div></td>
+                </tr>
+                <tr>
+                    <td><strong>الجمعة</strong></td>
+                    <td><div class="time-input-box"></div></td>
+                    <td><div class="time-input-box"></div></td>
+                </tr>
+                <tr>
+                    <td><strong>السبت</strong></td>
+                    <td><div class="time-input-box"></div></td>
+                    <td><div class="time-input-box"></div></td>
+                </tr>
+            </table>
+            
+            <h2 class="section-title">📱 المادة الخامسة: إدارة الحجوزات</h2>
+            <ol class="list">
+                <li>يوافق مالك الملعب على إعطاء Playmaker أولوية في إدارة الحجوزات عبر المنصة</li>
+                <li>يجب استخدام تطبيق Playmaker للشركاء لتحديث الفترات المتاحة في الوقت الفعلي</li>
+                <li>يجب تحديث أي تغييرات في توافر الملعب فورًا لتجنب التعارض</li>
+            </ol>
+            
+            <p class="footer-note">🇪🇬 تخضع هذه الاتفاقية لقوانين جمهورية مصر العربية</p>
+        </div>
+        <p class="page-number">الصفحة 1 من 4 - Page 1 of 4</p>
+    </div>
+    
+    <!-- ==================== ARABIC VERSION - صفحة 2 ==================== -->
+    <div class="page rtl">
+        <div class="watermark">playmaker</div>
+        <div class="content-wrapper">
+            <div class="page-header-small">
+                <div style="display: flex; align-items: center;">
+                    <img src="../images/playmakerappicon.png" alt="Playmaker">
+                    <strong style="margin-right: 10px; font-size: 14px;">playmaker</strong>
+                </div>
+                <div style="font-size: 11px;">منصة حجز ملاعب كرة القدم الرقمية</div>
+            </div>
+            
+            <h2 class="section-title">⏳ المادة السادسة: المدة والإنهاء</h2>
+            <p class="content">
+                تبقى هذه الاتفاقية سارية لمدة <strong>عام واحد</strong> من تاريخ التوقيع ويمكن تمديدها بموافقة الطرفين. يمكن لأي طرف إنهاء الاتفاقية بإشعار خطي قبل <strong>14 يومًا</strong> على الأقل.
+            </p>
+            
+            <h2 class="section-title">📌 المادة السابعة: شروط وأحكام إضافية</h2>
+            <ol class="list">
+                <li><strong>التسويق:</strong> يحق لـ Playmaker استخدام صور وفيديوهات الملعب في الحملات التسويقية</li>
+                <li><strong>معايير الجودة:</strong> يلتزم مالك الملعب بتوفير مرافق نظيفة (دورات مياه، إضاءة، أرضية جيدة)</li>
+                <li><strong>الشكاوى:</strong> التحقيق المشترك في أي شكوى خلال 48 ساعة</li>
+                <li><strong>تعليق الحجوزات:</strong> يحق لـ Playmaker تعليق الحجوزات عند عدم الالتزام بالمعايير</li>
+                <li><strong>التأمين:</strong> مالك الملعب مسؤول عن التأمين ضد الحوادث</li>
+            </ol>
+            
+            <h2 class="section-title">⚖️ المادة الثامنة: أحكام عامة</h2>
+            <ul class="list">
+                <li>📜 تخضع هذه الاتفاقية لقوانين جمهورية مصر العربية</li>
+                <li>✍️ يجب أن تتم التعديلات كتابيًا وبموافقة الطرفين</li>
+                <li>✅ يُقر الطرفان بفهمهما وموافقتهما على جميع الشروط</li>
+            </ul>
+            
+            <div class="signature-section">
+                <h2 class="section-title">✍️ التوقيعات والموافقات</h2>
+                <p class="content">
+                    بتوقيع هذه الاتفاقية، يؤكد الطرفان فهمهما الكامل لجميع البنود والشروط المذكورة ويلتزمان بتنفيذها بحسن نية.
+                </p>
+                
+                <div class="signature-grid">
+                    <div class="signature-box">
+                        <h3>🏟️ مالك الملعب</h3>
+                        <div class="signature-field">
+                            <label>الاسم الكامل:</label>
+                            <div class="field-line"></div>
+                        </div>
+                        <div class="signature-field">
+                            <label>التوقيع:</label>
+                            <div class="signature-area"></div>
+                        </div>
+                        <div class="signature-field">
+                            <label>التاريخ:</label>
+                            <div class="field-line"></div>
+                        </div>
+                        <div class="signature-field">
+                            <label>الختم (إن وجد):</label>
+                            <div class="stamp-area"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="signature-box">
+                        <h3>💼 ممثل Playmaker</h3>
+                        <div class="signature-field">
+                            <label>الاسم الكامل:</label>
+                            <div class="field-line"></div>
+                        </div>
+                        <div class="signature-field">
+                            <label>التوقيع:</label>
+                            <div class="signature-area"></div>
+                        </div>
+                        <div class="signature-field">
+                            <label>التاريخ:</label>
+                            <div class="field-line"></div>
+                        </div>
+                        <div class="signature-field">
+                            <label>الختم الرسمي:</label>
+                            <div class="stamp-area"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="contact-box">
+                <div class="logo-large">playmaker</div>
+                <div class="tagline">منصة حجز ملاعب كرة القدم الرقمية</div>
+                <div class="info">
+                    📱 للاستفسارات: تواصل عبر التطبيق<br>
+                    🌐 www.playmaker.com | 📧 support@playmaker.com
+                </div>
+            </div>
+            
+            <p class="footer-note">✨ شكراً لثقتكم في Playmaker ✨</p>
+        </div>
+        <p class="page-number">الصفحة 2 من 4 - Page 2 of 4</p>
+    </div>
+
+    <!-- ==================== ENGLISH VERSION - Page 3 ==================== -->
+    <div class="page ltr">
+        <div class="watermark">playmaker</div>
+        <div class="content-wrapper">
+            <div class="header">
+                <div class="logo-container">
+                    <img src="../images/playmakerappicon.png" alt="Playmaker Logo" class="logo-image">
+                    <div class="logo">playmaker</div>
+                </div>
+                <div class="logo-tagline">Digital Football Field Booking Platform</div>
+                <h1>Football Field Partnership Agreement</h1>
+                <p>Digital Platform Cooperation Contract</p>
+            </div>
+            
+            <div class="date-section">
+                <strong>📅 Agreement Date:</strong> This agreement is made on day <span class="input-box"></span> of month <span class="input-box"></span> year <strong>2025</strong>
+            </div>
+            
+            <table class="parties-table">
+                <tr>
+                    <th>🏟️ Field Owner (First Party)</th>
+                    <th>💼 Playmaker Representative (Second Party)</th>
+                </tr>
+                <tr>
+                    <td>Name: <span class="input-box"></span></td>
+                    <td>Name: <span class="input-box"></span></td>
+                </tr>
+                <tr>
+                    <td>National ID: <span class="input-box"></span></td>
+                    <td>National ID: <span class="input-box"></span></td>
+                </tr>
+                <tr>
+                    <td>Phone Number: <span class="input-box"></span></td>
+                    <td>Phone Number: <span class="input-box"></span></td>
+                </tr>
+                <tr>
+                    <td>Address: <span class="input-box"></span></td>
+                    <td>Address: <span class="input-box"></span></td>
+                </tr>
+            </table>
+            
+            <h2 class="section-title">📋 Article 1: Purpose and Scope</h2>
+            <p class="content">
+                Under this agreement, both parties aim to facilitate the booking and management of time slots for the football field mentioned in the address specified above. Bookings are made through the <strong>Playmaker</strong> app and website, and the field owner agrees to honor all bookings made through the platform at predetermined prices and policies.
+            </p>
+            
+            <h2 class="section-title">💰 Article 2: Booking Terms - Commission System</h2>
+            <p class="content">
+                This agreement operates on a commission basis where the field owner receives payment for each completed booking.
+            </p>
+            
+            <div class="payment-highlight">
+                <strong>⚡ Daily Payment:</strong> Payments are settled with the field owner on a daily basis to ensure quick cash flow and complete transparency.
+            </div>
+            
+            <ol class="list">
+                <li>
+                    <strong>Commission System:</strong> For each booking made through the Playmaker app, the field owner receives <span class="input-box" style="min-width: 80px;"></span>% of the total price. For example, if the booking price is 300 EGP, the field owner receives <span class="input-box" style="min-width: 80px;"></span> EGP.
+                </li>
+                <li>
+                    <strong>Payment Mechanism:</strong>
+                    <ul class="sub-list">
+                        <li>✅ <strong>Daily Settlement:</strong> Payment is made daily at the end of each business day</li>
+                        <li>💳 Settlements are made via instant bank transfer to the field owner's account</li>
+                        <li>📊 Commission is calculated only on completed and actually used bookings</li>
+                        <li>📱 Detailed daily reports of all bookings and payments via the partners app</li>
+                    </ul>
+                </li>
+                <li>
+                    <strong>Transparency:</strong> Detailed reports of all bookings and payments will be provided through the partners app.
+                </li>
+            </ol>
+            
+            <h2 class="section-title">📹 Article 3: Camera Installation and Access</h2>
+            <p class="content">
+                Playmaker has the right to install a monitoring camera at the field for marketing, security, and booking confirmation purposes.
+            </p>
+            <ul class="list">
+                <li><span class="highlight">💵 Camera Cost: 15,000 EGP (paid by field owner)</span></li>
+                <li>🎥 Footage is used only for booking verification and service improvement purposes</li>
+                <li>🔒 Footage will not be shared with third parties without explicit consent from the field owner</li>
+                <li>🔧 Camera installation is free and maintenance responsibility lies with Playmaker</li>
+            </ul>
+            
+            <h2 class="section-title">📅 Article 4: Weekly Field Availability Schedule</h2>
+            <p class="content">
+                Please specify the daily operating hours for the field from Sunday to Saturday:
+            </p>
+            <table class="schedule-table">
+                <tr>
+                    <th style="width: 35%;">Day</th>
+                    <th style="width: 32.5%;">Start Time</th>
+                    <th style="width: 32.5%;">End Time</th>
+                </tr>
+                <tr>
+                    <td><strong>Sunday</strong></td>
+                    <td><div class="time-input-box"></div></td>
+                    <td><div class="time-input-box"></div></td>
+                </tr>
+                <tr>
+                    <td><strong>Monday</strong></td>
+                    <td><div class="time-input-box"></div></td>
+                    <td><div class="time-input-box"></div></td>
+                </tr>
+                <tr>
+                    <td><strong>Tuesday</strong></td>
+                    <td><div class="time-input-box"></div></td>
+                    <td><div class="time-input-box"></div></td>
+                </tr>
+                <tr>
+                    <td><strong>Wednesday</strong></td>
+                    <td><div class="time-input-box"></div></td>
+                    <td><div class="time-input-box"></div></td>
+                </tr>
+                <tr>
+                    <td><strong>Thursday</strong></td>
+                    <td><div class="time-input-box"></div></td>
+                    <td><div class="time-input-box"></div></td>
+                </tr>
+                <tr>
+                    <td><strong>Friday</strong></td>
+                    <td><div class="time-input-box"></div></td>
+                    <td><div class="time-input-box"></div></td>
+                </tr>
+                <tr>
+                    <td><strong>Saturday</strong></td>
+                    <td><div class="time-input-box"></div></td>
+                    <td><div class="time-input-box"></div></td>
+                </tr>
+            </table>
+            
+            <h2 class="section-title">📱 Article 5: Booking Management</h2>
+            <ol class="list">
+                <li>The field owner agrees to give Playmaker priority in managing bookings through the platform</li>
+                <li>The Playmaker partners app must be used to update available time slots in real-time</li>
+                <li>Any changes in field availability must be updated immediately to avoid conflicts</li>
+            </ol>
+            
+            <p class="footer-note">🇪🇬 This agreement is subject to the laws of the Arab Republic of Egypt</p>
+        </div>
+        <p class="page-number">Page 3 of 4 - الصفحة 3 من 4</p>
+    </div>
+    
+    <!-- ==================== ENGLISH VERSION - Page 4 ==================== -->
+    <div class="page ltr">
+        <div class="watermark">playmaker</div>
+        <div class="content-wrapper">
+            <div class="page-header-small">
+                <div style="display: flex; align-items: center;">
+                    <img src="../images/playmakerappicon.png" alt="Playmaker">
+                    <strong style="margin-left: 10px; font-size: 14px;">playmaker</strong>
+                </div>
+                <div style="font-size: 11px;">Digital Football Field Booking Platform</div>
+            </div>
+            
+            <h2 class="section-title">⏳ Article 6: Duration and Termination</h2>
+            <p class="content">
+                This agreement remains valid for <strong>one year</strong> from the signing date and can be extended with the consent of both parties. Either party may terminate the agreement with at least <strong>14 days</strong> written notice.
+            </p>
+            
+            <h2 class="section-title">📌 Article 7: Additional Terms and Conditions</h2>
+            <ol class="list">
+                <li><strong>Marketing:</strong> Playmaker has the right to use field photos and videos in marketing campaigns</li>
+                <li><strong>Quality Standards:</strong> The field owner is committed to providing clean facilities (restrooms, lighting, good surface)</li>
+                <li><strong>Complaints:</strong> Joint investigation of any complaint within 48 hours</li>
+                <li><strong>Booking Suspension:</strong> Playmaker has the right to suspend bookings if standards are not met</li>
+                <li><strong>Insurance:</strong> The field owner is responsible for insurance against accidents</li>
+            </ol>
+            
+            <h2 class="section-title">⚖️ Article 8: General Provisions</h2>
+            <ul class="list">
+                <li>📜 This agreement is subject to the laws of the Arab Republic of Egypt</li>
+                <li>✍️ Amendments must be made in writing with the consent of both parties</li>
+                <li>✅ Both parties acknowledge their understanding and agreement to all terms</li>
+            </ul>
+            
+            <div class="signature-section">
+                <h2 class="section-title">✍️ Signatures and Approvals</h2>
+                <p class="content">
+                    By signing this agreement, both parties confirm their complete understanding of all the mentioned terms and conditions and commit to implementing them in good faith.
+                </p>
+                
+                <div class="signature-grid">
+                    <div class="signature-box">
+                        <h3>🏟️ Field Owner</h3>
+                        <div class="signature-field">
+                            <label>Full Name:</label>
+                            <div class="field-line"></div>
+                        </div>
+                        <div class="signature-field">
+                            <label>Signature:</label>
+                            <div class="signature-area"></div>
+                        </div>
+                        <div class="signature-field">
+                            <label>Date:</label>
+                            <div class="field-line"></div>
+                        </div>
+                        <div class="signature-field">
+                            <label>Stamp (if applicable):</label>
+                            <div class="stamp-area"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="signature-box">
+                        <h3>💼 Playmaker Representative</h3>
+                        <div class="signature-field">
+                            <label>Full Name:</label>
+                            <div class="field-line"></div>
+                        </div>
+                        <div class="signature-field">
+                            <label>Signature:</label>
+                            <div class="signature-area"></div>
+                        </div>
+                        <div class="signature-field">
+                            <label>Date:</label>
+                            <div class="field-line"></div>
+                        </div>
+                        <div class="signature-field">
+                            <label>Official Stamp:</label>
+                            <div class="stamp-area"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="contact-box">
+                <div class="logo-large">playmaker</div>
+                <div class="tagline">Digital Football Field Booking Platform</div>
+                <div class="info">
+                    📱 For inquiries: Contact via app<br>
+                    🌐 www.playmaker.com | 📧 support@playmaker.com
+                </div>
+            </div>
+            
+            <p class="footer-note">✨ Thank you for your trust in Playmaker ✨</p>
+        </div>
+        <p class="page-number">Page 4 of 4 - الصفحة 4 من 4</p>
+    </div>
+</body>
+</html>

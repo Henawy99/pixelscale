@@ -1,0 +1,144 @@
+# Tennis Academy iOS Fastlane Configuration
+# ==========================================
+# Automated build and upload to TestFlight
+#
+# Usage:
+#   bundle exec fastlane ios upload       # Build + Upload to TestFlight
+#   bundle exec fastlane ios upload_only  # Upload existing IPA (skip build)
+#   bundle exec fastlane ios build_only   # Build IPA without uploading
+
+default_platform(:ios)
+
+# ═══════════════════════════════════════════════════════════════════════
+# API KEY CONFIGURATION
+# ═══════════════════════════════════════════════════════════════════════
+API_KEY_ID        = "2GTNSM4DX2"
+API_KEY_ISSUER_ID = "dc9a069b-00fc-45f8-be31-84e435ea4d07"
+API_KEY_PATH      = File.expand_path("~/.appstoreconnect/private_keys/AuthKey_2GTNSM4DX2.p8")
+
+platform :ios do
+
+  before_all do
+    app_store_connect_api_key(
+      key_id: API_KEY_ID,
+      issuer_id: API_KEY_ISSUER_ID,
+      key_filepath: API_KEY_PATH,
+      in_house: false
+    )
+  end
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # MAIN LANE — Build Flutter + Archive + Upload
+  # ═══════════════════════════════════════════════════════════════════════
+
+  desc "Build Flutter app and upload to TestFlight"
+  lane :upload do
+    UI.header "🎾 Building & Uploading Tennis Academy to TestFlight"
+
+    project_root = File.expand_path("..", Dir.pwd)
+
+    UI.message "Running flutter build ios..."
+    Dir.chdir(project_root) do
+      Bundler.with_unbundled_env do
+        sh("flutter build ios --release --no-codesign")
+      end
+    end
+
+    workspace_path = File.join(project_root, "ios/Runner.xcworkspace")
+
+    gym(
+      workspace: workspace_path,
+      scheme: "Runner",
+      export_method: "app-store",
+      output_directory: File.join(project_root, "build/ios"),
+      output_name: "TennisAcademy.ipa",
+      clean: false,
+      include_bitcode: false,
+      xcargs: "DEVELOPMENT_TEAM=G67XQ5S4QU",
+      export_options: {
+        signingStyle: "automatic",
+        teamID: "G67XQ5S4QU",
+        uploadBitcode: false,
+        uploadSymbols: true,
+        compileBitcode: false
+      }
+    )
+
+    ipa_path = lane_context[SharedValues::IPA_OUTPUT_PATH]
+    UI.message "IPA created: #{ipa_path}"
+
+    upload_to_testflight(
+      ipa: ipa_path,
+      skip_waiting_for_build_processing: true,
+      skip_submission: true,
+      distribute_external: false,
+      notify_external_testers: false
+    )
+
+    UI.success "🎾 Tennis Academy uploaded to TestFlight!"
+  end
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # UPLOAD ONLY — reuse existing IPA
+  # ═══════════════════════════════════════════════════════════════════════
+
+  desc "Upload existing IPA to TestFlight (skip build)"
+  lane :upload_only do
+    project_root = File.expand_path("..", Dir.pwd)
+    ipa_path     = File.join(project_root, "build/ios/TennisAcademy.ipa")
+
+    UI.header "🎾 Uploading Tennis Academy IPA to TestFlight"
+    unless File.exist?(ipa_path)
+      UI.user_error!("IPA not found at: #{ipa_path}\nRun: bundle exec fastlane ios upload")
+    end
+
+    upload_to_testflight(
+      ipa: ipa_path,
+      skip_waiting_for_build_processing: true,
+      skip_submission: true,
+      distribute_external: false,
+      notify_external_testers: false
+    )
+
+    UI.success "Tennis Academy uploaded to TestFlight!"
+  end
+
+  desc "Build IPA without uploading"
+  lane :build_only do
+    project_root = File.expand_path("..", Dir.pwd)
+    workspace_path = File.join(project_root, "ios/Runner.xcworkspace")
+
+    Dir.chdir(project_root) do
+      Bundler.with_unbundled_env { sh("flutter build ios --release --no-codesign") }
+    end
+
+    gym(
+      workspace: workspace_path,
+      scheme: "Runner",
+      export_method: "app-store",
+      output_directory: File.join(project_root, "build/ios"),
+      output_name: "TennisAcademy.ipa",
+      clean: false,
+      include_bitcode: false,
+      xcargs: "DEVELOPMENT_TEAM=G67XQ5S4QU",
+      export_options: {
+        signingStyle: "automatic",
+        teamID: "G67XQ5S4QU",
+        uploadBitcode: false,
+        compileBitcode: false
+      }
+    )
+
+    UI.success "IPA ready at: build/ios/TennisAcademy.ipa"
+  end
+
+  lane :tf do
+    upload
+  end
+
+  error do |lane, exception|
+    UI.error "Lane #{lane} failed!"
+    UI.error exception.message
+  end
+
+end
