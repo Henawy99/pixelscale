@@ -6,13 +6,17 @@ class CategoryCard extends StatelessWidget {
   final String? imageUrl; // Now nullable
   final bool isNetworkImage; // To distinguish between asset and network
   final VoidCallback onTap;
+  final VoidCallback? onSettingsTap;
+  final Map<String, double?>? ratings;
 
   const CategoryCard({
     super.key,
     required this.categoryName,
-    this.imageUrl, // Nullable
-    this.isNetworkImage = false, // Default to asset image
+    this.imageUrl,
+    this.isNetworkImage = false,
     required this.onTap,
+    this.onSettingsTap,
+    this.ratings,
   });
 
   @override
@@ -99,6 +103,40 @@ class CategoryCard extends StatelessWidget {
                 ),
               ),
             ),
+            if (ratings != null && ratings!.values.any((r) => r != null))
+              Positioned(
+                bottom: 40,
+                left: 12,
+                right: 12,
+                child: Row(
+                  children: ratings!.entries
+                      .where((e) => e.value != null)
+                      .map((e) => Padding(
+                            padding: const EdgeInsets.only(right: 6.0),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: e.value! < 4.0 ? Colors.redAccent : Colors.green,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                '${e.key[0]}: ${e.value}',
+                                style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                          ))
+                      .toList(),
+                ),
+              ),
+            if (onSettingsTap != null)
+              Positioned(
+                top: 4,
+                right: 4,
+                child: IconButton(
+                  icon: const Icon(Icons.settings, color: Colors.white, size: 20),
+                  onPressed: onSettingsTap,
+                ),
+              ),
           ],
         ),
       ),

@@ -17,7 +17,7 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController(text: 'youssef@gmail.com');
-  final _passwordController = TextEditingController(text: '0000');
+  final _passwordController = TextEditingController(text: '123456');
   bool _isLoading = false;
   final _supabase = Supabase.instance.client;
 

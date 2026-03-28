@@ -3,7 +3,8 @@ import 'package:restaurantadmin/widgets/category_card.dart';
 import 'package:restaurantadmin/screens/brand_menu_screen.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:hive/hive.dart';
-import 'package:restaurantadmin/models/brand.dart'; // Assuming your Brand model is here
+import 'package:restaurantadmin/models/brand.dart';
+import 'package:restaurantadmin/widgets/delivery_links_settings_dialog.dart';
 
 class MenusScreen extends StatefulWidget {
   const MenusScreen({super.key});
@@ -282,10 +283,28 @@ class _MenusScreenState extends State<MenusScreen> with TickerProviderStateMixin
                   ),
                 )),
                 child: CategoryCard(
-                              categoryName: brand.name,
+                  categoryName: brand.name,
                   imageUrl: brand.imageUrl,
                   isNetworkImage: brand.imageUrl != null && brand.imageUrl!.startsWith('http'),
-                              onTap: () {
+                  ratings: {
+                    'Lief': brand.lieferandoRating,
+                    'Foodora': brand.foodoraRating,
+                    'Wolt': brand.woltRating,
+                    'Google': brand.googleRating,
+                  },
+                  onSettingsTap: () {
+                    showDialog(
+                      context: context,
+                      builder: (context) => DeliveryLinksSettingsDialog(
+                        brand: brand,
+                        onSave: (updatedBrand) async {
+                          await _supabase.from('brands').update(updatedBrand.toJson()).eq('id', updatedBrand.id);
+                          await _fetchBrands(forceRefresh: true);
+                        },
+                      ),
+                    );
+                  },
+                  onTap: () {
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(

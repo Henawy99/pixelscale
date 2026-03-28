@@ -19,12 +19,76 @@ class Brand extends HiveObject {
   @HiveField(4)
   final String? imageUrl;
 
+  @HiveField(5)
+  final String? lieferandoUrl;
+
+  @HiveField(6)
+  final String? foodoraUrl;
+
+  @HiveField(7)
+  final String? woltUrl;
+
+  @HiveField(8)
+  final String? googleUrl;
+
+  @HiveField(9)
+  final double? lieferandoRating;
+
+  @HiveField(10)
+  final double? foodoraRating;
+
+  @HiveField(11)
+  final double? woltRating;
+
+  @HiveField(12)
+  final double? googleRating;
+
+  @HiveField(13)
+  final int? lieferandoReviewCount;
+
+  @HiveField(14)
+  final int? foodoraReviewCount;
+
+  @HiveField(15)
+  final int? woltReviewCount;
+
+  @HiveField(16)
+  final int? googleReviewCount;
+
+  @HiveField(17)
+  final DateTime? lieferandoUpdatedAt;
+
+  @HiveField(18)
+  final DateTime? foodoraUpdatedAt;
+
+  @HiveField(19)
+  final DateTime? woltUpdatedAt;
+
+  @HiveField(20)
+  final DateTime? googleUpdatedAt;
+
   Brand({
     required this.id,
     required this.createdAt,
     required this.name,
     this.description,
     this.imageUrl,
+    this.lieferandoUrl,
+    this.foodoraUrl,
+    this.woltUrl,
+    this.googleUrl,
+    this.lieferandoRating,
+    this.foodoraRating,
+    this.woltRating,
+    this.googleRating,
+    this.lieferandoReviewCount,
+    this.foodoraReviewCount,
+    this.woltReviewCount,
+    this.googleReviewCount,
+    this.lieferandoUpdatedAt,
+    this.foodoraUpdatedAt,
+    this.woltUpdatedAt,
+    this.googleUpdatedAt,
   });
 
   factory Brand.fromJson(Map<String, dynamic> json) {
@@ -60,6 +124,22 @@ class Brand extends HiveObject {
       name: name,
       description: json['description'] as String?,
       imageUrl: json['image_url'] as String?,
+      lieferandoUrl: json['lieferando_url'] as String?,
+      foodoraUrl: json['foodora_url'] as String?,
+      woltUrl: json['wolt_url'] as String?,
+      googleUrl: json['google_url'] as String?,
+      lieferandoRating: (json['lieferando_rating'] as num?)?.toDouble(),
+      foodoraRating: (json['foodora_rating'] as num?)?.toDouble(),
+      woltRating: (json['wolt_rating'] as num?)?.toDouble(),
+      googleRating: (json['google_rating'] as num?)?.toDouble(),
+      lieferandoReviewCount: json['lieferando_review_count'] as int?,
+      foodoraReviewCount: json['foodora_review_count'] as int?,
+      woltReviewCount: json['wolt_review_count'] as int?,
+      googleReviewCount: json['google_review_count'] as int?,
+      lieferandoUpdatedAt: json['lieferando_rating_updated_at'] != null ? DateTime.tryParse(json['lieferando_rating_updated_at'] as String) : null,
+      foodoraUpdatedAt: json['foodora_rating_updated_at'] != null ? DateTime.tryParse(json['foodora_rating_updated_at'] as String) : null,
+      woltUpdatedAt: json['wolt_rating_updated_at'] != null ? DateTime.tryParse(json['wolt_rating_updated_at'] as String) : null,
+      googleUpdatedAt: json['google_rating_updated_at'] != null ? DateTime.tryParse(json['google_rating_updated_at'] as String) : null,
     );
   }
 
@@ -68,6 +148,22 @@ class Brand extends HiveObject {
       'name': name,
       'description': description,
       'image_url': imageUrl,
+      'lieferando_url': lieferandoUrl,
+      'foodora_url': foodoraUrl,
+      'wolt_url': woltUrl,
+      'google_url': googleUrl,
+      'lieferando_rating': lieferandoRating,
+      'foodora_rating': foodoraRating,
+      'wolt_rating': woltRating,
+      'google_rating': googleRating,
+      'lieferando_review_count': lieferandoReviewCount,
+      'foodora_review_count': foodoraReviewCount,
+      'wolt_review_count': woltReviewCount,
+      'google_review_count': googleReviewCount,
+      'lieferando_rating_updated_at': lieferandoUpdatedAt?.toIso8601String(),
+      'foodora_rating_updated_at': foodoraUpdatedAt?.toIso8601String(),
+      'wolt_rating_updated_at': woltUpdatedAt?.toIso8601String(),
+      'google_rating_updated_at': googleUpdatedAt?.toIso8601String(),
     };
   }
 }

@@ -67,6 +67,8 @@ dependencies:
   cross_file: ^0.3.3
   share_plus: ^10.0.0 # For sharing files
   archive: ^4.0.3 # For creating ZIP archives
+  html: ^0.15.6
+  flutter_local_notifications: ^20.1.0
 
 dev_dependencies:
   flutter_test:
