@@ -139,7 +139,6 @@ export default function AddProductScreen({ navigation }) {
         price: parseFloat(price),
         sizes: validSizes.map(s => ({ size: s.size, stock: parseInt(s.stock, 10) || 0 })),
         images: [],
-        details: { en: [], ar: [] },
         is_new: true,
       };
 
@@ -167,7 +166,7 @@ export default function AddProductScreen({ navigation }) {
       ]);
     } catch (error) {
       console.error('Error adding product:', error);
-      Alert.alert('Error', 'Failed to add product');
+      Alert.alert('Error', `Failed to add product: ${error.message || 'Unknown error'}`);
     } finally {
       setLoading(false);
     }

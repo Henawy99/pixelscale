@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin Dashboard – Salzburg Umzugprofis</title>
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Outfit:wght@700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+<style>
+/* ── BASE ── */
+:root {
+  --bg: #080c14; --bg2: #0d1524; --card: #111827;
+  --border: rgba(255,255,255,0.08);
+  --blue: #1a6cf5; --blue-light: #3b82f6; --accent: #00c6ff;
+  --text: #e2e8f0; --muted: #8899aa; --white: #fff;
+  --green: #10b981; --red: #ef4444;
+  --gradient: linear-gradient(135deg, #1a6cf5, #00c6ff);
+  --radius: 14px; --font: 'Inter', sans-serif; --heading: 'Outfit', sans-serif;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body { font-family: var(--font); background: var(--bg); color: var(--text); min-height: 100vh; }
+
+/* ── LOGIN SCREEN ── */
+#loginScreen {
+  min-height: 100vh; display: flex; align-items: center; justify-content: center;
+  background: radial-gradient(ellipse 80% 60% at 50% -10%, rgba(26,108,245,0.15), transparent), var(--bg);
+}
+.login-card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 20px; padding: 48px 40px;
+  width: 100%; max-width: 420px; text-align: center;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+}
+.login-icon {
+  width: 64px; height: 64px; background: var(--gradient);
+  border-radius: 16px; display: inline-flex; align-items: center; justify-content: center;
+  font-size: 1.6rem; color: #fff; margin-bottom: 20px;
+}
+.login-card h1 { font-family: var(--heading); font-size: 1.5rem; color: var(--white); margin-bottom: 4px; }
+.login-card p  { font-size: 0.88rem; color: var(--muted); margin-bottom: 28px; }
+.login-form { display: flex; flex-direction: column; gap: 14px; }
+.login-form input {
+  background: var(--bg); border: 1.5px solid var(--border);
+  border-radius: 10px; color: var(--text);
+  padding: 13px 16px; font-size: 0.9rem; font-family: var(--font); width: 100%;
+}
+.login-form input:focus { outline: none; border-color: var(--blue-light); }
+.btn-login {
+  background: var(--gradient); color: #fff;
+  border: none; border-radius: 10px; padding: 14px;
+  font-size: 1rem; font-weight: 700; cursor: pointer;
+  transition: all 0.3s ease; display: flex; align-items: center; justify-content: center; gap: 8px;
+}
+.btn-login:hover { filter: brightness(1.1); transform: translateY(-1px); }
+.login-error { color: var(--red); font-size: 0.85rem; margin-top: 8px; display: none; }
+
+/* ── DASHBOARD ── */
+#dashboard { display: none; }
+.dash-header {
+  background: rgba(8,12,20,0.9); backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--border);
+  padding: 16px 32px;
+  display: flex; align-items: center; justify-content: space-between;
+  position: sticky; top: 0; z-index: 100;
+}
+.dash-logo { font-family: var(--heading); font-size: 1.1rem; font-weight: 700; color: var(--white); display: flex; align-items: center; gap: 10px; }
+.dash-logo-icon { width: 36px; height: 36px; background: var(--gradient); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 0.9rem; }
+.dash-logo span.accent { color: var(--blue-light); }
+.btn-logout { background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.25); color: #ef4444; padding: 8px 18px; border-radius: 8px; font-size: 0.85rem; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+.btn-logout:hover { background: rgba(239,68,68,0.2); }
+
+.dash-content { max-width: 900px; margin: 0 auto; padding: 40px 24px; }
+.dash-title { font-family: var(--heading); font-size: 2rem; font-weight: 800; color: var(--white); margin-bottom: 8px; }
+.dash-subtitle { color: var(--muted); margin-bottom: 40px; }
+
+.admin-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+
+.admin-card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 28px;
+}
+.admin-card.full-width { grid-column: span 2; }
+.admin-card h3 {
+  font-size: 0.8rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.1em;
+  color: var(--blue-light); margin-bottom: 20px;
+  display: flex; align-items: center; gap: 8px;
+}
+
+.price-fields { display: flex; flex-direction: column; gap: 14px; }
+.price-field {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 12px 0; border-bottom: 1px solid var(--border);
+}
+.price-field:last-child { border-bottom: none; padding-bottom: 0; }
+.price-field label { font-size: 0.9rem; color: var(--text); font-weight: 500; flex: 1; }
+.price-field .field-sub { font-size: 0.75rem; color: var(--muted); display: block; }
+.price-input-wrap { display: flex; align-items: center; gap: 6px; }
+.price-input-wrap .euro { font-weight: 700; color: var(--blue-light); }
+.price-field input {
+  background: var(--bg); border: 1.5px solid var(--border);
+  border-radius: 8px; color: var(--white);
+  padding: 9px 12px; font-size: 0.95rem; font-weight: 700;
+  font-family: var(--font); width: 90px; text-align: right;
+}
+.price-field input:focus { outline: none; border-color: var(--blue-light); }
+
+.save-bar {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 20px 28px;
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 16px; margin-top: 24px; flex-wrap: wrap;
+}
+.save-info { font-size: 0.85rem; color: var(--muted); }
+.save-btns { display: flex; gap: 10px; }
+.btn-save {
+  background: var(--gradient); color: #fff;
+  border: none; border-radius: 10px;
+  padding: 12px 28px; font-size: 0.95rem; font-weight: 700;
+  cursor: pointer; transition: all 0.3s;
+  display: flex; align-items: center; gap: 8px;
+}
+.btn-save:hover { filter: brightness(1.1); transform: translateY(-1px); }
+.btn-reset {
+  background: transparent; color: var(--muted);
+  border: 1px solid var(--border); border-radius: 10px;
+  padding: 12px 20px; font-size: 0.9rem; cursor: pointer;
+  transition: all 0.2s;
+}
+.btn-reset:hover { border-color: rgba(255,255,255,0.2); color: var(--text); }
+
+.save-toast {
+  position: fixed; bottom: 28px; right: 28px;
+  background: rgba(16,185,129,0.15); border: 1px solid rgba(16,185,129,0.3);
+  color: var(--green); padding: 14px 20px; border-radius: 12px;
+  font-size: 0.9rem; font-weight: 600; display: none;
+  align-items: center; gap: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  animation: slideIn 0.3s ease;
+}
+@keyframes slideIn { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+.live-preview {
+  background: var(--bg);
+  border: 1px solid rgba(26,108,245,0.2);
+  border-radius: var(--radius); padding: 20px;
+  margin-top: 20px;
+}
+.live-preview h4 { font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--blue-light); margin-bottom: 14px; }
+.preview-example { display: flex; flex-direction: column; gap: 6px; }
+.prev-row { display: flex; justify-content: space-between; font-size: 0.83rem; color: var(--muted); }
+.prev-row strong { color: var(--white); font-weight: 700; }
+.prev-total { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); font-size: 1rem; font-weight: 700; color: var(--white); display: flex; justify-content: space-between; }
+.prev-total span { font-family: var(--heading); font-size: 1.3rem; color: var(--blue-light); }
+
+@media (max-width: 700px) {
+  .admin-grid { grid-template-columns: 1fr; }
+  .admin-card.full-width { grid-column: auto; }
+  .dash-content { padding: 24px 16px; }
+  .save-bar { flex-direction: column; align-items: stretch; }
+}
+</style>
+</head>
+<body>
+
+<!-- LOGIN SCREEN -->
+<div id="loginScreen">
+  <div class="login-card">
+    <div class="login-icon"><i class="fas fa-truck-moving"></i></div>
+    <h1>Admin Dashboard</h1>
+    <p>Salzburg Umzugprofis – Preissteuerung</p>
+    <form class="login-form" id="loginForm">
+      <input type="password" id="loginPw" placeholder="Passwort eingeben" autocomplete="current-password" />
+      <button type="submit" class="btn-login">
+        <i class="fas fa-sign-in-alt"></i> Anmelden
+      </button>
+      <div class="login-error" id="loginError">Falsches Passwort. Bitte versuchen Sie es erneut.</div>
+    </form>
+  </div>
+</div>
+
+<!-- DASHBOARD -->
+<div id="dashboard">
+  <!-- Header -->
+  <header class="dash-header">
+    <div class="dash-logo">
+      <div class="dash-logo-icon"><i class="fas fa-truck-moving"></i></div>
+      Salzburg Umzug<span class="accent">profis</span> – Admin
+    </div>
+    <button class="btn-logout" id="logoutBtn"><i class="fas fa-sign-out-alt"></i> Abmelden</button>
+  </header>
+
+  <div class="dash-content">
+    <h1 class="dash-title">Preissteuerung</h1>
+    <p class="dash-subtitle">Änderungen werden sofort im Kalkulator auf der Website übernommen.</p>
+
+    <div class="admin-grid">
+
+      <!-- Base & KM -->
+      <div class="admin-card">
+        <h3><i class="fas fa-cog"></i> Grundpreise</h3>
+        <div class="price-fields">
+          <div class="price-field">
+            <label>Grundpreis<span class="field-sub">Pro Umzug, immer enthalten</span></label>
+            <div class="price-input-wrap"><input type="number" id="f_base" min="0" /><span class="euro">€</span></div>
+          </div>
+          <div class="price-field">
+            <label>Preis pro km<span class="field-sub">Wird mit der Entfernung multipliziert</span></label>
+            <div class="price-input-wrap"><input type="number" id="f_perKm" min="0" step="0.1" /><span class="euro">€/km</span></div>
+          </div>
+          <div class="price-field">
+            <label>Etage ohne Aufzug<span class="field-sub">Aufpreis pro Stockwerk</span></label>
+            <div class="price-input-wrap"><input type="number" id="f_floorNoElevator" min="0" /><span class="euro">€/Etage</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Room sizes -->
+      <div class="admin-card">
+        <h3><i class="fas fa-home"></i> Wohnungsgröße</h3>
+        <div class="price-fields">
+          <div class="price-field">
+            <label>1 Zimmer</label>
+            <div class="price-input-wrap"><input type="number" id="f_room1" min="0" /><span class="euro">€</span></div>
+          </div>
+          <div class="price-field">
+            <label>2 Zimmer</label>
+            <div class="price-input-wrap"><input type="number" id="f_room2" min="0" /><span class="euro">€</span></div>
+          </div>
+          <div class="price-field">
+            <label>3+ Zimmer</label>
+            <div class="price-input-wrap"><input type="number" id="f_room3" min="0" /><span class="euro">€</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Extras -->
+      <div class="admin-card full-width">
+        <h3><i class="fas fa-plus-circle"></i> Zusatzleistungen</h3>
+        <div class="price-fields" style="display:grid;grid-template-columns:1fr 1fr;gap:0 32px;">
+          <div class="price-field">
+            <label>Verpackungsservice</label>
+            <div class="price-input-wrap"><input type="number" id="f_packaging" min="0" /><span class="euro">€</span></div>
+          </div>
+          <div class="price-field">
+            <label>Montage &amp; Demontage</label>
+            <div class="price-input-wrap"><input type="number" id="f_assembly" min="0" /><span class="euro">€</span></div>
+          </div>
+          <div class="price-field">
+            <label>Entsorgung</label>
+            <div class="price-input-wrap"><input type="number" id="f_disposal" min="0" /><span class="euro">€</span></div>
+          </div>
+          <div class="price-field">
+            <label>Einlagerung</label>
+            <div class="price-input-wrap"><input type="number" id="f_storage" min="0" /><span class="euro">€</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Live preview -->
+      <div class="admin-card full-width">
+        <h3><i class="fas fa-eye"></i> Vorschau – Beispielkalkulation</h3>
+        <p style="font-size:0.85rem;color:var(--muted);margin-bottom:16px;">Beispiel: 20km Entfernung · 2 Zimmer · 3. Etage · kein Aufzug · alle Extras</p>
+        <div class="live-preview">
+          <div class="preview-example">
+            <div class="prev-row"><span>Grundpreis</span><strong id="prev_base">–</strong></div>
+            <div class="prev-row"><span>Entfernung (20km)</span><strong id="prev_dist">–</strong></div>
+            <div class="prev-row"><span>Wohnung (2 Zimmer)</span><strong id="prev_room">–</strong></div>
+            <div class="prev-row"><span>Etage x3 (kein Aufzug)</span><strong id="prev_floor">–</strong></div>
+            <div class="prev-row"><span>Alle Extras</span><strong id="prev_extras">–</strong></div>
+            <div class="prev-total"><span>Gesamtpreis (Richtpreis)</span><span id="prev_total">–</span></div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /admin-grid -->
+
+    <!-- Save bar -->
+    <div class="save-bar">
+      <div class="save-info"><i class="fas fa-info-circle"></i> Alle Änderungen werden in Ihrem Browser gespeichert und sofort auf der Website übernommen.</div>
+      <div class="save-btns">
+        <button class="btn-reset" id="resetBtn"><i class="fas fa-undo"></i> Zurücksetzen</button>
+        <button class="btn-save" id="saveBtn"><i class="fas fa-save"></i> Speichern</button>
+      </div>
+    </div>
+  </div><!-- /dash-content -->
+</div><!-- /dashboard -->
+
+<div class="save-toast" id="saveToast"><i class="fas fa-check-circle"></i> Preise erfolgreich gespeichert!</div>
+
+<script>
+/* ── CONFIG ── */
+const ADMIN_PW = 'admin2024'; // ← Change this password!
+
+const DEFAULT = {
+  base: 80, perKm: 1,
+  room1: 50, room2: 100, room3: 150,
+  floorNoElevator: 20,
+  extras: { packaging: 50, assembly: 80, disposal: 70, storage: 30 }
+};
+
+function getPricing() {
+  try { const s = localStorage.getItem('umzug_pricing'); return s ? JSON.parse(s) : JSON.parse(JSON.stringify(DEFAULT)); }
+  catch { return JSON.parse(JSON.stringify(DEFAULT)); }
+}
+
+function savePricing(p) {
+  localStorage.setItem('umzug_pricing', JSON.stringify(p));
+}
+
+/* ── FIELDS MAP ── */
+const fields = [
+  { id: 'f_base',           get: p => p.base,                 set: (p,v) => p.base = v },
+  { id: 'f_perKm',         get: p => p.perKm,               set: (p,v) => p.perKm = v },
+  { id: 'f_floorNoElevator', get: p => p.floorNoElevator,   set: (p,v) => p.floorNoElevator = v },
+  { id: 'f_room1',          get: p => p.room1,               set: (p,v) => p.room1 = v },
+  { id: 'f_room2',          get: p => p.room2,               set: (p,v) => p.room2 = v },
+  { id: 'f_room3',          get: p => p.room3,               set: (p,v) => p.room3 = v },
+  { id: 'f_packaging',  get: p => p.extras.packaging,  set: (p,v) => p.extras.packaging = v },
+  { id: 'f_assembly',   get: p => p.extras.assembly,   set: (p,v) => p.extras.assembly  = v },
+  { id: 'f_disposal',   get: p => p.extras.disposal,   set: (p,v) => p.extras.disposal  = v },
+  { id: 'f_storage',    get: p => p.extras.storage,    set: (p,v) => p.extras.storage   = v },
+];
+
+function loadFields() {
+  const p = getPricing();
+  fields.forEach(f => {
+    const el = document.getElementById(f.id);
+    if (el) el.value = f.get(p);
+  });
+  updatePreview();
+}
+
+function collectFields() {
+  const p = JSON.parse(JSON.stringify(getPricing()));
+  fields.forEach(f => {
+    const el = document.getElementById(f.id);
+    if (el) f.set(p, parseFloat(el.value) || 0);
+  });
+  return p;
+}
+
+function updatePreview() {
+  const p = collectFields();
+  const distCost   = 20 * p.perKm;
+  const sizeCost   = p.room2;
+  const floorCost  = 3 * p.floorNoElevator;
+  const extrasCost = p.extras.packaging + p.extras.assembly + p.extras.disposal + p.extras.storage;
+  const total      = p.base + distCost + sizeCost + floorCost + extrasCost;
+
+  const s = id => { const e = document.getElementById(id); if(e) e.textContent = v => v };
+  const set = (id, val) => { const e = document.getElementById(id); if (e) e.textContent = val + '€'; };
+  set('prev_base',   p.base);
+  set('prev_dist',   distCost);
+  set('prev_room',   sizeCost);
+  set('prev_floor',  floorCost);
+  set('prev_extras', extrasCost);
+  const totalEl = document.getElementById('prev_total');
+  if (totalEl) totalEl.textContent = total + '€ – ' + Math.round(total * 1.18) + '€';
+}
+
+/* ── LOGIN ── */
+document.getElementById('loginForm').addEventListener('submit', function(e) {
+  e.preventDefault();
+  const pw = document.getElementById('loginPw').value;
+  const errEl = document.getElementById('loginError');
+  if (pw === ADMIN_PW) {
+    document.getElementById('loginScreen').style.display = 'none';
+    document.getElementById('dashboard').style.display   = '';
+    loadFields();
+  } else {
+    errEl.style.display = 'block';
+    document.getElementById('loginPw').value = '';
+    document.getElementById('loginPw').focus();
+  }
+});
+
+document.getElementById('logoutBtn').addEventListener('click', () => {
+  document.getElementById('loginScreen').style.display = '';
+  document.getElementById('dashboard').style.display   = 'none';
+  document.getElementById('loginPw').value = '';
+});
+
+/* ── SAVE ── */
+document.getElementById('saveBtn').addEventListener('click', () => {
+  const p = collectFields();
+  savePricing(p);
+  const toast = document.getElementById('saveToast');
+  toast.style.display = 'flex';
+  setTimeout(() => { toast.style.display = 'none'; }, 3000);
+});
+
+/* ── RESET ── */
+document.getElementById('resetBtn').addEventListener('click', () => {
+  if (confirm('Alle Preise auf Standardwerte zurücksetzen?')) {
+    savePricing(JSON.parse(JSON.stringify(DEFAULT)));
+    loadFields();
+  }
+});
+
+/* ── LIVE PREVIEW on input ── */
+fields.forEach(f => {
+  const el = document.getElementById(f.id);
+  if (el) el.addEventListener('input', updatePreview);
+});
+</script>
+</body>
+</html>

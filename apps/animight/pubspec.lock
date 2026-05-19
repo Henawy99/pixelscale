@@ -648,6 +648,13 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "6.1.0"
+  pixelscale_core:
+    dependency: "direct main"
+    description:
+      path: "../../packages/pixelscale_core"
+      relative: true
+    source: path
+    version: "1.0.0"
   platform:
     dependency: transitive
     description:

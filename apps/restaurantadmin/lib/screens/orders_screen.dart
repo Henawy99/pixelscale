@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart'; // For date formatting
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:restaurantadmin/models/order.dart' as app_order;
+import 'package:restaurantadmin/models/remote_scanner_status.dart';
 import 'package:restaurantadmin/widgets/category_card.dart';
 import 'package:restaurantadmin/screens/orderable_brand_menu_screen.dart';
 import 'package:restaurantadmin/screens/order_detail_screen.dart';
@@ -15,6 +16,7 @@ import 'package:restaurantadmin/utils/pdf_generator.dart';
 import 'package:restaurantadmin/models/driver.dart';
 import 'package:restaurantadmin/screens/delivery_monitor_screen.dart';
 import 'package:restaurantadmin/widgets/global_order_listener.dart';
+import 'package:timeago/timeago.dart' as timeago;
 
 class OrdersScreen extends StatefulWidget {
   const OrdersScreen({super.key});
@@ -63,6 +65,12 @@ class _OrdersScreenState extends State<OrdersScreen>
 
   List<Driver> _activeDrivers = [];
   List<app_order.Order> _deliveryOrders = [];
+
+  // Receipt scanner status
+  List<RemoteScannerStatus> _remoteScanners = [];
+  RealtimeChannel? _scannerStatusChannel;
+  Timer? _scannerStatusTimer;
+  bool _scannerStatusExpanded = false;
 
   // Date navigation
   late DateTime _selectedDate;
@@ -143,6 +151,11 @@ class _OrdersScreenState extends State<OrdersScreen>
     _subscribeToNewOrderNotifications();
     _subscribeToOrdersStreamBackup();
     _startPeriodicRefresh();
+    _fetchScannerStatus();
+    _subscribeToScannerStatus();
+    _scannerStatusTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      _fetchScannerStatus();
+    });
     WidgetsBinding.instance.addObserver(this);
   }
 
@@ -156,6 +169,8 @@ class _OrdersScreenState extends State<OrdersScreen>
     _ordersChannel?.unsubscribe();
     _newOrderSubscription?.cancel();
     _periodicRefreshTimer?.cancel();
+    _scannerStatusTimer?.cancel();
+    _scannerStatusChannel?.unsubscribe();
     super.dispose();
   }
 
@@ -287,6 +302,41 @@ class _OrdersScreenState extends State<OrdersScreen>
         _loadAllData();
       }
     });
+  }
+
+  // ── Scanner Status ──────────────────────────────────────────────
+  Future<void> _fetchScannerStatus() async {
+    try {
+      final response = await _supabase
+          .from('scanner_heartbeats')
+          .select()
+          .order('last_heartbeat', ascending: false);
+      if (mounted) {
+        setState(() {
+          _remoteScanners = (response as List)
+              .map((data) => RemoteScannerStatus.fromJson(
+                    data as Map<String, dynamic>,
+                  ))
+              .toList();
+        });
+      }
+    } catch (e) {
+      debugPrint('[OrdersScreen] Error fetching scanner status: $e');
+    }
+  }
+
+  void _subscribeToScannerStatus() {
+    _scannerStatusChannel = _supabase
+        .channel('scanner_heartbeats_orders')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'scanner_heartbeats',
+          callback: (payload) {
+            _fetchScannerStatus();
+          },
+        )
+        .subscribe();
   }
 
   Future<void> _loadAllData() async {
@@ -950,6 +1000,9 @@ class _OrdersScreenState extends State<OrdersScreen>
             ),
           ),
 
+          // Scanner status card
+          _buildSidebarScannerStatus(),
+
           // Quick actions footer
           Container(
             padding: const EdgeInsets.all(16),
@@ -974,7 +1027,7 @@ class _OrdersScreenState extends State<OrdersScreen>
                     foregroundColor: Colors.white,
                     minimumSize: const Size(double.infinity, 44),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
+                      borderRadius: BorderRadius.circular(12),
                     ),
                   ),
                 ),
@@ -998,7 +1051,7 @@ class _OrdersScreenState extends State<OrdersScreen>
                   style: OutlinedButton.styleFrom(
                     minimumSize: const Size(double.infinity, 44),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
+                      borderRadius: BorderRadius.circular(12),
                     ),
                   ),
                 ),
@@ -3114,22 +3167,327 @@ class _OrdersScreenState extends State<OrdersScreen>
     );
   }
 
+  // ── Scanner Status Widgets ────────────────────────────────────
+  Widget _buildSidebarScannerStatus() {
+    final hasAnyScanners = _remoteScanners.isNotEmpty;
+    final onlineScanners =
+        _remoteScanners.where((s) => s.isOnline).toList();
+    final allOnline = hasAnyScanners && onlineScanners.length == _remoteScanners.length;
+    final someOnline = onlineScanners.isNotEmpty;
+
+    final Color statusColor = allOnline
+        ? Colors.green
+        : someOnline
+            ? Colors.orange
+            : Colors.red;
+    final String statusLabel = !hasAnyScanners
+        ? 'No Scanners'
+        : allOnline
+            ? '${onlineScanners.length} Online'
+            : someOnline
+                ? '${onlineScanners.length}/${_remoteScanners.length} Online'
+                : 'All Offline';
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        children: [
+          InkWell(
+            borderRadius: BorderRadius.circular(12),
+            onTap: () => setState(
+              () => _scannerStatusExpanded = !_scannerStatusExpanded,
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              child: Row(
+                children: [
+                  // Animated pulsing dot
+                  _AnimatedStatusDot(color: statusColor, pulse: someOnline),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Receipt Scanner',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          statusLabel,
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: statusColor,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(
+                    _scannerStatusExpanded
+                        ? Icons.expand_less
+                        : Icons.expand_more,
+                    size: 20,
+                    color: Colors.grey[500],
+                  ),
+                ],
+              ),
+            ),
+          ),
+          // Expanded detail section
+          AnimatedCrossFade(
+            duration: const Duration(milliseconds: 200),
+            crossFadeState: _scannerStatusExpanded
+                ? CrossFadeState.showFirst
+                : CrossFadeState.showSecond,
+            firstChild: Column(
+              children: [
+                Divider(height: 1, color: Colors.grey[200]),
+                if (!hasAnyScanners)
+                  Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Text(
+                      'No scanners registered yet.',
+                      style: TextStyle(color: Colors.grey[500], fontSize: 12),
+                    ),
+                  )
+                else
+                  ..._remoteScanners.map((s) => _buildScannerDetailRow(s)),
+              ],
+            ),
+            secondChild: const SizedBox.shrink(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildScannerDetailRow(RemoteScannerStatus s) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      child: Row(
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(
+              color: s.isOnline ? Colors.green : Colors.red.shade400,
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  s.scannerName,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                Text(
+                  '${s.hostname} • ${s.isOnline ? 'Online' : 'Last seen ${timeago.format(s.lastHeartbeat)}'}',
+                  style: TextStyle(fontSize: 10, color: Colors.grey[500]),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMobileScannerPill() {
+    final onlineScanners =
+        _remoteScanners.where((s) => s.isOnline).toList();
+    final hasAnyScanners = _remoteScanners.isNotEmpty;
+    final allOnline = hasAnyScanners &&
+        onlineScanners.length == _remoteScanners.length;
+    final someOnline = onlineScanners.isNotEmpty;
+
+    final Color statusColor = allOnline
+        ? Colors.green
+        : someOnline
+            ? Colors.orange
+            : Colors.red;
+    final String label = !hasAnyScanners
+        ? 'No Scanner'
+        : allOnline
+            ? 'Scanner Online'
+            : someOnline
+                ? 'Partial'
+                : 'Scanner Offline';
+
+    return GestureDetector(
+      onTap: () {
+        showModalBottomSheet(
+          context: context,
+          shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          builder: (_) => _buildScannerBottomSheet(),
+        );
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: statusColor.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: statusColor.withOpacity(0.4)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _AnimatedStatusDot(color: statusColor, pulse: someOnline, size: 7),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: Color.lerp(statusColor, Colors.black, 0.3),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildScannerBottomSheet() {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const Text(
+              'Receipt Scanner Status',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            if (_remoteScanners.isEmpty)
+              Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    children: [
+                      Icon(Icons.scanner, size: 48, color: Colors.grey[400]),
+                      const SizedBox(height: 12),
+                      Text(
+                        'No scanners registered.',
+                        style: TextStyle(color: Colors.grey[600]),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            else
+              ..._remoteScanners.map((s) => Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: s.isOnline
+                          ? Colors.green.withOpacity(0.05)
+                          : Colors.red.withOpacity(0.05),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: s.isOnline
+                            ? Colors.green.withOpacity(0.2)
+                            : Colors.red.withOpacity(0.2),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 10,
+                          height: 10,
+                          decoration: BoxDecoration(
+                            color: s.isOnline ? Colors.green : Colors.red,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                s.scannerName,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 14,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Host: ${s.hostname}',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey[600],
+                                ),
+                              ),
+                              Text(
+                                s.isOnline
+                                    ? 'Online'
+                                    : 'Last seen ${timeago.format(s.lastHeartbeat)}',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: s.isOnline
+                                      ? Colors.green[700]
+                                      : Colors.red[700],
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              if (s.watchPath.isNotEmpty)
+                                Text(
+                                  'Path: ${s.watchPath}',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: Colors.grey[500],
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  )),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.grey[50],
-      floatingActionButton: FloatingActionButton.extended(
-        heroTag: 'orders_screen_refresh_fab',
-        onPressed: _loadAllData,
-        icon: AnimatedBuilder(
-          animation: _refreshController,
-          builder: (context, child) => Transform.rotate(
-            angle: _refreshRotation.value,
-            child: const Icon(Icons.refresh),
-          ),
-        ),
-        label: const Text('Refresh'),
-      ),
       // appBar: AppBar(...), // AppBar removed
       body: LayoutBuilder(
         builder: (context, constraints) {
@@ -3252,9 +3610,9 @@ class _OrdersScreenState extends State<OrdersScreen>
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Top bar with title and Create Order (+) button (mobile only)
+                // Top bar with title, scanner pill, and action buttons (mobile)
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                  padding: const EdgeInsets.fromLTRB(16, 12, 8, 4),
                   child: Row(
                     children: [
                       const Text(
@@ -3264,7 +3622,42 @@ class _OrdersScreenState extends State<OrdersScreen>
                           fontWeight: FontWeight.w700,
                         ),
                       ),
+                      const SizedBox(width: 10),
+                      _buildMobileScannerPill(),
                       const Spacer(),
+                      // Quick actions inline
+                      IconButton(
+                        icon: Icon(Icons.map_outlined,
+                            size: 22, color: Colors.blue[600]),
+                        tooltip: 'Delivery Monitor',
+                        onPressed: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => DeliveryMonitorScreen(
+                                supabaseClient: _supabase),
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        icon: Icon(Icons.picture_as_pdf,
+                            size: 20, color: Colors.indigo[600]),
+                        tooltip: 'Daily Summary',
+                        onPressed: _isGeneratingSummary
+                            ? null
+                            : _handleGenerateDailySummary,
+                      ),
+                      IconButton(
+                        icon: AnimatedBuilder(
+                          animation: _refreshController,
+                          builder: (context, child) => Transform.rotate(
+                            angle: _refreshRotation.value,
+                            child: Icon(Icons.refresh,
+                                size: 20, color: Colors.grey[600]),
+                          ),
+                        ),
+                        tooltip: 'Refresh',
+                        onPressed: _loadAllData,
+                      ),
                       IconButton(
                         icon: const Icon(Icons.add_circle_outline),
                         tooltip: 'Create Order',
@@ -3491,5 +3884,85 @@ class _OrdersScreenState extends State<OrdersScreen>
     } finally {
       if (mounted) setState(() => _isGeneratingSummary = false);
     }
+  }
+}
+
+/// A small animated pulsing dot used to indicate scanner online/offline status.
+class _AnimatedStatusDot extends StatefulWidget {
+  final Color color;
+  final bool pulse;
+  final double size;
+
+  const _AnimatedStatusDot({
+    required this.color,
+    this.pulse = false,
+    this.size = 10,
+  });
+
+  @override
+  State<_AnimatedStatusDot> createState() => _AnimatedStatusDotState();
+}
+
+class _AnimatedStatusDotState extends State<_AnimatedStatusDot>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _animation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 1500),
+      vsync: this,
+    );
+    _animation = Tween<double>(begin: 0.4, end: 1.0).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+    );
+    if (widget.pulse) {
+      _controller.repeat(reverse: true);
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant _AnimatedStatusDot oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.pulse && !_controller.isAnimating) {
+      _controller.repeat(reverse: true);
+    } else if (!widget.pulse && _controller.isAnimating) {
+      _controller.stop();
+      _controller.value = 1.0;
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _animation,
+      builder: (context, child) => Container(
+        width: widget.size,
+        height: widget.size,
+        decoration: BoxDecoration(
+          color: widget.color.withOpacity(
+            widget.pulse ? _animation.value : 1.0,
+          ),
+          shape: BoxShape.circle,
+          boxShadow: widget.pulse
+              ? [
+                  BoxShadow(
+                    color: widget.color.withOpacity(0.4 * _animation.value),
+                    blurRadius: widget.size * 0.8,
+                    spreadRadius: widget.size * 0.2,
+                  ),
+                ]
+              : null,
+        ),
+      ),
+    );
   }
 }

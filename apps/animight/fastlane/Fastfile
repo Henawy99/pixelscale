@@ -62,7 +62,7 @@ platform :ios do
       output_name: "Animight.ipa",
       clean: false,
       include_bitcode: false,
-      xcargs: "DEVELOPMENT_TEAM=G67XQ5S4QU",
+      xcargs: "DEVELOPMENT_TEAM=G67XQ5S4QU CODE_SIGN_STYLE=Automatic -allowProvisioningUpdates",
       export_options: {
         signingStyle: "automatic",
         teamID: "G67XQ5S4QU",
@@ -74,7 +74,7 @@ platform :ios do
 
     ipa_path = lane_context[SharedValues::IPA_OUTPUT_PATH]
     UI.message "IPA created: #{ipa_path}"
-    UI.message "Uploading to TestFlight..."
+    UI.message "Uploading to App Store Connect (with Metadata)..."
 
     upload_to_testflight(
       ipa: ipa_path,
@@ -82,6 +82,17 @@ platform :ios do
       skip_submission: true,
       distribute_external: false,
       notify_external_testers: false
+    )
+
+    UI.message "Binary uploaded. Now uploading metadata..."
+
+    upload_to_app_store(
+      skip_binary_upload: true,
+      skip_screenshots: true,
+      skip_metadata: false,
+      submit_for_review: false,
+      automatic_release: false,
+      force: true
     )
 
     UI.success "Animight uploaded to TestFlight!"

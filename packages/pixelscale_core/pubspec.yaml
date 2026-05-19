@@ -1,0 +1,6 @@
+name: pixelscale_core
+description: PixelScale Shared Core Library
+version: 1.0.0
+# homepage: https://www.pixelscale.com
+environment:
+  sdk: ">=3.0.0 <4.0.0"

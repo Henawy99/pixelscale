@@ -1,0 +1,26 @@
+# Secrets — build uses Vercel env / `vercel -b`; script creates empty `.env` for the asset bundle
+.env
+*.env
+
+# Local Flutter / Dart artifacts (rebuilt on Vercel)
+build/
+.dart_tool/
+
+# Python venv (scripts)
+.venv/
+venv/
+
+# Native platforms — not used for `flutter build web`
+android/
+ios/
+macos/
+windows/
+linux/
+
+# IDE
+.idea/
+.vscode/
+
+# Supabase local / functions (not part of Flutter web bundle)
+supabase/.branches/
+supabase/.temp/

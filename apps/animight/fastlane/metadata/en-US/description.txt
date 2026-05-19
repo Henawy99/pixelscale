@@ -1,0 +1,24 @@
+Animight is the companion app for your custom Animight LED art panels — handcrafted illuminated artworks that transform any room into a living canvas.
+
+EXPLORE CURATED DESIGNS
+Browse an ever-growing gallery of curated lighting designs, each crafted specifically for Animight panels. From mesmerizing anime-inspired art to ambient mood scenes, discover designs that match your style and space.
+
+PREVIEW BEFORE YOU APPLY
+Tap any design to enter a full-screen immersive preview. See the color palette, LED-readiness status, and a simulated glow effect showing exactly how the design will look on your physical panel — before you connect.
+
+CONNECT INSTANTLY VIA BLUETOOTH
+Pair with your Animight panel hardware in seconds over Bluetooth Low Energy. No complicated setup, no Wi-Fi passwords — just tap, connect, and your panel lights up with your chosen design.
+
+MOOD LIGHTING PRESETS
+Go beyond static designs with built-in mood presets: Chill Vibes, Party Mode, Focus, Sunset, Aurora, and Gaming. Each preset sends a unique combination of colors and animation patterns to your panel, instantly transforming the atmosphere of your room.
+
+FULL CONTROL AT YOUR FINGERTIPS
+Adjust brightness, toggle loop animations, activate sound-reactive mode, or power off — all from the sleek control dashboard. Real-time Bluetooth communication means zero lag between your tap and the panel response.
+
+BUILD YOUR COLLECTION
+Save your favorite designs to your personal collection for instant access. Reconnect to previously paired panels with a single tap.
+
+CLOUD-POWERED & ALWAYS FRESH
+New designs are added regularly to the cloud gallery. Your library is always up to date, with no app updates required to see the latest creations.
+
+Animight — where art meets technology. Illuminate your world.

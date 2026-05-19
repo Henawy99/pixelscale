@@ -757,14 +757,43 @@ class _CompactSessionRow extends StatelessWidget {
             children: [
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: color.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
+                  Expanded(
+                    child: Wrap(
+                      spacing: 4,
+                      runSpacing: 4,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: color.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(session.timeRange, style: TextStyle(fontSize: 10, color: Colors.grey[800], fontWeight: FontWeight.w600)),
+                        ),
+                        if (session.fitnessStartTime != null && session.fitnessEndTime != null)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.purple.shade50,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.purple.shade200, width: 0.5),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.fitness_center, size: 10, color: Colors.purple),
+                                const SizedBox(width: 2),
+                                Text(
+                                  session.fitnessTimeRange!,
+                                  style: const TextStyle(fontSize: 10, color: Colors.purple, fontWeight: FontWeight.w600),
+                                ),
+                              ],
+                            ),
+                          ),
+                      ],
                     ),
-                    child: Text(session.timeRange, style: TextStyle(fontSize: 10, color: Colors.grey[800], fontWeight: FontWeight.w600)),
                   ),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -886,6 +915,26 @@ class _GridSessionCard extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(width: 8),
+                          if (session.fitnessStartTime != null && session.fitnessEndTime != null) ...[
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.purpleAccent.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(Icons.fitness_center, size: 10, color: textColor),
+                                  const SizedBox(width: 2),
+                                  Text(
+                                    session.fitnessTimeRange!,
+                                    style: TextStyle(color: textColor, fontSize: 10, fontWeight: FontWeight.w600),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                          ],
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                             decoration: BoxDecoration(

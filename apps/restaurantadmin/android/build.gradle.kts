@@ -4,10 +4,7 @@ buildscript {
         mavenCentral()
     }
     dependencies {
-        // Check for the latest version of the google-services plugin
-        classpath("com.google.gms:google-services:4.4.2") // Example, verify latest
-        // Check for the latest version of the App Distribution plugin
-        classpath("com.google.firebase:firebase-appdistribution-gradle:4.2.0") // Example, verify latest
+        classpath("com.google.gms:google-services:4.4.2")
     }
 }
 

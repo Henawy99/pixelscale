@@ -231,7 +231,24 @@ class _AdminCourtSection extends StatelessWidget {
                   title: Row(
                     children: [
                       Expanded(child: Text(s.name + (s.recurrenceRule != null ? ' 🔁' : ''))),
-                      Text(s.timeRange, style: Theme.of(context).textTheme.bodySmall),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(s.timeRange, style: Theme.of(context).textTheme.bodySmall),
+                          if (s.fitnessStartTime != null && s.fitnessEndTime != null)
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.fitness_center, size: 10, color: Colors.purple),
+                                const SizedBox(width: 2),
+                                Text(
+                                  s.fitnessTimeRange!, 
+                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.purple, fontSize: 10, fontWeight: FontWeight.bold)
+                                ),
+                              ],
+                            ),
+                        ],
+                      ),
                       const SizedBox(width: 8),
                       Text('${s.playerCount}/${s.maxCapacity}', style: Theme.of(context).textTheme.bodySmall),
                       if (s.isFull) const Chip(label: Text('FULL', style: TextStyle(fontSize: 10)), padding: EdgeInsets.zero, materialTapTargetSize: MaterialTapTargetSize.shrinkWrap),

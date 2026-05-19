@@ -43,7 +43,7 @@ class LocationTaskHandler extends TaskHandler {
     _startLocationStream();
     
     // Backup timer for when device is stationary
-    _backupTimer = Timer.periodic(const Duration(seconds: 15), (_) async {
+    _backupTimer = Timer.periodic(const Duration(seconds: 8), (_) async {
       await _fetchAndSaveLocation();
     });
     
@@ -67,7 +67,7 @@ class LocationTaskHandler extends TaskHandler {
   void _startLocationStream() {
     const locationSettings = LocationSettings(
       accuracy: LocationAccuracy.bestForNavigation,
-      distanceFilter: 5, // Update every 5 meters for better tracking precision
+      distanceFilter: 1, // Update every 1 meter for WhatsApp-like smooth tracking
     );
 
     _positionStream = Geolocator.getPositionStream(locationSettings: locationSettings)
@@ -100,21 +100,35 @@ class LocationTaskHandler extends TaskHandler {
     }
 
     try {
+      final Map<String, dynamic> updateData = {
+        'current_latitude': position.latitude,
+        'current_longitude': position.longitude,
+        'last_seen_at': DateTime.now().toUtc().toIso8601String(),
+      };
+      
+      // Include heading if valid (0-360 degrees)
+      if (position.heading >= 0 && position.heading <= 360) {
+        updateData['current_heading'] = position.heading;
+      }
+      
+      // Include speed if valid (m/s)
+      if (position.speed >= 0) {
+        updateData['current_speed'] = position.speed;
+      }
+      
       await _supabaseClient!
           .from('drivers')
-          .update({
-            'current_latitude': position.latitude,
-            'current_longitude': position.longitude,
-            'last_seen_at': DateTime.now().toUtc().toIso8601String(),
-          })
+          .update(updateData)
           .eq('id', _driverRecordId!);
 
-      debugPrint('[LocationTaskHandler] ✅ Location saved: ${position.latitude.toStringAsFixed(5)}, ${position.longitude.toStringAsFixed(5)}');
+      debugPrint('[LocationTaskHandler] ✅ Location saved: ${position.latitude.toStringAsFixed(5)}, ${position.longitude.toStringAsFixed(5)} heading=${position.heading.toStringAsFixed(0)}°');
       
       // Send location back to main isolate for UI update
       FlutterForegroundTask.sendDataToMain({
         'latitude': position.latitude,
         'longitude': position.longitude,
+        'heading': position.heading,
+        'speed': position.speed,
         'timestamp': DateTime.now().toIso8601String(),
       });
       

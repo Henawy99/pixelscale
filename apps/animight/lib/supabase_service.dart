@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 const String supabaseUrl = 'https://hdmycuncdlbefiiwlrca.supabase.co';
@@ -50,7 +51,8 @@ Future<List<Map<String, dynamic>>> fetchRemoteWallpapers() async {
     final data = await supabase
         .from('animight_wallpapers')
         .select()
-        .order('created_at', ascending: false);
+        .order('sort_order', ascending: true)
+        .order('created_at', ascending: true);
     return List<Map<String, dynamic>>.from(data);
   } catch (_) {
     return [];
@@ -64,6 +66,23 @@ Future<({String? url, String? error})> uploadWallpaperImage(File imageFile, Stri
     await _adminStorageClient.storage
         .from('animight-wallpapers')
         .upload(path, imageFile, fileOptions: const FileOptions(upsert: true));
+    final url = _adminStorageClient.storage
+        .from('animight-wallpapers')
+        .getPublicUrl(path);
+    return (url: url, error: null);
+  } catch (e) {
+    // ignore: avoid_print
+    print('[Animight] upload error: $e');
+    return (url: null, error: e.toString());
+  }
+}
+
+Future<({String? url, String? error})> uploadWallpaperBytes(Uint8List bytes, String fileName) async {
+  try {
+    final path = 'wallpapers/$fileName';
+    await _adminStorageClient.storage
+        .from('animight-wallpapers')
+        .uploadBinary(path, bytes, fileOptions: const FileOptions(upsert: true));
     final url = _adminStorageClient.storage
         .from('animight-wallpapers')
         .getPublicUrl(path);
@@ -101,6 +120,40 @@ Future<bool> deleteWallpaper(String id) async {
   } catch (_) {
     return false;
   }
+}
+
+/// Update any subset of editable fields for a wallpaper.
+Future<bool> updateWallpaper({
+  required String id,
+  String? name,
+  String? bluetoothName,
+  bool? isComingSoon,
+  int? sortOrder,
+}) async {
+  try {
+    final updates = <String, dynamic>{};
+    if (name != null) updates['name'] = name;
+    if (bluetoothName != null) updates['bluetooth_name'] = bluetoothName;
+    if (isComingSoon != null) updates['is_coming_soon'] = isComingSoon;
+    if (sortOrder != null) updates['sort_order'] = sortOrder;
+    if (updates.isEmpty) return true;
+    await supabase.from('animight_wallpapers').update(updates).eq('id', id);
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
+/// Persist a new sort order for a list of wallpapers.
+/// Each entry: {'id': String, 'sort_order': int}
+Future<void> batchUpdateSortOrder(List<Map<String, dynamic>> items) async {
+  try {
+    await Future.wait(items.map((item) =>
+        supabase
+            .from('animight_wallpapers')
+            .update({'sort_order': item['sort_order']})
+            .eq('id', item['id'])));
+  } catch (_) {}
 }
 
 // ─────────────────────────────────────────────

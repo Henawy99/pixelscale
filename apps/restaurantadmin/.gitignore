@@ -50,3 +50,6 @@ local.properties
 
 # Local Netlify folder
 .netlify
+
+# Vercel CLI link metadata (optional to commit)
+.vercel

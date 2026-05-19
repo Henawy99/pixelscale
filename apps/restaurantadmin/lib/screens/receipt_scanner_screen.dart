@@ -24,52 +24,7 @@ import 'package:restaurantadmin/services/remote_receipt_service.dart';
 
 import 'package:restaurantadmin/screens/scan_settings_screen.dart';
 import 'package:restaurantadmin/screens/widgets/receipt_edit_dialog.dart';
-
-// Model for remote scanner status
-class RemoteScannerStatus {
-  final String scannerId;
-  final String scannerName;
-  final String hostname;
-  final String watchPath;
-  final String status;
-  final DateTime lastHeartbeat;
-  final DateTime updatedAt;
-
-  RemoteScannerStatus({
-    required this.scannerId,
-    required this.scannerName,
-    required this.hostname,
-    required this.watchPath,
-    required this.status,
-    required this.lastHeartbeat,
-    required this.updatedAt,
-  });
-
-  factory RemoteScannerStatus.fromJson(Map<String, dynamic> json) {
-    return RemoteScannerStatus(
-      scannerId: json['scanner_id'] as String? ?? '',
-      scannerName: json['scanner_name'] as String? ?? 'Unknown Scanner',
-      hostname: json['hostname'] as String? ?? 'unknown',
-      watchPath: json['watch_path'] as String? ?? '',
-      status: json['status'] as String? ?? 'offline',
-      lastHeartbeat:
-          DateTime.tryParse(json['last_heartbeat'] as String? ?? '') ??
-          DateTime.now(),
-      updatedAt:
-          DateTime.tryParse(json['updated_at'] as String? ?? '') ??
-          DateTime.now(),
-    );
-  }
-
-  bool get isOnline {
-    // Consider online if status is 'online' AND last heartbeat was within 90 seconds
-    if (status != 'online') return false;
-    final secondsSinceHeartbeat = DateTime.now()
-        .difference(lastHeartbeat)
-        .inSeconds;
-    return secondsSinceHeartbeat < 90;
-  }
-}
+import 'package:restaurantadmin/models/remote_scanner_status.dart';
 
 class ReceiptScannerScreen extends StatefulWidget {
   final Uint8List? initialImageBytes;

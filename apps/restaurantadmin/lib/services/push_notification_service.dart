@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -169,7 +170,13 @@ class PushNotificationService {
 /// Background message handler (must be top-level function)
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  // Firebase must be initialized in the background isolate
+  // Without this, release builds crash immediately on startup
+  try {
+    await Firebase.initializeApp();
+  } catch (_) {
+    // Already initialized or not available — ignore
+  }
   debugPrint('[PushNotification] Background message received: ${message.notification?.title}');
-  // Handle background message
 }
 

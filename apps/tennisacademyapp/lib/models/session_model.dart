@@ -51,6 +51,12 @@ class SessionModel {
   }
 
   String get timeRange => '${_formatTime(startTime)} – ${_formatTime(endTime)}';
+  
+  String? get fitnessTimeRange {
+    if (fitnessStartTime == null || fitnessEndTime == null) return null;
+    return '${_formatTime(fitnessStartTime!)} – ${_formatTime(fitnessEndTime!)}';
+  }
+
   static String _formatTime(String t) {
     if (t.length >= 5) return t.substring(0, 5); // HH:mm
     return t;

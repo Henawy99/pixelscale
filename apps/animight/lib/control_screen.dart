@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
-import 'dart:ui'; // For BackdropFilter
-import 'package:animight/connection_service.dart'; // Import ConnectionService
+import 'dart:ui';
+import 'package:animight/connection_service.dart';
+import 'package:animight/mood_presets.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class ControlScreen extends StatelessWidget {
   final String backgroundImagePath;
@@ -13,94 +15,94 @@ class ControlScreen extends StatelessWidget {
       body: Stack(
         fit: StackFit.expand,
         children: <Widget>[
-          // Background Image
-          Image.asset(
-            backgroundImagePath,
-            fit: BoxFit.cover,
-          ),
+          // Background Image (supports both network and asset)
+          if (backgroundImagePath.startsWith('http'))
+            CachedNetworkImage(
+              imageUrl: backgroundImagePath,
+              fit: BoxFit.cover,
+              errorWidget: (_, __, ___) => Container(color: const Color(0xFF050510)),
+            )
+          else if (backgroundImagePath.isNotEmpty)
+            Image.asset(backgroundImagePath, fit: BoxFit.cover)
+          else
+            Container(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [Color(0xFF0D0D2B), Color(0xFF1A0A3E)],
+                ),
+              ),
+            ),
           // Glowy Blur Overlay
           BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-            child: Container(
-              color: Colors.black.withOpacity(0.18),
-            ),
+            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: Container(color: Colors.black.withOpacity(0.4)),
           ),
-          // Semi-transparent overlay for better text/icon visibility
-          Container(
-            color: Colors.black.withOpacity(0.25),
-          ),
-          // Control Buttons and "Connected" text
+          // Controls
           SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.all(20.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: <Widget>[
-                  // Top row with a Back Button
-                  Padding(
-                    padding: const EdgeInsets.only(left: 0, top: 16.0),
-                    child: _buildGlowyBackButton(context),
-                  ),
-                  // Grid of control buttons
-                  Expanded(
-                    child: Center(
-                      child: GridView.count(
-                        crossAxisCount: 2,
-                        shrinkWrap: true,
-                        mainAxisSpacing: 24,
-                        crossAxisSpacing: 24,
-                        childAspectRatio: 1.1,
-                        padding: const EdgeInsets.symmetric(horizontal: 30),
-                        physics: const NeverScrollableScrollPhysics(), // Disable scrolling for the grid
-                        children: <Widget>[
-                          // Loop Animation Button
-                          _buildGlowyControlButton(icon: Icons.sync, color: Colors.cyanAccent, label: "Loop", onTap: () {
-                            connectionService.sendCommand("CMD:LOOP_ANIM");
-                          }),
-                          // Sound Reactive Button
-                          _buildGlowyControlButton(icon: Icons.graphic_eq, color: Colors.purpleAccent, label: "Sound", onTap: () {
-                            connectionService.sendCommand("CMD:SOUND_MODE");
-                          }),
-                          // A blank space or another button can go here
-                          const SizedBox(), 
-                          // OFF Button
-                          _buildGlowyControlButton(icon: Icons.power_settings_new, color: Colors.redAccent, label: "OFF", onTap: () {
-                            connectionService.sendCommand("CMD:OFF");
-                            connectionService.disconnect(); 
-                            Navigator.of(context).pop();
-                          }),
-                        ],
-                      ),
-                    ),
-                  ),
-                  // "Connected" Text with Glow
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 30.0),
-                    child: ShaderMask(
-                      shaderCallback: (Rect bounds) {
-                        return LinearGradient(
-                          colors: [Colors.cyanAccent, Colors.blueAccent, Colors.pinkAccent],
-                          tileMode: TileMode.mirror,
-                        ).createShader(bounds);
-                      },
-                      child: Text(
-                        'Connected',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 32,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 1.1,
-                          shadows: [
-                            Shadow(color: Colors.cyanAccent, blurRadius: 18),
-                            Shadow(color: Colors.blueAccent, blurRadius: 12),
-                          ],
+            child: Column(
+              children: <Widget>[
+                // Top bar
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                  child: Row(
+                    children: [
+                      _buildGlowyBackButton(context),
+                      const Spacer(),
+                      // Connected badge
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(20),
+                          color: const Color(0xFF00E5FF).withOpacity(0.15),
+                          border: Border.all(color: const Color(0xFF00E5FF).withOpacity(0.4)),
                         ),
+                        child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                          Icon(Icons.circle, color: Color(0xFF00E5FF), size: 8),
+                          SizedBox(width: 8),
+                          Text('Connected', style: TextStyle(color: Color(0xFF00E5FF), fontSize: 13, fontWeight: FontWeight.w600)),
+                        ]),
                       ),
-                    ),
+                      const SizedBox(width: 8),
+                    ],
                   ),
-                ],
-              ),
+                ),
+                const SizedBox(height: 8),
+                // Control buttons grid
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Row(
+                    children: [
+                      Expanded(child: _buildControlCard(icon: Icons.sync, color: const Color(0xFF00E5FF), label: 'Loop', onTap: () => connectionService.sendCommand('CMD:LOOP_ANIM'))),
+                      const SizedBox(width: 16),
+                      Expanded(child: _buildControlCard(icon: Icons.graphic_eq, color: const Color(0xFF7C4DFF), label: 'Sound', onTap: () => connectionService.sendCommand('CMD:SOUND_MODE'))),
+                      const SizedBox(width: 16),
+                      Expanded(child: _buildControlCard(icon: Icons.power_settings_new, color: const Color(0xFFFF5252), label: 'OFF', onTap: () {
+                        connectionService.sendCommand('CMD:OFF');
+                        connectionService.disconnect();
+                        Navigator.of(context).pop();
+                      })),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                // Brightness slider
+                const BrightnessSliderWidget(),
+                const SizedBox(height: 8),
+                // Divider
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Divider(color: Colors.white.withOpacity(0.08), height: 1),
+                ),
+                const SizedBox(height: 8),
+                // Mood presets
+                const Expanded(
+                  child: SingleChildScrollView(
+                    child: MoodPresetsWidget(),
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -109,57 +111,45 @@ class ControlScreen extends StatelessWidget {
   }
 
   Widget _buildGlowyBackButton(BuildContext context) {
-    return IconButton(
-      icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 28),
-      style: ButtonStyle(
-        shadowColor: MaterialStateProperty.all(Colors.cyanAccent),
-        elevation: MaterialStateProperty.all(12),
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(20),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.black.withOpacity(0.3),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: IconButton(
+            icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 20),
+            onPressed: () {
+              connectionService.disconnect();
+              Navigator.of(context).pop();
+            },
+          ),
+        ),
       ),
-      onPressed: () {
-        connectionService.disconnect(); // Disconnect from the device
-        Navigator.of(context).pop();
-      },
     );
   }
 
-  Widget _buildGlowyControlButton({IconData? icon, Color? color, String? label, VoidCallback? onTap}) {
+  Widget _buildControlCard({required IconData icon, required Color color, required String label, required VoidCallback onTap}) {
     return GestureDetector(
       onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 120),
+      child: Container(
+        height: 90,
         decoration: BoxDecoration(
-          color: Colors.black.withOpacity(0.7),
-          borderRadius: BorderRadius.circular(22.0),
-          boxShadow: [
-            if (color != null)
-              BoxShadow(
-                color: color.withOpacity(0.7),
-                blurRadius: 24,
-                spreadRadius: 2,
-              ),
-          ],
+          color: Colors.black.withOpacity(0.5),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: color.withOpacity(0.3), width: 1),
+          boxShadow: [BoxShadow(color: color.withOpacity(0.25), blurRadius: 16)],
         ),
-        child: Center(
-          child: label != null
-              ? Text(
-                  label,
-                  style: TextStyle(
-                    color: color ?? Colors.white,
-                    fontSize: 26,
-                    fontWeight: FontWeight.bold,
-                    shadows: [
-                      Shadow(color: color ?? Colors.white, blurRadius: 16),
-                    ],
-                  ),
-                )
-              : Icon(
-                  icon,
-                  color: color ?? Colors.white,
-                  size: 54,
-                  shadows: [
-                    Shadow(color: color ?? Colors.white, blurRadius: 16),
-                  ],
-                ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, color: color, size: 30, shadows: [Shadow(color: color, blurRadius: 12)]),
+            const SizedBox(height: 8),
+            Text(label, style: TextStyle(color: color, fontSize: 13, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
+          ],
         ),
       ),
     );

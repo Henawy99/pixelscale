@@ -13,7 +13,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>animight</string>
+	<string>Animight</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -47,16 +47,16 @@
 	<true/>
 	<!-- Photo Library (for admin wallpaper uploads) -->
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Animight needs access to your photo library to upload wallpapers.</string>
+	<string>Animight needs access to your photo library to upload custom LED panel designs.</string>
 	<!-- Bluetooth Low Energy Permissions -->
 	<key>NSBluetoothAlwaysUsageDescription</key>
-	<string>This app uses Bluetooth to connect to and control your Arduino LED strip.</string>
+	<string>Animight uses Bluetooth Low Energy to discover, connect to, and control your custom LED art panels in real time.</string>
 	<key>NSBluetoothPeripheralUsageDescription</key>
-	<string>This app uses Bluetooth to connect to and control your Arduino LED strip.</string>
+	<string>Animight uses Bluetooth to pair with your LED panel hardware and send lighting commands.</string>
 	<!-- Location permission for BLE scanning (required on some iOS versions) -->
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>This app uses location to find nearby Bluetooth devices.</string>
+	<string>Animight requires location access to scan for nearby Bluetooth LED panel devices.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>This app uses location to find nearby Bluetooth devices, even when the app is in the background.</string>
+	<string>Animight uses location to maintain a connection with your LED panel, even when the app is in the background.</string>
 </dict>
 </plist>

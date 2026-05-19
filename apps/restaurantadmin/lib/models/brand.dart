@@ -67,6 +67,19 @@ class Brand extends HiveObject {
   @HiveField(20)
   final DateTime? googleUpdatedAt;
 
+  // Foodora Self-Delivery (second Foodora page with own ratings)
+  @HiveField(21)
+  final String? foodoraSelfUrl;
+
+  @HiveField(22)
+  final double? foodoraSelfRating;
+
+  @HiveField(23)
+  final int? foodoraSelfReviewCount;
+
+  @HiveField(24)
+  final DateTime? foodoraSelfUpdatedAt;
+
   Brand({
     required this.id,
     required this.createdAt,
@@ -89,6 +102,10 @@ class Brand extends HiveObject {
     this.foodoraUpdatedAt,
     this.woltUpdatedAt,
     this.googleUpdatedAt,
+    this.foodoraSelfUrl,
+    this.foodoraSelfRating,
+    this.foodoraSelfReviewCount,
+    this.foodoraSelfUpdatedAt,
   });
 
   factory Brand.fromJson(Map<String, dynamic> json) {
@@ -140,6 +157,10 @@ class Brand extends HiveObject {
       foodoraUpdatedAt: json['foodora_rating_updated_at'] != null ? DateTime.tryParse(json['foodora_rating_updated_at'] as String) : null,
       woltUpdatedAt: json['wolt_rating_updated_at'] != null ? DateTime.tryParse(json['wolt_rating_updated_at'] as String) : null,
       googleUpdatedAt: json['google_rating_updated_at'] != null ? DateTime.tryParse(json['google_rating_updated_at'] as String) : null,
+      foodoraSelfUrl: json['foodora_self_url'] as String?,
+      foodoraSelfRating: (json['foodora_self_rating'] as num?)?.toDouble(),
+      foodoraSelfReviewCount: json['foodora_self_review_count'] as int?,
+      foodoraSelfUpdatedAt: json['foodora_self_rating_updated_at'] != null ? DateTime.tryParse(json['foodora_self_rating_updated_at'] as String) : null,
     );
   }
 
@@ -164,6 +185,10 @@ class Brand extends HiveObject {
       'foodora_rating_updated_at': foodoraUpdatedAt?.toIso8601String(),
       'wolt_rating_updated_at': woltUpdatedAt?.toIso8601String(),
       'google_rating_updated_at': googleUpdatedAt?.toIso8601String(),
+      'foodora_self_url': foodoraSelfUrl,
+      'foodora_self_rating': foodoraSelfRating,
+      'foodora_self_review_count': foodoraSelfReviewCount,
+      'foodora_self_rating_updated_at': foodoraSelfUpdatedAt?.toIso8601String(),
     };
   }
 }

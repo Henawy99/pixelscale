@@ -38,13 +38,17 @@ class BrandAdapter extends TypeAdapter<Brand> {
       foodoraUpdatedAt: fields[18] as DateTime?,
       woltUpdatedAt: fields[19] as DateTime?,
       googleUpdatedAt: fields[20] as DateTime?,
+      foodoraSelfUrl: fields[21] as String?,
+      foodoraSelfRating: fields[22] as double?,
+      foodoraSelfReviewCount: fields[23] as int?,
+      foodoraSelfUpdatedAt: fields[24] as DateTime?,
     );
   }
 
   @override
   void write(BinaryWriter writer, Brand obj) {
     writer
-      ..writeByte(21)
+      ..writeByte(25)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -86,7 +90,15 @@ class BrandAdapter extends TypeAdapter<Brand> {
       ..writeByte(19)
       ..write(obj.woltUpdatedAt)
       ..writeByte(20)
-      ..write(obj.googleUpdatedAt);
+      ..write(obj.googleUpdatedAt)
+      ..writeByte(21)
+      ..write(obj.foodoraSelfUrl)
+      ..writeByte(22)
+      ..write(obj.foodoraSelfRating)
+      ..writeByte(23)
+      ..write(obj.foodoraSelfReviewCount)
+      ..writeByte(24)
+      ..write(obj.foodoraSelfUpdatedAt);
   }
 
   @override

@@ -23,6 +23,9 @@ shared/play-store-key.json
 .pub-cache/
 .pub/
 
+# Vercel (monorepo root deploy for restaurantadmin)
+.vercel/
+
 # macOS
 .DS_Store
 *.swp
@@ -32,3 +35,6 @@ apps/animight/animight-handoff.zip
 apps/playmaker/assets/advideo.MP4
 apps/playmaker/playmaker-4af3d-firebase-adminsdk-bcwnf-7d40b91925.json
 apps/tennisacademyapp/android/play-console-service-account.json
+apps/tennisacademyapp.zip
+apps/playmaker/Archive.zip
+*.zip

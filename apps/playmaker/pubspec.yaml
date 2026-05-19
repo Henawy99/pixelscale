@@ -60,7 +60,9 @@ dependencies:
   # flutter_paymob removed — using native Paymob SDK via MethodChannel (paymob_native_sdk_service.dart)
   pay: ^2.0.0  # For Apple Pay & Google Pay (Google Pay button widget)
   crypto: ^3.0.3  # For HMAC validation
-  supabase_flutter: ^2.5.6
+  supabase_flutter: ^2.5.6 # Keeping 2.5.6 here as playbook has Dart <3.0.0
+  pixelscale_core:
+    path: ../../packages/pixelscale_core
   bloc: ^9.0.0
   country_icons: ^3.0.0
   flutter_svg: ^2.0.10+1

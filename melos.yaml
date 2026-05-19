@@ -1,0 +1,24 @@
+name: pixelscale
+
+packages:
+  - apps/*
+  - packages/*
+
+scripts:
+  build_ios:
+    run: ./build_ios.sh
+    exec:
+      concurrency: 1
+    description: Run build_ios.sh on all apps.
+  
+  build_android:
+    run: ./build_android.sh
+    exec:
+      concurrency: 1
+    description: Run build_android.sh on all apps.
+    
+  clean:
+    run: flutter clean
+    exec:
+      concurrency: 4
+    description: Run flutter clean on all apps.

@@ -10,6 +10,8 @@ class Driver {
   final String? currentDeliveryRouteId; // Added field
   final DateTime? createdAt; // When the driver was added
   final int colorIndex; // Employee color index (0-7)
+  final double? heading; // GPS heading in degrees (0-360, 0=North)
+  final double? speed; // Speed in m/s
 
   Driver({
     required this.id,
@@ -21,6 +23,8 @@ class Driver {
     this.currentDeliveryRouteId, // Added to constructor
     this.createdAt,
     this.colorIndex = 0,
+    this.heading,
+    this.speed,
   });
 
   Map<String, dynamic> toJson() {
@@ -34,6 +38,8 @@ class Driver {
       // For simplicity in the model, it's included but might not be part of toJson for DB persistence.
       'last_seen_at': lastSeenAt?.toIso8601String(),
       'current_delivery_route_id': currentDeliveryRouteId, // Added to toJson
+      'current_heading': heading,
+      'current_speed': speed,
     };
   }
 
@@ -78,6 +84,8 @@ class Driver {
       currentDeliveryRouteId: json['current_route_id'] as String?, // Fetches current_route_id from DB
       createdAt: _parseUtcTimestamp(json['created_at'] as String?),
       colorIndex: colorIdx,
+      heading: (json['current_heading'] as num?)?.toDouble(),
+      speed: (json['current_speed'] as num?)?.toDouble(),
     );
   }
 }

@@ -124,7 +124,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
     // Use location stream for real-time updates (works alongside foreground service)
     const LocationSettings locationSettings = LocationSettings(
       accuracy: LocationAccuracy.bestForNavigation,
-      distanceFilter: 3, // Update every 3 meters moved for precise tracking
+      distanceFilter: 1, // Update every 1 meter moved for WhatsApp-like smooth tracking
     );
 
     _positionStream = Geolocator.getPositionStream(locationSettings: locationSettings)
@@ -146,7 +146,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
     });
 
     // Backup timer every 10 seconds for stationary positions
-    _locationUpdateTimer = Timer.periodic(const Duration(seconds: 10), (timer) async {
+    _locationUpdateTimer = Timer.periodic(const Duration(seconds: 5), (timer) async {
       if (!_isDriverOnline || !mounted) {
         timer.cancel();
         return;
@@ -334,16 +334,29 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
       // Use whichever is more recent to avoid stale timestamps
       final saveTime = positionTime.isAfter(nowUtc) ? nowUtc : nowUtc;
       
+      // Build update data with heading and speed for smooth map animation
+      final Map<String, dynamic> updateData = {
+        'current_latitude': position.latitude,
+        'current_longitude': position.longitude,
+        'last_seen_at': saveTime.toIso8601String(),
+      };
+      
+      // Include heading if valid (0-360 degrees, -1 means unknown)
+      if (position.heading >= 0 && position.heading <= 360) {
+        updateData['current_heading'] = position.heading;
+      }
+      
+      // Include speed if valid (m/s)
+      if (position.speed >= 0) {
+        updateData['current_speed'] = position.speed;
+      }
+      
       await _supabase
           .from('drivers')
-          .update({
-            'current_latitude': position.latitude,
-            'current_longitude': position.longitude,
-            'last_seen_at': saveTime.toIso8601String(),
-          })
+          .update(updateData)
           .eq('id', _driverRecordId!);
           
-      debugPrint('[DriverHomeScreen] 📍 Location saved: ${position.latitude.toStringAsFixed(5)}, ${position.longitude.toStringAsFixed(5)} at ${saveTime.toIso8601String()}');
+      debugPrint('[DriverHomeScreen] 📍 Location saved: ${position.latitude.toStringAsFixed(5)}, ${position.longitude.toStringAsFixed(5)} heading=${position.heading.toStringAsFixed(0)}° speed=${position.speed.toStringAsFixed(1)}m/s');
       
       if (mounted) {
         setState(() {

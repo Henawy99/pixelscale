@@ -8,6 +8,7 @@ import 'package:flutter_map/flutter_map.dart' as fmap;
 import 'package:latlong2/latlong.dart' as latlong;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:ui' as ui;
+import 'dart:math' as math;
 import 'package:restaurantadmin/models/driver.dart' as app_driver_model;
 import 'package:restaurantadmin/models/order.dart' as app_order;
 
@@ -38,7 +39,7 @@ class DeliveryMonitorScreen extends StatefulWidget {
   State<DeliveryMonitorScreen> createState() => _DeliveryMonitorScreenState();
 }
 
-class _DeliveryMonitorScreenState extends State<DeliveryMonitorScreen> {
+class _DeliveryMonitorScreenState extends State<DeliveryMonitorScreen> with TickerProviderStateMixin {
   List<app_driver_model.Driver> _onlineDrivers = [];
   List<app_driver_model.Driver> _allDrivers = [];
   List<app_order.Order> _deliveryOrders = [];
@@ -49,6 +50,16 @@ class _DeliveryMonitorScreenState extends State<DeliveryMonitorScreen> {
   final Map<String, bool> _previousDriverOnlineStates = {};
   bool _initialLoadComplete = false;
 
+  // --- Smooth animation state ---
+  // Store previous positions for interpolation (WhatsApp-like smooth movement)
+  final Map<String, gmaps.LatLng> _previousPositions = {};
+  final Map<String, gmaps.LatLng> _targetPositions = {};
+  final Map<String, double> _previousHeadings = {};
+  final Map<String, double> _targetHeadings = {};
+  final Map<String, gmaps.LatLng> _animatedPositions = {}; // current interpolated position
+  final Map<String, double> _animatedHeadings = {};
+  AnimationController? _positionAnimController;
+  
   // Google Maps controller (mobile only)
   gmaps.GoogleMapController? _mapController;
   Set<gmaps.Marker> _mapMarkers = {};
@@ -78,6 +89,10 @@ class _DeliveryMonitorScreenState extends State<DeliveryMonitorScreen> {
   @override
   void initState() {
     super.initState();
+    _positionAnimController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1500),
+    )..addListener(_onAnimationTick);
     _fetchAllDrivers();
     _fetchOnlineDrivers();
     _fetchDeliveryOrders();
@@ -88,6 +103,8 @@ class _DeliveryMonitorScreenState extends State<DeliveryMonitorScreen> {
 
   @override
   void dispose() {
+    _positionAnimController?.removeListener(_onAnimationTick);
+    _positionAnimController?.dispose();
     _pollingTimer?.cancel();
     _driverPollingTimer?.cancel();
     _driversSubscription?.unsubscribe();
@@ -95,11 +112,79 @@ class _DeliveryMonitorScreenState extends State<DeliveryMonitorScreen> {
     _mapController?.dispose();
     super.dispose();
   }
+  
+  /// Animation tick: interpolate all driver positions smoothly
+  void _onAnimationTick() {
+    if (!mounted) return;
+    final t = Curves.easeInOut.transform(_positionAnimController!.value);
+    bool changed = false;
+    
+    for (final driverId in _targetPositions.keys) {
+      final prev = _previousPositions[driverId];
+      final target = _targetPositions[driverId];
+      if (prev != null && target != null) {
+        final newLat = prev.latitude + (target.latitude - prev.latitude) * t;
+        final newLng = prev.longitude + (target.longitude - prev.longitude) * t;
+        _animatedPositions[driverId] = gmaps.LatLng(newLat, newLng);
+        changed = true;
+      }
+      
+      // Interpolate heading (shortest arc)
+      final prevH = _previousHeadings[driverId] ?? 0;
+      final targetH = _targetHeadings[driverId] ?? prevH;
+      double deltaH = targetH - prevH;
+      // Normalize to -180..180 for shortest rotation
+      while (deltaH > 180) { deltaH -= 360; }
+      while (deltaH < -180) { deltaH += 360; }
+      _animatedHeadings[driverId] = prevH + deltaH * t;
+    }
+    
+    if (changed) {
+      _rebuildMarkersFromAnimatedState();
+    }
+  }
+  
+  /// Trigger smooth animation from current to new driver positions
+  void _animateToNewPositions(List<app_driver_model.Driver> newDrivers) {
+    for (final driver in newDrivers) {
+      if (driver.currentLocation == null) continue;
+      final newPos = driver.currentLocation!;
+      final newHeading = driver.heading ?? 0;
+      
+      // Store previous animated position (or current if first time)
+      _previousPositions[driver.id] = _animatedPositions[driver.id] ?? newPos;
+      _targetPositions[driver.id] = newPos;
+      _previousHeadings[driver.id] = _animatedHeadings[driver.id] ?? newHeading;
+      _targetHeadings[driver.id] = newHeading;
+      
+      // If this is the first time seeing this driver, set immediately
+      if (!_animatedPositions.containsKey(driver.id)) {
+        _animatedPositions[driver.id] = newPos;
+        _animatedHeadings[driver.id] = newHeading;
+      }
+    }
+    
+    // Remove drivers that went offline
+    final activeIds = newDrivers
+        .where((d) => d.currentLocation != null)
+        .map((d) => d.id)
+        .toSet();
+    _previousPositions.removeWhere((k, _) => !activeIds.contains(k));
+    _targetPositions.removeWhere((k, _) => !activeIds.contains(k));
+    _animatedPositions.removeWhere((k, _) => !activeIds.contains(k));
+    _animatedHeadings.removeWhere((k, _) => !activeIds.contains(k));
+    _previousHeadings.removeWhere((k, _) => !activeIds.contains(k));
+    _targetHeadings.removeWhere((k, _) => !activeIds.contains(k));
+    
+    // Start smooth animation
+    _positionAnimController?.reset();
+    _positionAnimController?.forward();
+  }
 
-  /// Backup polling for driver locations every 15 seconds for near real-time updates.
+  /// Backup polling for driver locations every 5 seconds for WhatsApp-like real-time updates.
   /// Realtime subscription handles instant updates; this is a safety net.
   void _startDriverPolling() {
-    _driverPollingTimer = Timer.periodic(const Duration(seconds: 15), (
+    _driverPollingTimer = Timer.periodic(const Duration(seconds: 5), (
       _,
     ) async {
       if (!mounted) return;
@@ -201,7 +286,7 @@ class _DeliveryMonitorScreenState extends State<DeliveryMonitorScreen> {
       final response = await widget.supabaseClient
           .from('drivers')
           .select(
-            'id, user_id, name, is_online, current_latitude, current_longitude, last_seen_at, created_at',
+            'id, user_id, name, is_online, current_latitude, current_longitude, current_heading, current_speed, last_seen_at, created_at',
           )
           .order('name', ascending: true);
 
@@ -981,7 +1066,7 @@ class _DeliveryMonitorScreenState extends State<DeliveryMonitorScreen> {
       final response = await widget.supabaseClient
           .from('drivers')
           .select(
-            'id, user_id, name, is_online, current_latitude, current_longitude, last_seen_at',
+            'id, user_id, name, is_online, current_latitude, current_longitude, current_heading, current_speed, last_seen_at',
           )
           .eq('is_online', true);
 
@@ -995,6 +1080,9 @@ class _DeliveryMonitorScreenState extends State<DeliveryMonitorScreen> {
           .toList();
 
       if (mounted) {
+        // Trigger smooth position animation before setting state
+        _animateToNewPositions(loadedDrivers);
+        
         setState(() {
           _onlineDrivers = loadedDrivers;
           _isLoading = false;
@@ -1480,6 +1568,11 @@ class _DeliveryMonitorScreenState extends State<DeliveryMonitorScreen> {
     return gmaps.BitmapDescriptor.fromBytes(byteData!.buffer.asUint8List());
   }
 
+  // Cache driver marker icons to avoid regenerating every animation frame
+  final Map<String, gmaps.BitmapDescriptor> _cachedDriverIcons = {};
+  // Static markers (restaurant + orders) that don't animate
+  Set<gmaps.Marker> _staticMarkers = {};
+  
   Future<void> _updateMapMarkers() async {
     if (!mounted) return;
 
@@ -1489,12 +1582,12 @@ class _DeliveryMonitorScreenState extends State<DeliveryMonitorScreen> {
       return;
     }
 
-    final Set<gmaps.Marker> newMarkers = {};
+    final Set<gmaps.Marker> staticMarkers = {};
 
     // Add restaurant marker (green store icon)
     final gmaps.BitmapDescriptor restaurantIcon =
         await _createRestaurantMarker();
-    newMarkers.add(
+    staticMarkers.add(
       gmaps.Marker(
         markerId: const gmaps.MarkerId('restaurant'),
         position: _restaurantLocation,
@@ -1507,22 +1600,14 @@ class _DeliveryMonitorScreenState extends State<DeliveryMonitorScreen> {
       ),
     );
 
-    // Add driver markers (with employee color)
+    // Pre-generate driver marker icons (cache them to avoid regenerating during animation)
     for (var driver in _onlineDrivers) {
-      if (driver.currentLocation != null) {
-        final gmaps.BitmapDescriptor driverIcon =
-            await _createCustomDriverMarker(driver.name, driver.colorIndex);
-
-        newMarkers.add(
-          gmaps.Marker(
-            markerId: gmaps.MarkerId('driver_${driver.id}'),
-            position: driver.currentLocation!,
-            icon: driverIcon,
-            onTap: () => _showDriverInfoDialog(driver),
-          ),
-        );
+      if (driver.currentLocation != null && !_cachedDriverIcons.containsKey(driver.id)) {
+        _cachedDriverIcons[driver.id] = await _createCustomDriverMarker(driver.name, driver.colorIndex);
       }
     }
+    // Remove cached icons for drivers that are no longer online
+    _cachedDriverIcons.removeWhere((id, _) => !_onlineDrivers.any((d) => d.id == id));
 
     // Add order markers (orange with daily order number)
     for (var order in _deliveryOrders) {
@@ -1554,7 +1639,7 @@ class _DeliveryMonitorScreenState extends State<DeliveryMonitorScreen> {
             .toUpperCase();
         final String paymentText = order.paymentMethod.toUpperCase();
 
-        newMarkers.add(
+        staticMarkers.add(
           gmaps.Marker(
             markerId: gmaps.MarkerId('order_${order.id}'),
             position: gmaps.LatLng(
@@ -1573,7 +1658,44 @@ class _DeliveryMonitorScreenState extends State<DeliveryMonitorScreen> {
       }
     }
 
-    if (mounted) setState(() => _mapMarkers = newMarkers);
+    _staticMarkers = staticMarkers;
+    
+    // Build full marker set with animated driver positions
+    _rebuildMarkersFromAnimatedState();
+  }
+  
+  /// Rebuild the marker set using current animated positions.
+  /// This is called on every animation tick for smooth driver movement.
+  void _rebuildMarkersFromAnimatedState() {
+    if (!mounted) return;
+    
+    final Set<gmaps.Marker> allMarkers = Set.from(_staticMarkers);
+    
+    // Add driver markers at their current animated positions
+    for (var driver in _onlineDrivers) {
+      if (driver.currentLocation == null) continue;
+      
+      final animatedPos = _animatedPositions[driver.id] ?? driver.currentLocation!;
+      final heading = _animatedHeadings[driver.id] ?? driver.heading ?? 0;
+      final icon = _cachedDriverIcons[driver.id];
+      
+      if (icon != null) {
+        allMarkers.add(
+          gmaps.Marker(
+            markerId: gmaps.MarkerId('driver_${driver.id}'),
+            position: animatedPos,
+            icon: icon,
+            rotation: heading, // Rotate car marker to match heading direction
+            anchor: const Offset(0.5, 0.5),
+            flat: true, // Flat marker rotates with heading nicely
+            zIndex: 2, // Drivers on top of orders
+            onTap: () => _showDriverInfoDialog(driver),
+          ),
+        );
+      }
+    }
+    
+    if (mounted) setState(() => _mapMarkers = allMarkers);
   }
 
   @override
@@ -1797,22 +1919,26 @@ class _DeliveryMonitorScreenState extends State<DeliveryMonitorScreen> {
       ),
     );
 
-    // Driver markers (with employee color - car shape)
+    // Driver markers (with employee color - car shape, animated positions)
     for (var driver in _onlineDrivers) {
       if (driver.currentLocation != null) {
         final Color driverColor =
             driverColors[driver.colorIndex % driverColors.length];
+        // Use animated position if available, otherwise use current
+        final animPos = _animatedPositions[driver.id];
+        final heading = _animatedHeadings[driver.id] ?? driver.heading ?? 0;
+        final markerLat = animPos?.latitude ?? driver.currentLocation!.latitude;
+        final markerLng = animPos?.longitude ?? driver.currentLocation!.longitude;
         markers.add(
           fmap.Marker(
-            point: latlong.LatLng(
-              driver.currentLocation!.latitude,
-              driver.currentLocation!.longitude,
-            ),
+            point: latlong.LatLng(markerLat, markerLng),
             width: 50,
             height: 80,
             child: GestureDetector(
               onTap: () => _showDriverInfoDialog(driver),
-              child: Column(
+              child: Transform.rotate(
+                angle: heading * math.pi / 180, // Convert degrees to radians
+                child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   // Car body (top-down view)
@@ -1939,6 +2065,7 @@ class _DeliveryMonitorScreenState extends State<DeliveryMonitorScreen> {
                   ),
                 ],
               ),
+              ), // Transform.rotate
             ),
           ),
         );

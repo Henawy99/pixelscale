@@ -1,0 +1,19 @@
+# Monorepo deploy: only restaurantadmin + shared package are required; exclude other apps and artifacts.
+
+apps/_template
+apps/academy-app
+apps/animight
+apps/moving_salzburg_app
+apps/moving-salzburg
+apps/playmaker
+apps/tarifo-crm
+apps/tennisacademyapp
+apps/tennisacademyapp.zip
+
+**/node_modules/**
+**/build/**
+**/.dart_tool/**
+**/.venv/**
+**/venv/**
+**/ios/Pods/**
+**/android/.gradle/**

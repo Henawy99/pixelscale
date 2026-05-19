@@ -5,6 +5,7 @@ import 'package:animight/connect_dialog.dart';
 import 'package:animight/control_screen.dart';
 import 'package:animight/admin_screen.dart';
 import 'package:animight/supabase_service.dart';
+import 'package:animight/design_detail_screen.dart';
 import 'dart:ui';
 import 'package:shimmer/shimmer.dart';
 import 'package:animight/connection_banner.dart';
@@ -74,19 +75,8 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateMixin {
   late VideoPlayerController _videoController;
 
-  static final List<Wallpaper> _localWallpapers = [
-    Wallpaper(assetPath: 'assets/wallpaper0.jpeg', name: 'JinX_Unleashed', bluetoothName: 'JinX_Unleashed'),
-    Wallpaper(assetPath: 'assets/wallpaper1.PNG', name: 'Cyberpunk_City', bluetoothName: 'Cyberpunk_City'),
-    Wallpaper(assetPath: 'assets/wallpaper4.PNG', name: 'Naruto-X-Kyuubi', bluetoothName: 'Naruto-X-Kyuubi'),
-    Wallpaper(assetPath: 'assets/wallpaper5.JPEG', name: 'GT-R_City_lights', bluetoothName: 'GT-R_City_lights'),
-    Wallpaper(assetPath: 'assets/wallpaper7.jpg', name: 'Obanai_awakened', bluetoothName: 'Obanai_awakened'),
-    Wallpaper(assetPath: 'assets/wallpaper8.jpg', name: 'Wallpaper_8', bluetoothName: 'Wallpaper_8'),
-    Wallpaper(assetPath: 'assets/wallpaper2.JPEG', name: 'Anime_Glow', bluetoothName: 'Anime_Glow', isComingSoon: true),
-    Wallpaper(assetPath: 'assets/wallpaper6.PNG', name: 'Demon_Slayer_Art', bluetoothName: 'Demon_Slayer_Art', isComingSoon: true),
-  ];
-
   List<Wallpaper> _remoteWallpapers = [];
-  List<Wallpaper> get _allWallpapers => [..._localWallpapers, ..._remoteWallpapers];
+  List<Wallpaper> get _allWallpapers => _remoteWallpapers;
 
   List<Wallpaper> _myCollection = [];
   bool _isConnecting = false;
@@ -193,12 +183,12 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
               _startConnectionProcess(navigateToControlScreen: true);
 
               if (deviceName != null) {
-                final matchedWallpaper = _localWallpapers.firstWhere(
+                final matchedWallpaper = _remoteWallpapers.firstWhere(
                   (wallpaper) => wallpaper.bluetoothName == deviceName,
                   orElse: () => Wallpaper(assetPath: '', name: '', bluetoothName: ''), // Return a dummy wallpaper
                 );
 
-                if (matchedWallpaper.assetPath.isNotEmpty && !_myCollection.any((w) => w.assetPath == matchedWallpaper.assetPath)) {
+                if (matchedWallpaper.name.isNotEmpty && !_myCollection.any((w) => w.name == matchedWallpaper.name)) {
                   setState(() {
                     _myCollection.add(matchedWallpaper);
                     _saveCollection();
@@ -234,7 +224,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         // use a default background for the control screen.
         final String backgroundPath = _tappedWallpaperPath.isNotEmpty
             ? _tappedWallpaperPath
-            : 'assets/wallpaper0.jpeg'; // Default wallpaper
+            : ''; // Default empty background if none selected
 
         Navigator.push(
           context,
@@ -362,7 +352,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
           ),
           GestureDetector(
             onTap: () => setState(() => _selectedTabIndex = 1),
-            child: _buildTab('Trending', isSelected: _selectedTabIndex == 1),
+            child: _buildTab('Explore', isSelected: _selectedTabIndex == 1),
           ),
           GestureDetector(
             onTap: _onMyCollectionTap,
@@ -396,7 +386,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       case 0:
         return _buildScanView();
       case 1:
-        return _buildWallpaperGridView();
+        return _buildExploreView();
       case 2:
         return _buildMyCollectionView();
       default:
@@ -413,34 +403,77 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     );
   }
 
-  Widget _buildWallpaperGridView() {
-    return GridView.builder(
-      key: const ValueKey('wallpaper_grid'),
-      padding: const EdgeInsets.all(8.0), // Revert to simple padding
-      itemCount: _allWallpapers.length,
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
-          crossAxisSpacing: 8.0,
-          mainAxisSpacing: 8.0,
-          childAspectRatio: 0.75,
-        ),
-        itemBuilder: (context, index) {
-          final wallpaper = _allWallpapers[index];
-          return AnimatedBuilder(
-            animation: _cardTapController,
-            builder: (context, child) {
-              final isTapped = _tappedIndex == index;
-              return Transform.scale(
-                scale: isTapped ? _cardScaleAnimation.value : 1.0,
-                child: _WallpaperCard(
-                  wallpaper: wallpaper,
-                  onTap: () => _onWallpaperTap(index, wallpaper),
-                  glowColor: Colors.cyanAccent,
+  Widget _buildExploreView() {
+    return Column(
+      key: const ValueKey('explore_view'),
+      children: [
+        // Featured design banner
+        if (_allWallpapers.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
+            child: GestureDetector(
+              onTap: () => _openDesignDetail(_allWallpapers.first),
+              child: Container(
+                height: 140,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: const Color(0xFF00E5FF).withOpacity(0.3)),
+                  boxShadow: [BoxShadow(color: const Color(0xFF00E5FF).withOpacity(0.15), blurRadius: 20)],
                 ),
+                clipBehavior: Clip.antiAlias,
+                child: Stack(fit: StackFit.expand, children: [
+                  _allWallpapers.first.isRemote
+                      ? CachedNetworkImage(imageUrl: _allWallpapers.first.imageUrl, fit: BoxFit.cover)
+                      : Image.asset(_allWallpapers.first.assetPath, fit: BoxFit.cover),
+                  Container(decoration: BoxDecoration(gradient: LinearGradient(
+                    colors: [Colors.transparent, Colors.black.withOpacity(0.8)],
+                    begin: Alignment.topCenter, end: Alignment.bottomCenter, stops: const [0.3, 1],
+                  ))),
+                  Positioned(bottom: 14, left: 16, right: 16, child: Row(children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(8),
+                        color: const Color(0xFF00E5FF).withOpacity(0.2),
+                        border: Border.all(color: const Color(0xFF00E5FF).withOpacity(0.5)),
+                      ),
+                      child: const Text('FEATURED', style: TextStyle(color: Color(0xFF00E5FF), fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(child: Text(_allWallpapers.first.name, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                      maxLines: 1, overflow: TextOverflow.ellipsis)),
+                  ])),
+                ]),
+              ),
+            ),
+          ),
+        // Grid
+        Expanded(
+          child: GridView.builder(
+            padding: const EdgeInsets.all(8.0),
+            itemCount: _allWallpapers.length,
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2, crossAxisSpacing: 8, mainAxisSpacing: 8, childAspectRatio: 0.75),
+            itemBuilder: (context, index) {
+              final wallpaper = _allWallpapers[index];
+              return AnimatedBuilder(
+                animation: _cardTapController,
+                builder: (context, child) {
+                  final isTapped = _tappedIndex == index;
+                  return Transform.scale(
+                    scale: isTapped ? _cardScaleAnimation.value : 1.0,
+                    child: _WallpaperCard(
+                      wallpaper: wallpaper,
+                      onTap: () => _onWallpaperTap(index, wallpaper),
+                      glowColor: Colors.cyanAccent,
+                    ),
+                  );
+                },
               );
             },
-          );
-        },
+          ),
+        ),
+      ],
     );
   }
 
@@ -541,8 +574,14 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     await _cardTapController.reverse();
     await _cardTapController.forward();
     if (!mounted) return;
-    // ignore: use_build_context_synchronously
-    _showConnectDialog(context, wallpaper.displayImagePath);
+    _openDesignDetail(wallpaper);
+  }
+
+  void _openDesignDetail(Wallpaper wallpaper) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => DesignDetailScreen(wallpaper: wallpaper)),
+    );
   }
 
   @override
