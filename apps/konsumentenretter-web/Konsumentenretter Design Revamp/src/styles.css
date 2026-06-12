@@ -1,0 +1,143 @@
+@import "tailwindcss" source(none);
+@source "../src";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@layer base {
+  @font-face {
+    font-family: "Instrument Serif";
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url("https://fonts.gstatic.com/s/instrumentserif/v4/jizDREVItHgc8qDIbSTKq4XKVjuVMVE.woff2") format("woff2");
+  }
+}
+
+@import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Instrument+Serif:ital@0;1&display=swap");
+
+@theme inline {
+  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Instrument Serif", ui-serif, Georgia, serif;
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 16px);
+  --radius-full: 9999px;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-surface: var(--surface);
+  --color-ink: var(--ink);
+  --color-brand: var(--brand);
+  --color-brand-deep: var(--brand-deep);
+  --color-gold: var(--gold);
+}
+
+:root {
+  --radius: 1rem;
+
+  /* Base palette inspired by Jufina: bright white surfaces, deep navy ink, vivid blue accent */
+  --background: oklch(0.985 0.005 240);
+  --foreground: oklch(0.18 0.04 255);
+
+  --surface: oklch(0.97 0.008 240);
+  --ink: oklch(0.16 0.04 255);
+
+  --brand: oklch(0.58 0.22 255);          /* vivid royal blue (logo accent) */
+  --brand-deep: oklch(0.28 0.12 260);     /* deep navy */
+  --gold: oklch(0.62 0.22 255);           /* accent → unified brand blue */
+
+  --card: oklch(1 0 0);
+  --card-foreground: var(--foreground);
+  --popover: oklch(1 0 0);
+  --popover-foreground: var(--foreground);
+
+  --primary: var(--brand);
+  --primary-foreground: oklch(0.99 0.005 240);
+
+  --secondary: oklch(0.94 0.012 245);
+  --secondary-foreground: var(--ink);
+
+  --muted: oklch(0.95 0.008 240);
+  --muted-foreground: oklch(0.48 0.03 255);
+
+  --accent: oklch(0.93 0.04 250);
+  --accent-foreground: var(--brand-deep);
+
+  --destructive: oklch(0.577 0.245 27.325);
+  --destructive-foreground: oklch(0.99 0.005 240);
+
+  --border: oklch(0.9 0.012 245);
+  --input: oklch(0.9 0.012 245);
+  --ring: var(--brand);
+}
+
+@layer base {
+  * { border-color: var(--color-border); }
+  html { scroll-behavior: smooth; }
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    font-feature-settings: "ss01", "cv11";
+    -webkit-font-smoothing: antialiased;
+  }
+  .font-serif { font-family: var(--font-serif); font-feature-settings: "liga"; }
+}
+
+@layer utilities {
+  .text-balance { text-wrap: balance; }
+  .bg-grain {
+    background-image:
+      radial-gradient(circle at 1px 1px, oklch(0.18 0.04 255 / 0.04) 1px, transparent 0);
+    background-size: 24px 24px;
+  }
+  .ring-soft { box-shadow: 0 1px 0 oklch(0.18 0.04 255 / 0.04), 0 8px 24px -12px oklch(0.18 0.04 255 / 0.12); }
+}
+
+@layer utilities {
+  @keyframes logo-reveal {
+    0%   { transform: rotateY(-180deg) scale(0.6); opacity: 0; }
+    60%  { transform: rotateY(20deg) scale(1.05); opacity: 1; }
+    100% { transform: rotateY(0deg) scale(1); opacity: 1; }
+  }
+  @keyframes logo-float {
+    0%, 100% { transform: translateY(0); }
+    50%      { transform: translateY(-2px); }
+  }
+  @keyframes logo-flip {
+    0%   { transform: rotateY(0deg); }
+    50%  { transform: rotateY(-360deg); }
+    100% { transform: rotateY(-720deg); }
+  }
+  .animate-logo-reveal {
+    transform-origin: center;
+    transform-style: preserve-3d;
+    animation:
+      logo-reveal 1.1s cubic-bezier(0.22, 1, 0.36, 1) both,
+      logo-float 4.5s ease-in-out 1.1s infinite,
+      logo-flip 12s cubic-bezier(0.65, 0, 0.35, 1) 2s infinite;
+
+  }
+}

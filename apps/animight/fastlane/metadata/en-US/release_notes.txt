@@ -1,1 +1,4 @@
-Animight 2.0 — a major update with immersive design previews, mood lighting presets, brightness control, a first-launch onboarding experience, and a completely refreshed interface.
+• Fixed GET STARTED button not responding on iPad
+• Added mood lighting presets (Chill, Party, Focus, Sunset, Aurora, Gaming)
+• Immersive design previews & brightness control
+• Refreshed interface

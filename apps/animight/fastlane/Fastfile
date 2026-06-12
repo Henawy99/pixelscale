@@ -92,6 +92,7 @@ platform :ios do
       skip_metadata: false,
       submit_for_review: false,
       automatic_release: false,
+      precheck_include_in_app_purchases: false,
       force: true
     )
 
@@ -124,6 +125,27 @@ platform :ios do
     )
 
     UI.success "Animight uploaded to TestFlight!"
+  end
+
+  # ═══════════════════════════════════════════════════════════════════════════════
+  # METADATA ONLY — Push metadata without touching the binary
+  # ═══════════════════════════════════════════════════════════════════════════════
+
+  desc "Upload metadata only (no binary upload)"
+  lane :metadata_only do
+    UI.header "Uploading Animight Metadata to App Store Connect"
+
+    upload_to_app_store(
+      skip_binary_upload: true,
+      skip_screenshots: true,
+      skip_metadata: false,
+      submit_for_review: false,
+      automatic_release: false,
+      precheck_include_in_app_purchases: false,
+      force: true
+    )
+
+    UI.success "Metadata synced to App Store Connect!"
   end
 
   # Short alias

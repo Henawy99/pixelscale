@@ -47,10 +47,13 @@ class _SplashScreenState extends State<SplashScreen>
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (_) => OnboardingScreen(
+          builder: (routeContext) => OnboardingScreen(
             onComplete: () {
+              // Use the route's own context (routeContext) so that even after
+              // SplashScreen has been replaced the navigation still works.
+              // On iPad the stale outer `context` would silently fail.
               Navigator.pushReplacement(
-                context,
+                routeContext,
                 MaterialPageRoute(builder: (_) => const HomeScreen()),
               );
             },

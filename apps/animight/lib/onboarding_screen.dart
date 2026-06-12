@@ -1,7 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:ui';
 
 class OnboardingScreen extends StatefulWidget {
   final VoidCallback onComplete;
@@ -113,7 +112,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(2),
                           color: i == _currentPage ? page.accent : Colors.white24,
-                          boxShadow: i == _currentPage ? [BoxShadow(color: page.accent.withOpacity(0.6), blurRadius: 8)] : [],
+                          boxShadow: i == _currentPage ? [BoxShadow(color: page.accent.withValues(alpha: 0.6), blurRadius: 8)] : [],
                         ),
                       )),
                     ),
@@ -123,7 +122,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                       builder: (_, child) => Container(
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(16),
-                          boxShadow: [BoxShadow(color: page.accent.withOpacity(0.4 * _pulseAnim.value), blurRadius: 24, spreadRadius: 2)],
+                          boxShadow: [BoxShadow(color: page.accent.withValues(alpha: 0.4 * _pulseAnim.value), blurRadius: 24, spreadRadius: 2)],
                         ),
                         child: child,
                       ),
@@ -132,7 +131,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                         child: ElevatedButton(
                           onPressed: _next,
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: page.accent.withOpacity(0.2),
+                            backgroundColor: page.accent.withValues(alpha: 0.2),
                             foregroundColor: Colors.white,
                             side: BorderSide(color: page.accent, width: 1.5),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -145,7 +144,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                     ),
                     const SizedBox(height: 12),
                     if (_currentPage < _pages.length - 1)
-                      TextButton(onPressed: _complete, child: Text('Skip', style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 14)))
+                      TextButton(onPressed: _complete, child: Text('Skip', style: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 14)))
                     else const SizedBox(height: 40),
                   ],
                 ),
@@ -173,20 +172,20 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                   width: 140, height: 140,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    gradient: RadialGradient(colors: [p.accent.withOpacity(0.15), p.accent.withOpacity(0.05), Colors.transparent], stops: const [0, 0.6, 1]),
-                    boxShadow: [BoxShadow(color: p.accent.withOpacity(0.3 * _pulseAnim.value), blurRadius: 40 + 20 * _pulseAnim.value, spreadRadius: 8)],
+                    gradient: RadialGradient(colors: [p.accent.withValues(alpha: 0.15), p.accent.withValues(alpha: 0.05), Colors.transparent], stops: const [0, 0.6, 1]),
+                    boxShadow: [BoxShadow(color: p.accent.withValues(alpha: 0.3 * _pulseAnim.value), blurRadius: 40 + 20 * _pulseAnim.value, spreadRadius: 8)],
                   ),
                   child: Container(
                     margin: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.black.withOpacity(0.5), border: Border.all(color: p.accent.withOpacity(0.6), width: 2)),
+                    decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.black.withValues(alpha: 0.5), border: Border.all(color: p.accent.withValues(alpha: 0.6), width: 2)),
                     child: Icon(p.icon, color: p.accent, size: 48),
                   ),
                 ),
               ),
               const SizedBox(height: 48),
-              Text(p.title, textAlign: TextAlign.center, style: TextStyle(color: Colors.white, fontSize: 36, fontWeight: FontWeight.w800, height: 1.2, shadows: [Shadow(color: p.accent.withOpacity(0.5), blurRadius: 20)])),
+              Text(p.title, textAlign: TextAlign.center, style: TextStyle(color: Colors.white, fontSize: 36, fontWeight: FontWeight.w800, height: 1.2, shadows: [Shadow(color: p.accent.withValues(alpha: 0.5), blurRadius: 20)])),
               const SizedBox(height: 20),
-              Text(p.subtitle, textAlign: TextAlign.center, style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 16, height: 1.6)),
+              Text(p.subtitle, textAlign: TextAlign.center, style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 16, height: 1.6)),
               const Spacer(flex: 3),
             ]),
           ),
@@ -216,7 +215,7 @@ class _ParticlePainter extends CustomPainter {
       final y = ((i * 23.7) % 1.0) * size.height + math.sin(progress * math.pi * 2 + i * 0.1) * 20;
       final s = 1.0 + (i % 3) * 0.8;
       final o = (0.3 + 0.4 * math.sin(progress * math.pi * 2 + i * 0.1)).clamp(0.0, 1.0);
-      canvas.drawCircle(Offset(x % size.width, y), s, Paint()..color = color.withOpacity(o * 0.6)..maskFilter = MaskFilter.blur(BlurStyle.normal, s * 2));
+      canvas.drawCircle(Offset(x % size.width, y), s, Paint()..color = color.withValues(alpha: o * 0.6)..maskFilter = MaskFilter.blur(BlurStyle.normal, s * 2));
     }
   }
 

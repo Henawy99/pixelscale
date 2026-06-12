@@ -31,6 +31,14 @@ Build Flutter app and upload to TestFlight
 
 Upload existing IPA to TestFlight (skip build)
 
+### ios metadata_only
+
+```sh
+[bundle exec] fastlane ios metadata_only
+```
+
+Upload metadata only (no binary upload)
+
 ### ios tf
 
 ```sh
