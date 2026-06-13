@@ -255,164 +255,6 @@ export default function AnspruchFormPage({ params }: PageProps) {
         throw new Error(result.error || "Fehler beim Senden");
       }
 
-      // If it is a Kredit campaign and tokens were returned, forward client-side directly from the browser
-      if (cfg.slug === "kredit" && result.tokens) {
-        const tokens = result.tokens;
-        const glForm = document.createElement("form");
-        glForm.method = "POST";
-        glForm.action = "https://gl-recht.at/kreditvertragsgebuhren-koop/?wpf15395_46=Konsumentenretter&wpforms_form_id=15395";
-        glForm.enctype = "multipart/form-data";
-        glForm.style.display = "none";
-
-        const appendField = (name: string, value: string) => {
-          const input = document.createElement("input");
-          input.type = "hidden";
-          input.name = name;
-          input.value = value || "";
-          glForm.appendChild(input);
-        };
-
-        // System/hidden fields
-        appendField("wpforms[id]", "15395");
-        if (tokens.nonce) {
-          appendField("wpforms[nonce]", tokens.nonce);
-        }
-        appendField("wpforms[token]", tokens.token);
-        appendField("wpforms[token_time]", tokens.tokenTime);
-        appendField("wpforms[fields][4]", ""); // Honeypot
-
-        // Personal data
-        const firstName = (formEl.elements.namedItem("firstName") as HTMLInputElement)?.value || "";
-        const lastName = (formEl.elements.namedItem("lastName") as HTMLInputElement)?.value || "";
-        appendField("wpforms[fields][1]", `${firstName} ${lastName}`);
-        appendField("wpforms[fields][8]", (formEl.elements.namedItem("email") as HTMLInputElement)?.value || "");
-        
-        // Birthdate
-        const birthdate = (formEl.elements.namedItem("birthdate") as HTMLInputElement)?.value || "";
-        const birthParts = birthdate.split("-"); // YYYY-MM-DD
-        const birthYear = birthParts[0] || "";
-        const birthMonth = birthParts[1] ? String(parseInt(birthParts[1])) : "";
-        const birthDay = birthParts[2] ? String(parseInt(birthParts[2])) : "";
-        appendField("wpforms[fields][5][date][d]", birthDay);
-        appendField("wpforms[fields][5][date][m]", birthMonth);
-        appendField("wpforms[fields][5][date][y]", birthYear);
-
-        // Address
-        appendField("wpforms[fields][6]", (formEl.elements.namedItem("street") as HTMLInputElement)?.value || "");
-        appendField("wpforms[fields][26]", (formEl.elements.namedItem("city") as HTMLInputElement)?.value || "");
-        appendField("wpforms[fields][25]", (formEl.elements.namedItem("zip") as HTMLInputElement)?.value || "");
-        appendField("wpforms[fields][7]", (formEl.elements.namedItem("phone") as HTMLInputElement)?.value || "");
-
-        // Referrer
-        appendField("wpforms[fields][52]", urlRef || storedRef || "");
-
-        // Banks
-        for (const bank of providers) {
-          const BANK_MAPPING: Record<string, string> = {
-            "Wüstenrot": "Wüstenrot",
-            "BAWAG": "BAWAG",
-            "Bank Austria": "Bank Austria",
-            "Erste / Sparkasse": "Erste/Sparkasse",
-            "Raiffeisen": "Raiffeisen",
-            "Oberbank": "Oberbank",
-            "Santander": "Santander",
-            "Volksbank": "Volksbank",
-            "Andere": "Andere",
-          };
-          const mappedBank = BANK_MAPPING[bank] || bank;
-          appendField("wpforms[fields][54][]", mappedBank);
-        }
-
-        // Andere bank name (if chosen)
-        const bankOtherEl = formEl.elements.namedItem("bankOther") as HTMLInputElement | null;
-        if (bankOtherEl?.value) {
-          appendField("wpforms[fields][55]", bankOtherEl.value);
-        }
-
-        // Legal checkboxes
-        appendField(
-          "wpforms[fields][33][]",
-          "ich die unten stehenden Vollmachten sowie den Vollfinanzierungsantrag samt Anlagen gelesen und verstanden habe."
-        );
-        
-        const newsletterChecked = checkboxes[1]?.checked || false;
-        if (newsletterChecked) {
-          appendField(
-            "wpforms[fields][41][]",
-            "ich den Newsletter erhalten möchte und mit der Verarbeitung meiner Daten zum Versand einverstanden bin."
-          );
-        }
-
-        // Date & Partner
-        const today = new Date();
-        const dd = String(today.getDate()).padStart(2, "0");
-        const mm = String(today.getMonth() + 1).padStart(2, "0");
-        const yyyy = today.getFullYear();
-        appendField("wpforms[fields][3]", `${dd}.${mm}.${yyyy}`);
-        appendField("wpforms[fields][46]", "Konsumentenretter");
-        appendField("wpforms[fields][45]", "");
-
-        // WPForms Validation context
-        appendField("page_title", "Kreditvertragsgebühren – Koop");
-        appendField("page_url", `https://gl-recht.at/kreditvertragsgebuhren-koop/?wpf15395_46=Konsumentenretter`);
-        appendField("url_referer", "");
-        appendField("page_id", "15387");
-        appendField("wpforms[post_id]", "15387");
-        appendField("wpforms[submit]", "wpforms-submit");
-
-        // Signature (base64 string)
-        if (signature) {
-          appendField("wpforms[fields][2]", signature);
-        }
-
-        // Files - standard file uploader inputs (try all name variations)
-        if (ausweis && ausweis.length > 0) {
-          const dt = new DataTransfer();
-          for (const file of ausweis) {
-            dt.items.add(file);
-          }
-          const names = [
-            "wpforms[fields][34][]",
-            "wpforms[fields][34]",
-            "wpforms_15395_34[]",
-            "wpforms_15395_34"
-          ];
-          names.forEach((name) => {
-            const fileInput = document.createElement("input");
-            fileInput.type = "file";
-            fileInput.name = name;
-            fileInput.multiple = true;
-            fileInput.files = dt.files;
-            glForm.appendChild(fileInput);
-          });
-        }
-
-        if (vertrag && vertrag.length > 0) {
-          const dt = new DataTransfer();
-          for (const file of vertrag) {
-            dt.items.add(file);
-          }
-          const names = [
-            "wpforms[fields][44][]",
-            "wpforms[fields][44]",
-            "wpforms_15395_44[]",
-            "wpforms_15395_44"
-          ];
-          names.forEach((name) => {
-            const fileInput = document.createElement("input");
-            fileInput.type = "file";
-            fileInput.name = name;
-            fileInput.multiple = true;
-            fileInput.files = dt.files;
-            glForm.appendChild(fileInput);
-          });
-        }
-
-        document.body.appendChild(glForm);
-        glForm.submit();
-        return;
-      }
-
       setSubmitted(true);
     } catch (err) {
       console.error("Form submission error:", err);
@@ -449,10 +291,10 @@ export default function AnspruchFormPage({ params }: PageProps) {
 
   return (
     <PageShell>
-      <main className="mx-auto max-w-3xl px-6 lg:px-10 py-12 lg:py-16">
-        <div className="flex items-center gap-4">
-          <div className="grid place-content-center size-14 rounded-2xl bg-gradient-to-br from-brand to-brand-deep text-white shadow-[0_10px_30px_-10px_oklch(0.58_0.22_255/0.5)]">
-            <Icon className="size-7" />
+      <main className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-10 py-8 sm:py-12 lg:py-16">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="grid place-content-center size-12 sm:size-14 rounded-2xl bg-gradient-to-br from-brand to-brand-deep text-white shadow-[0_10px_30px_-10px_oklch(0.58_0.22_255/0.5)] shrink-0">
+            <Icon className="size-6 sm:size-7" />
           </div>
           <div className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-xs font-medium text-muted-foreground">
             <ShieldCheck className="size-3.5 text-brand" />
@@ -460,17 +302,17 @@ export default function AnspruchFormPage({ params }: PageProps) {
           </div>
         </div>
 
-        <h1 className="mt-6 text-3xl sm:text-4xl lg:text-[44px] leading-[1.05] tracking-tight text-ink text-balance font-bold">
+        <h1 className="mt-5 text-2xl sm:text-3xl lg:text-[44px] leading-[1.1] tracking-tight text-ink text-balance font-bold">
           {cfg.headline}
         </h1>
-        <p className="mt-4 text-base text-muted-foreground leading-relaxed">{cfg.intro}</p>
+        <p className="mt-3 text-sm sm:text-base text-muted-foreground leading-relaxed">{cfg.intro}</p>
 
         <form
           onSubmit={handleSubmit}
-          className="mt-10 rounded-2xl border border-border bg-card p-6 sm:p-8 grid gap-6"
+          className="mt-8 w-full rounded-2xl border border-border bg-card p-4 sm:p-6 lg:p-8 grid gap-5 sm:gap-6 overflow-hidden"
         >
           <Section title="Persönliche Daten">
-            <div className="grid sm:grid-cols-2 gap-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Field label="Vorname *" name="firstName" required placeholder="Max" />
               <Field label="Nachname *" name="lastName" required placeholder="Mustermann" />
             </div>
@@ -482,7 +324,7 @@ export default function AnspruchFormPage({ params }: PageProps) {
               placeholder="max@example.at"
             />
             <Field label="Geburtsdatum *" name="birthdate" type="date" required />
-            <div className="grid sm:grid-cols-[1fr_auto] gap-5">
+            <div className="grid grid-cols-[1fr_100px] sm:grid-cols-[1fr_120px] gap-3 sm:gap-4">
               <Field
                 label="Straße und Hausnummer *"
                 name="street"
@@ -593,13 +435,13 @@ export default function AnspruchFormPage({ params }: PageProps) {
           <button
             type="submit"
             disabled={submitting}
-            className="mt-2 inline-flex items-center justify-center gap-2 rounded-full bg-brand text-white px-6 py-3.5 text-[15px] font-medium hover:bg-brand-deep transition-colors shadow-[0_8px_24px_-8px_oklch(0.58_0.22_255/0.5)] disabled:opacity-60 cursor-pointer"
+            className="mt-2 w-full sm:w-auto sm:self-start inline-flex items-center justify-center gap-2 rounded-full bg-brand text-white px-6 py-3.5 text-[15px] font-medium hover:bg-brand-deep transition-colors shadow-[0_8px_24px_-8px_oklch(0.58_0.22_255/0.5)] disabled:opacity-60 cursor-pointer"
           >
             {submitting ? "Wird gesendet …" : "Senden"}
           </button>
 
-          <p className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
-            <Lock className="size-3" /> Ihre Daten werden vertraulich behandelt und ausschließlich
+          <p className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground text-center">
+            <Lock className="size-3 shrink-0" /> Ihre Daten werden vertraulich behandelt und ausschließlich
             zur Bearbeitung Ihres Falls verwendet.
           </p>
         </form>
@@ -610,17 +452,19 @@ export default function AnspruchFormPage({ params }: PageProps) {
 
 function PageShell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="min-h-screen bg-background text-foreground overflow-x-hidden w-full">
       <header className="sticky top-0 z-50 backdrop-blur-md bg-background/75 border-b border-border/60">
-        <div className="mx-auto max-w-7xl px-6 lg:px-10 h-18 flex items-center justify-between py-4">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-10 h-14 sm:h-16 flex items-center justify-between">
           <Link href="/" className="group">
             <Logo />
           </Link>
           <Link
             href="/anspruch-pruefen"
-            className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-ink px-3 py-2"
+            className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-ink px-2 sm:px-3 py-2"
           >
-            <ArrowLeft className="size-4" /> Andere Auswahl
+            <ArrowLeft className="size-4" />
+            <span className="hidden sm:inline">Andere Auswahl</span>
+            <span className="sm:hidden">Zurück</span>
           </Link>
         </div>
       </header>
@@ -631,9 +475,9 @@ function PageShell({ children }: { children: React.ReactNode }) {
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="grid gap-4">
-      <h3 className="text-sm font-semibold text-ink uppercase tracking-wide">{title}</h3>
-      <div className="grid gap-4">{children}</div>
+    <div className="grid gap-4 min-w-0">
+      <h3 className="text-sm font-semibold text-ink uppercase tracking-wide break-words">{title}</h3>
+      <div className="grid gap-4 min-w-0">{children}</div>
     </div>
   );
 }
@@ -660,7 +504,7 @@ function Field({
         required={required}
         maxLength={200}
         placeholder={placeholder}
-        className="h-11 rounded-xl border border-border bg-background px-3 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-brand"
+        className="w-full h-11 rounded-xl border border-border bg-background px-3 text-base sm:text-sm text-ink focus:outline-none focus:ring-2 focus:ring-brand min-w-0 touch-manipulation"
       />
     </div>
   );
