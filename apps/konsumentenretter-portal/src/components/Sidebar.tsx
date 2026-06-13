@@ -16,6 +16,7 @@ const links = [
 export default function Sidebar() {
   const pathname = usePathname();
   const [partner, setPartner] = useState({ name: 'Demo Partner', email: 'partner@beispiel.at' });
+  const [isOpen, setIsOpen] = useState(false);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -41,28 +42,54 @@ export default function Sidebar() {
     .slice(0, 2);
 
   return (
-    <aside className="sidebar">
-      <div className="sidebar-brand">
-        <h2>Konsumenten<span>retter</span></h2>
-        <p>Partner Portal</p>
-      </div>
-      <nav className="sidebar-nav">
-        {links.map(l => (
-          <Link key={l.href} href={l.href} className={`sidebar-link ${pathname === l.href ? 'active' : ''}`}>
-            <span className="icon">{l.icon}</span> {l.label}
-          </Link>
-        ))}
-      </nav>
-      <div className="sidebar-footer">
-        <div className="sidebar-user">
-          <div className="sidebar-avatar">{initials || 'DP'}</div>
-          <div className="sidebar-user-info">
-            <p>{partner.name}</p>
-            <span>{partner.email}</span>
+    <>
+      {/* Mobile Top Header */}
+      <header className="mobile-header">
+        <button className="mobile-menu-btn" onClick={() => setIsOpen(true)} aria-label="Menü öffnen">
+          ☰
+        </button>
+        <div className="mobile-header-brand">
+          <h2>Konsumenten<span>retter</span></h2>
+        </div>
+      </header>
+
+      {/* Backdrop overlay for mobile menu */}
+      {isOpen && (
+        <div className="mobile-sidebar-overlay" onClick={() => setIsOpen(false)} />
+      )}
+
+      {/* Sidebar (handles desktop and mobile layout) */}
+      <aside className={`sidebar ${isOpen ? 'mobile-open' : ''}`}>
+        <div className="sidebar-brand">
+          <h2>Konsumenten<span>retter</span></h2>
+          <p>Partner Portal</p>
+          <button className="mobile-close-btn" onClick={() => setIsOpen(false)} aria-label="Menü schließen">
+            ✕
+          </button>
+        </div>
+        <nav className="sidebar-nav">
+          {links.map(l => (
+            <Link 
+              key={l.href} 
+              href={l.href} 
+              className={`sidebar-link ${pathname === l.href ? 'active' : ''}`}
+              onClick={() => setIsOpen(false)}
+            >
+              <span className="icon">{l.icon}</span> {l.label}
+            </Link>
+          ))}
+        </nav>
+        <div className="sidebar-footer">
+          <div className="sidebar-user">
+            <div className="sidebar-avatar">{initials || 'DP'}</div>
+            <div className="sidebar-user-info">
+              <p>{partner.name}</p>
+              <span>{partner.email}</span>
+            </div>
           </div>
         </div>
-      </div>
-    </aside>
+      </aside>
+    </>
   );
 }
 
