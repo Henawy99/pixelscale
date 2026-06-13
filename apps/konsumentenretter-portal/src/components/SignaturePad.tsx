@@ -71,7 +71,7 @@ export default function SignaturePad({ onChange }: Props) {
       <canvas
         ref={canvasRef}
         className="signature-pad"
-        style={{ width: '100%', height: '160px', cursor: 'crosshair', display: 'block', background: 'var(--gray-50)', border: '1px dashed var(--gray-200)', borderRadius: 'var(--radius-sm)' }}
+        style={{ width: '100%', height: '160px', cursor: 'crosshair', display: 'block', background: 'var(--gray-50)', border: '1px dashed var(--gray-200)', borderRadius: 'var(--radius-sm)', touchAction: 'none' }}
         onMouseDown={start} onMouseMove={draw} onMouseUp={end} onMouseLeave={end}
         onTouchStart={start} onTouchMove={draw} onTouchEnd={end}
       />
