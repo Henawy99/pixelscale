@@ -180,7 +180,7 @@ export default function RegisterPartnerPage({ params }: PageProps) {
             <h3 style={{ fontSize: '0.85rem', color: 'var(--navy)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 12 }}>
               Ihre Partnerdaten
             </h3>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px 24px', fontSize: '0.9rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px 24px', fontSize: '0.9rem' }}>
               <div><strong>Name:</strong> {partner.firstName} {partner.lastName}</div>
               <div><strong>E-Mail:</strong> {partner.email}</div>
               <div><strong>Geburtsdatum:</strong> {partner.birthDate}</div>
@@ -361,7 +361,7 @@ export default function RegisterPartnerPage({ params }: PageProps) {
 
               <hr style={{ border: 0, borderTop: '1px solid var(--gray-200)', margin: '20px 0' }} />
               
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', fontSize: '0.8rem', marginTop: 20 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', fontSize: '0.8rem', marginTop: 20 }}>
                 <div>
                   <strong>Auftraggeber:</strong><br />
                   Krist & Partner GmbH<br />
@@ -392,26 +392,33 @@ export default function RegisterPartnerPage({ params }: PageProps) {
           </div>
 
           {/* Section 4: Password Settings */}
-          <div className="form-group" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <div>
-              <label>Passwort festlegen *</label>
-              <input
-                required
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-              />
-            </div>
-            <div>
-              <label>Passwort bestätigen *</label>
-              <input
-                required
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder="••••••••"
-              />
+          <div style={{ background: 'var(--gray-50)', padding: '20px', borderRadius: 'var(--radius)', border: '1px solid var(--gray-200)', marginBottom: 8 }}>
+            <h3 style={{ fontSize: '0.85rem', color: 'var(--navy)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 16 }}>
+              Passwort festlegen
+            </h3>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label>Passwort *</label>
+                <input
+                  required
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Mindestens 6 Zeichen"
+                  style={{ padding: '12px 14px', fontSize: '0.95rem' }}
+                />
+              </div>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label>Passwort bestätigen *</label>
+                <input
+                  required
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Passwort wiederholen"
+                  style={{ padding: '12px 14px', fontSize: '0.95rem' }}
+                />
+              </div>
             </div>
           </div>
 

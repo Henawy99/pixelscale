@@ -168,7 +168,7 @@ export async function POST(request: Request) {
       const { error: mailErr } = await resend.emails.send({
         from: 'Konsumentenretter Team <office@konsumentenretter.at>',
         to: [email],
-        subject: 'Willkommen im Team! Dein Partnervertrag wartet',
+        subject: 'Dein Partnervertrag wartet',
         html: htmlContent,
       });
 
@@ -183,7 +183,7 @@ export async function POST(request: Request) {
           const { error: fallbackErr } = await resend.emails.send({
             from: 'Konsumentenretter Team <onboarding@resend.dev>',
             to: [email],
-            subject: 'Willkommen im Team! Dein Partnervertrag wartet',
+            subject: 'Dein Partnervertrag wartet',
             html: htmlContent,
           });
 
