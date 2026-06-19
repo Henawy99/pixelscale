@@ -137,31 +137,139 @@ export async function POST(request: Request) {
     let emailError = null;
 
     const htmlContent = `
-      <div style="font-family: sans-serif; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 8px;">
-        <h2 style="color: #0A1628;">Hallo ${firstName} ${lastName}${companyName ? ` (${companyName})` : ''},</h2>
-        <p style="font-size: 1rem; line-height: 1.6;">
-          herzlich willkommen im Team von <strong>Konsumentenretter</strong>! Wir freuen uns sehr auf die Zusammenarbeit mit dir.
-        </p>
-        <p style="font-size: 1rem; line-height: 1.6;">
-          Du bist nur noch <strong>einen Schritt</strong> davon entfernt, den Registrierungsprozess abzuschließen und Zugriff auf dein Partner-Portal zu erhalten.
-        </p>
-        <p style="font-size: 1rem; line-height: 1.6;">
-          Bitte klicke auf den untenstehenden Link, um deine Kooperationsvereinbarung (mit einer vereinbarten Provision von <strong>${commissionPercent}%</strong>) zu prüfen und digital zu unterzeichnen:
-        </p>
-        <div style="text-align: center; margin: 30px 0;">
-          <a href="${link}" style="background-color: #00B4D8; color: white; padding: 12px 24px; text-decoration: none; font-weight: bold; border-radius: 6px; display: inline-block;">
-            Vertrag anzeigen & unterzeichnen
-          </a>
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Dein Partnervertrag wartet</title>
+      </head>
+      <body style="margin: 0; padding: 0; background-color: #F8FAFC; -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%;">
+        <!-- Hidden Preheader Text -->
+        <div style="display: none; max-height: 0px; overflow: hidden;">
+          Herzlich willkommen im Partnernetzwerk von Konsumentenretter. Dein Partnervertrag wartet auf deine Signatur.
         </div>
-        <p style="font-size: 0.85rem; color: #666; line-height: 1.6;">
-          Falls der Button nicht funktioniert, kopiere bitte diesen Link in deinen Browser:<br/>
-          <a href="${link}" style="color: #00B4D8;">${link}</a>
-        </p>
-        <hr style="border: 0; border-top: 1px solid #eee; margin: 30px 0;" />
-        <p style="font-size: 0.85rem; color: #888;">
-          Diese E-Mail wurde automatisch von Konsumentenretter versendet.
-        </p>
-      </div>
+        
+        <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #F8FAFC; padding: 40px 10px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+          <tr>
+            <td align="center">
+              <table border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 600px; background-color: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 12px rgba(10, 22, 40, 0.03);">
+                
+                <!-- HEADER BAND -->
+                <tr>
+                  <td align="center" style="background-color: #0A1628; padding: 32px 40px; border-bottom: 3px solid #D4A843;">
+                    <table border="0" cellpadding="0" cellspacing="0" style="margin: 0 auto;">
+                      <tr>
+                        <td align="center" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 20px; font-weight: 700; color: #FFFFFF; letter-spacing: 3px; text-transform: uppercase;">
+                          KONSUMENTEN<span style="color: #00B4D8;">RETTER</span>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td align="center" style="padding-top: 4px;">
+                          <table border="0" cellpadding="0" cellspacing="0" style="margin: 0 auto;">
+                            <tr>
+                              <td style="height: 1px; width: 30px; background-color: #D4A843;"></td>
+                              <td style="font-family: Georgia, serif; font-size: 9px; color: #D4A843; letter-spacing: 4px; padding: 0 10px; text-transform: uppercase; line-height: 1;">PARTNERNETZWERK</td>
+                              <td style="height: 1px; width: 30px; background-color: #D4A843;"></td>
+                            </tr>
+                          </table>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+
+                <!-- CONTENT -->
+                <tr>
+                  <td style="padding: 40px; background-color: #FFFFFF;">
+                    <h2 style="font-family: Georgia, 'Times New Roman', serif; font-size: 22px; font-weight: normal; color: #0A1628; margin-top: 0; margin-bottom: 24px; line-height: 1.3;">
+                      Hallo ${firstName} ${lastName}${companyName ? ` (${companyName})` : ''},
+                    </h2>
+                    
+                    <p style="font-size: 15px; line-height: 1.6; color: #334155; margin-top: 0; margin-bottom: 16px;">
+                      herzlich willkommen im Partnernetzwerk von <strong>Konsumentenretter</strong>! Wir freuen uns sehr auf eine erfolgreiche und partnerschaftliche Zusammenarbeit mit dir.
+                    </p>
+                    
+                    <p style="font-size: 15px; line-height: 1.6; color: #334155; margin-top: 0; margin-bottom: 24px;">
+                      Du bist nur noch einen Schritt davon entfernt, deinen Registrierungsprozess abzuschließen und Zugriff auf dein persönliches Partner-Portal zu erhalten.
+                    </p>
+
+                    <!-- PARTNER SUMMARY CARD -->
+                    <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #F8FAFC; border-left: 4px solid #D4A843; border-top: 1px solid #E2E8F0; border-right: 1px solid #E2E8F0; border-bottom: 1px solid #E2E8F0; border-radius: 0 6px 6px 0; margin-top: 24px; margin-bottom: 28px;">
+                      <tr>
+                        <td style="padding: 20px;">
+                          <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                            <tr>
+                              <td style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 11px; color: #64748B; padding-bottom: 4px; text-transform: uppercase; letter-spacing: 0.8px; font-weight: 600;">Rolle / Partner-Typ</td>
+                              <td style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 11px; color: #64748B; padding-bottom: 4px; text-transform: uppercase; letter-spacing: 0.8px; font-weight: 600; text-align: right;">Beteiligungsquote</td>
+                            </tr>
+                            <tr>
+                              <td style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 15px; font-weight: 700; color: #0A1628; padding-top: 2px;">
+                                ${partnerType === 'company' ? 'Vertriebspartner (Firma)' : 'Selbstständiger Partner'}
+                              </td>
+                              <td style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 16px; font-weight: 700; color: #0A1628; text-align: right; padding-top: 2px;">
+                                ${commissionPercent}%
+                              </td>
+                            </tr>
+                          </table>
+                        </td>
+                      </tr>
+                    </table>
+
+                    <p style="font-size: 15px; line-height: 1.6; color: #334155; margin-top: 0; margin-bottom: 24px;">
+                      Bitte klicke auf den untenstehenden Button, um deine Kooperationsvereinbarung zu prüfen und digital zu unterzeichnen:
+                    </p>
+
+                    <!-- BUTTON -->
+                    <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                      <tr>
+                        <td align="center" style="padding-top: 8px; padding-bottom: 28px;">
+                          <a href="${link}" style="background-color: #0A1628; border: 2.5px solid #D4A843; color: #FFFFFF; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 13px; font-weight: bold; text-decoration: none; padding: 14px 28px; border-radius: 4px; display: inline-block; letter-spacing: 1px; text-transform: uppercase;">
+                            Vertrag prüfen & signieren
+                          </a>
+                        </td>
+                      </tr>
+                    </table>
+
+                    <p style="font-size: 12px; color: #94A3B8; line-height: 1.5; margin-top: 0; margin-bottom: 0;">
+                      Sollte der Button nicht funktionieren, kopiere bitte den folgenden Link direkt in die Adresszeile deines Browsers:<br/>
+                      <a href="${link}" style="color: #00B4D8; text-decoration: underline;">${link}</a>
+                    </p>
+
+                    <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin-top: 32px; padding-top: 24px; border-top: 1px solid #E2E8F0;">
+                      <tr>
+                        <td>
+                          <p style="font-size: 14px; line-height: 1.5; color: #475569; margin: 0;">
+                            Mit freundlichen Grüßen<br>
+                            <strong style="color: #0A1628;">Konsumentenretter Team</strong>
+                          </p>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+
+                <!-- FOOTER -->
+                <tr>
+                  <td style="background-color: #F8FAFC; padding: 30px 40px; border-top: 1px solid #E2E8F0; text-align: center;">
+                    <p style="font-size: 11px; line-height: 1.6; color: #94A3B8; margin: 0 0 12px 0;">
+                      Diese E-Mail wurde automatisch von Konsumentenretter versendet. Bitte antworte nicht direkt auf diese Nachricht.
+                    </p>
+                    <p style="font-size: 11px; line-height: 1.6; color: #94A3B8; margin: 0 0 16px 0;">
+                      Bei Fragen oder Anregungen wende dich bitte an <a href="mailto:office@konsumentenretter.at" style="color: #64748B; text-decoration: underline;">office@konsumentenretter.at</a>.
+                    </p>
+                    <p style="font-size: 10px; color: #CBD5E1; margin: 0; text-transform: uppercase; letter-spacing: 0.5px;">
+                      &copy; ${new Date().getFullYear()} KONSUMENTENRETTER. ALLE RECHTE VORBEHALTEN.
+                    </p>
+                  </td>
+                </tr>
+
+              </table>
+            </td>
+          </tr>
+        </table>
+      </body>
+      </html>
     `;
 
     try {
