@@ -391,6 +391,21 @@ export async function POST(request: Request) {
       }
     }
 
+    // Determine initial status based on uploaded documents
+    const hasAusweis = ausweisFiles.some(file => file.size > 0);
+    const hasVertrag = vertragFiles.some(file => file.size > 0);
+
+    let initialStatus = 'vollstaendig';
+    if (hasAusweis && hasVertrag) {
+      initialStatus = 'vollstaendig';
+    } else if (hasAusweis) {
+      initialStatus = 'nur_ausweis';
+    } else if (hasVertrag) {
+      initialStatus = 'nur_vertrag';
+    } else {
+      initialStatus = 'nur_unterschrieben';
+    }
+
     try {
       const { data: leadData, error: leadError } = await supabase
         .from('leads')
@@ -410,7 +425,7 @@ export async function POST(request: Request) {
           insurance_provider: rechtsschutz === 'Ja' ? null : null, // can be extended later
           confirmations: { consent: confirmation, newsletter },
           signature_data: signatureData,
-          status: 'kooperationsvertrag',
+          status: initialStatus,
         })
         .select('id')
         .single();
@@ -474,22 +489,52 @@ export async function POST(request: Request) {
     }
 
     // ─────────────────────────────────────
-    // 3. Extract tokens for GL-Recht (Kredit only)
+    // 3. Forward to GL-Recht server-side (Kredit only)
     // ─────────────────────────────────────
-    let tokens: { nonce: string; token: string; tokenTime: string; cookies: string; } | null = null;
+    let glRechtResult: { success: boolean; error?: string } = { success: true };
 
     if (campaign === 'kredit' || campaignEnum === 'bearbeitungsgebuehren') {
       try {
-        tokens = await extractFormTokens();
+        // Convert File objects to Blobs (File extends Blob, so this is fine)
+        const ausweisBlobs: Blob[] = ausweisFiles.filter(f => f.size > 0);
+        const ausweisNames: string[] = ausweisFiles.filter(f => f.size > 0).map(f => f.name);
+        const vertragBlobs: Blob[] = vertragFiles.filter(f => f.size > 0);
+        const vertragNames: string[] = vertragFiles.filter(f => f.size > 0).map(f => f.name);
+
+        glRechtResult = await forwardToGLRecht({
+          fullName: `${firstName} ${lastName}`,
+          email,
+          birthDay,
+          birthMonth,
+          birthYear,
+          street,
+          city,
+          zip,
+          phone,
+          banks: providers,
+          confirmation,
+          newsletter,
+          signatureData,
+          ausweisFiles: ausweisBlobs,
+          ausweisNames,
+          vertragFiles: vertragBlobs,
+          vertragNames,
+          refCode,
+        });
+
+        if (!glRechtResult.success) {
+          console.error('[submit-claim] GL-Recht forwarding failed:', glRechtResult.error);
+        }
       } catch (err) {
-        console.error('[submit-claim] Failed to extract form tokens:', err);
+        console.error('[submit-claim] GL-Recht forwarding error:', err);
+        glRechtResult = { success: false, error: String(err) };
       }
     }
 
     return NextResponse.json({
       success: true,
       leadId,
-      tokens,
+      glRechtForwarded: glRechtResult.success,
     });
   } catch (error) {
     console.error('[submit-claim] Unexpected error:', error);

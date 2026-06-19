@@ -100,12 +100,19 @@ export default function RegisterPartnerPage({ params }: PageProps) {
 
         if (authError) {
           console.warn('Supabase Auth warning/failure:', authError.message);
+          const isUserAlreadyExists = authError.message?.toLowerCase().includes('already registered') || 
+                                      authError.message?.toLowerCase().includes('already exists') ||
+                                      authError.code === 'user_already_exists';
+          if (!isUserAlreadyExists) {
+            throw new Error(`Registrierung fehlgeschlagen: ${authError.message}`);
+          }
         }
         if (authData?.user) {
           authUserId = authData.user.id;
         }
-      } catch (authErr) {
-        console.warn('Supabase integration skipped or failed during local/offline demo:', authErr);
+      } catch (authErr: any) {
+        console.warn('Supabase integration error:', authErr);
+        throw authErr;
       }
 
       // 2. Update partner record via server-side API (bypassing client-side RLS restriction)
@@ -295,7 +302,7 @@ export default function RegisterPartnerPage({ params }: PageProps) {
               </p>
               <p style={{ marginBottom: 14 }}>
                 Der Vertriebspartner erhält im Erfolgsfall eine Provision in Höhe von:<br />
-                <strong>{partner.commissionPercent}% der vom Prozessfinanzierer vereinnahmten Erfolgsbeteiligung (35,5 % des Rückflusses)</strong>.
+                <strong>{partner.commissionPercent}% der vom Prozessfinanzierer vereinnahmten Erfolgsbeteiligung</strong>.
               </p>
               <p style={{ marginBottom: 14 }}>
                 Die Bemessungsgrundlage ist ausschließlich der tatsächlich vereinnahmte Betrag.

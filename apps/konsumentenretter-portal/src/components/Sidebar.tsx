@@ -1,7 +1,8 @@
 'use client';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
+import { supabase } from '@/lib/supabase';
 
 const links = [
   { href: '/dashboard', icon: '📊', label: 'Dashboard' },
@@ -15,6 +16,7 @@ const links = [
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
   const [partner, setPartner] = useState({ name: 'Demo Partner', email: 'partner@beispiel.at' });
   const [isOpen, setIsOpen] = useState(false);
 
@@ -80,13 +82,44 @@ export default function Sidebar() {
           ))}
         </nav>
         <div className="sidebar-footer">
-          <div className="sidebar-user">
+          <div className="sidebar-user" style={{ marginBottom: '12px' }}>
             <div className="sidebar-avatar">{initials || 'DP'}</div>
             <div className="sidebar-user-info">
               <p>{partner.name}</p>
               <span>{partner.email}</span>
             </div>
           </div>
+          <button 
+            onClick={async () => {
+              if (typeof window !== 'undefined') {
+                localStorage.removeItem('kr_partner');
+                try {
+                  await supabase.auth.signOut();
+                } catch (e) {
+                  console.warn('Failed to sign out from Supabase', e);
+                }
+                router.push('/');
+              }
+            }} 
+            className="sidebar-link" 
+            style={{ 
+              color: 'var(--red)', 
+              background: 'rgba(239, 68, 68, 0.08)',
+              padding: '8px 12px',
+              borderRadius: 'var(--radius-sm)',
+              fontSize: '0.85rem',
+              width: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              border: 'none',
+              cursor: 'pointer',
+              fontWeight: 600,
+              transition: 'var(--transition)'
+            }}
+          >
+            <span className="icon" style={{ fontSize: '1rem' }}>🚪</span> Abmelden
+          </button>
         </div>
       </aside>
     </>

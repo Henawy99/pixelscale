@@ -1,6 +1,7 @@
 'use client';
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import Sidebar from '@/components/Sidebar';
+import { supabase } from '@/lib/supabase';
 
 interface Card { id: string; name: string; info: string; value: string; campaign: 'credit' | 'service' | 'casino'; phone: string; }
 
@@ -22,42 +23,149 @@ const COLUMNS = [
 ];
 
 const INITIAL: Record<string, Card[]> = {
-  kooperationsvertrag: [{ id: '1', name: 'Max Mustermann', info: 'BAWAG', value: '€ 2.400', campaign: 'credit', phone: '+43 660 123' }],
-  nur_unterschrieben: [{ id: '2', name: 'Anna Schmidt', info: 'Bwin', value: '€ 8.500', campaign: 'casino', phone: '+43 660 234' }],
+  kooperationsvertrag: [],
+  nur_unterschrieben: [],
   nur_ausweis: [],
-  nur_vertrag: [{ id: '3', name: 'Peter Weber', info: 'A1', value: '€ 180', campaign: 'service', phone: '+43 660 345' }],
-  unvollstaendig: [{ id: '4', name: 'Maria Huber', info: 'Erste', value: '€ 1.800', campaign: 'credit', phone: '+43 660 456' }, { id: '5', name: 'Stefan Lang', info: 'LeoVegas', value: '€ 12.000', campaign: 'casino', phone: '+43 660 567' }],
-  vollstaendig: [{ id: '6', name: 'Lisa Braun', info: 'Raiffeisen', value: '€ 3.200', campaign: 'credit', phone: '+43 660 678' }],
-  zugesagt: [{ id: '7', name: 'Karl Moser', info: 'Magenta', value: '€ 240', campaign: 'service', phone: '+43 660 789' }],
+  nur_vertrag: [],
+  unvollstaendig: [],
+  vollstaendig: [],
+  zugesagt: [],
   warten_vollmacht: [],
-  neue_dokumente: [{ id: '8', name: 'Eva Gruber', info: 'Bank Austria', value: '€ 4.100', campaign: 'credit', phone: '+43 660 890' }],
+  neue_dokumente: [],
   bereit: [],
   abgelehnt: [],
-  akt_anlegen: [{ id: '9', name: 'Hans Bauer', info: 'Mr. Green', value: '€ 6.700', campaign: 'casino', phone: '+43 660 901' }],
+  akt_anlegen: [],
   akt_angelegt: [],
   mahnung: [],
 };
+
+// Demo leads removed to ensure only real leads are visible
 
 const campaignCls: Record<string, string> = { credit: 'campaign-credit', service: 'campaign-service', casino: 'campaign-casino' };
 const campaignLabel: Record<string, string> = { credit: 'Kredit', service: 'Service', casino: 'Casino' };
 
 export default function StatusPage() {
-  const [columns, setColumns] = useState(INITIAL);
+  const [columns, setColumns] = useState<Record<string, Card[]>>(INITIAL);
   const [filter, setFilter] = useState('all');
+  const [loading, setLoading] = useState(true);
   const dragItem = useRef<{ col: string; idx: number } | null>(null);
+
+  useEffect(() => {
+    fetchLeads();
+  }, []);
+
+  async function fetchLeads() {
+    try {
+      setLoading(true);
+      
+      // Get partner from localStorage
+      let partnerId = null;
+      if (typeof window !== 'undefined') {
+        const stored = localStorage.getItem('kr_partner');
+        if (stored) {
+          try {
+            partnerId = JSON.parse(stored).id;
+          } catch (e) {
+            console.warn('Failed to parse partner ID', e);
+          }
+        }
+      }
+
+      // Query leads table from Supabase
+      let query = supabase.from('leads').select('*');
+      
+      // If we have a specific partner ID, filter by that (except if root/admin)
+      if (partnerId && partnerId !== 'admin-root') {
+        query = query.eq('ref_partner_id', partnerId);
+      }
+
+      const { data, error } = await query;
+
+      if (error) {
+        throw error;
+      }
+
+      if (data && data.length > 0) {
+        // Map DB campaigns to UI campaigns
+        const campaignMap: Record<string, 'credit' | 'service' | 'casino'> = {
+          bearbeitungsgebuehren: 'credit',
+          servicepauschalen: 'service',
+          casino: 'casino',
+        };
+
+        const grouped: Record<string, Card[]> = { ...INITIAL };
+        for (const col of COLUMNS) {
+          grouped[col.id] = [];
+        }
+
+        data.forEach((lead: any) => {
+          const statusVal = lead.status || 'kooperationsvertrag';
+          const uiCampaign = campaignMap[lead.campaign] || 'credit';
+          
+          // Selections value format (displays provider like BAWAG)
+          let selectionStr = '';
+          if (Array.isArray(lead.selections) && lead.selections.length > 0) {
+            selectionStr = lead.selections.join(', ');
+          }
+
+          const card: Card = {
+            id: lead.id,
+            name: `${lead.first_name} ${lead.last_name}`,
+            info: selectionStr || '-',
+            value: lead.estimated_value ? `€ ${Number(lead.estimated_value).toLocaleString('de-AT')}` : '€ -',
+            campaign: uiCampaign,
+            phone: lead.phone || '-',
+          };
+
+          if (grouped[statusVal]) {
+            grouped[statusVal].push(card);
+          } else {
+            grouped['kooperationsvertrag'].push(card);
+          }
+        });
+
+        setColumns(grouped);
+      } else {
+        setColumns(INITIAL);
+      }
+    } catch (err) {
+      console.error('Error loading leads from database:', err);
+      setColumns(INITIAL);
+    } finally {
+      setLoading(false);
+    }
+  }
 
   const onDragStart = (col: string, idx: number) => { dragItem.current = { col, idx }; };
 
-  const onDrop = (targetCol: string) => {
+  const onDrop = async (targetCol: string) => {
     if (!dragItem.current) return;
     const { col: srcCol, idx } = dragItem.current;
     if (srcCol === targetCol) return;
     const card = columns[srcCol][idx];
+    
+    // Optimistic UI update
     setColumns(prev => ({
       ...prev,
       [srcCol]: prev[srcCol].filter((_, i) => i !== idx),
       [targetCol]: [...prev[targetCol], card],
     }));
+
+    // Update in Supabase
+    if (!card.id.startsWith('mock-')) {
+      try {
+        const { error } = await supabase
+          .from('leads')
+          .update({ status: targetCol })
+          .eq('id', card.id);
+        if (error) throw error;
+      } catch (err) {
+        console.error('Failed to update lead status in Supabase:', err);
+        // Revert UI on failure
+        fetchLeads();
+      }
+    }
+
     dragItem.current = null;
   };
 

@@ -13,17 +13,7 @@ interface PartnerNode {
   children: PartnerNode[];
 }
 
-const INITIAL_TEAM: PartnerNode[] = [
-  { name: 'Hashim (Du)', commission: '35%', leads: 24, status: 'active', children: [
-    { name: 'Yousef', commission: '25%', leads: 15, status: 'active', children: [
-      { name: 'Ahmed', commission: '15%', leads: 8, status: 'active', children: [] },
-      { name: 'Sara', commission: '12%', leads: 5, status: 'active', children: [] },
-    ]},
-    { name: 'Lukas', commission: '20%', leads: 12, status: 'active', children: [
-      { name: 'Mert', commission: '10%', leads: 3, status: 'active', children: [] },
-    ]},
-  ]},
-];
+// Demo team data removed to ensure only real tree structure is shown
 
 function TreeNode({ node, depth = 0 }: { node: PartnerNode; depth?: number }) {
   const isPending = node.status === 'pending';
@@ -64,7 +54,7 @@ function TreeNode({ node, depth = 0 }: { node: PartnerNode; depth?: number }) {
 }
 
 export default function TeamPage() {
-  const [team, setTeam] = useState<PartnerNode[]>(INITIAL_TEAM);
+  const [team, setTeam] = useState<PartnerNode[]>([]);
   const [allPartners, setAllPartners] = useState<any[]>([]);
   const [isAdmin, setIsAdmin] = useState(false);
   const [activeTab, setActiveTab] = useState<'structure' | 'invitations'>('structure');
@@ -174,7 +164,7 @@ export default function TeamPage() {
 
     const percent = parseFloat(form.commissionPercent);
     if (isNaN(percent) || percent < 0 || percent > 35) {
-      alert('Die Provision muss zwischen 0% und 35% liegen (Ihre eigene Provision).');
+      alert('Die Provision muss zwischen 0% und 35% liegen.');
       setSubmitting(false);
       return;
     }
@@ -370,18 +360,18 @@ export default function TeamPage() {
         <div className="stats-grid">
           <div className="stat-card">
             <div className="stat-card-header"><span>Direkte Partner</span><span className="icon">👤</span></div>
-            <div className="stat-value">{team[0].children.length}</div>
+            <div className="stat-value">{team[0]?.children?.length || 0}</div>
           </div>
           <div className="stat-card">
             <div className="stat-card-header"><span>Gesamtes Team</span><span className="icon">🏗️</span></div>
             <div className="stat-value">
-              {team[0].children.reduce((acc, curr) => acc + 1 + curr.children.length, 1)}
+              {team[0] ? team[0].children.reduce((acc, curr) => acc + 1 + curr.children.length, 0) : 0}
             </div>
           </div>
           <div className="stat-card">
             <div className="stat-card-header"><span>Team Leads gesamt</span><span className="icon">👥</span></div>
             <div className="stat-value">
-              {team[0].leads + team[0].children.reduce((acc, curr) => acc + curr.leads + curr.children.reduce((a, c) => a + c.leads, 0), 0)}
+              {team[0] ? (team[0].leads + team[0].children.reduce((acc, curr) => acc + curr.leads + curr.children.reduce((a, c) => a + c.leads, 0), 0)) : 0}
             </div>
           </div>
         </div>
@@ -647,9 +637,6 @@ export default function TeamPage() {
                   onChange={(e) => setForm({ ...form, commissionPercent: e.target.value })}
                   placeholder="10"
                 />
-                <small style={{ color: 'var(--gray-500)', fontSize: '0.75rem', marginTop: 4, display: 'block' }}>
-                  Maximal 35% (Ihre eigene Beteiligungsquote).
-                </small>
               </div>
 
               <div className="modal-actions">
