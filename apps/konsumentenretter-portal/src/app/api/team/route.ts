@@ -10,7 +10,7 @@ export async function GET() {
   try {
     const { data: partners, error: partnersError } = await supabase
       .from('partners')
-      .select('id, first_name, last_name, email, parent_partner_id, commission_percent, status, company_name, company_address, contract_signed_at');
+      .select('id, first_name, last_name, email, parent_partner_id, commission_percent, status, company_name, company_address, contract_signed_at, street, postal_code, city, birth_date, partner_type');
 
     if (partnersError) {
       return NextResponse.json({ error: partnersError.message }, { status: 500 });

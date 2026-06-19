@@ -184,7 +184,7 @@ export default function RegisterPartnerPage({ params }: PageProps) {
               <div><strong>Name:</strong> {partner.firstName} {partner.lastName}</div>
               <div><strong>E-Mail:</strong> {partner.email}</div>
               <div><strong>Geburtsdatum:</strong> {partner.birthDate}</div>
-              <div><strong>Adresse:</strong> {partner.street}, {partner.postalCode} {partner.city}</div>
+              <div><strong>Adresse:</strong> {[partner.street, [partner.postalCode, partner.city].filter(Boolean).join(' ')].filter(Boolean).join(', ') || 'Nicht angegeben'}</div>
               <div><strong>Partnertyp:</strong> {partner.partnerType === 'company' ? 'Firma' : 'Person'}</div>
               {partner.partnerType === 'company' && (
                 <>
@@ -235,7 +235,7 @@ export default function RegisterPartnerPage({ params }: PageProps) {
                 ) : (
                   <>
                     <strong>{partner.firstName} {partner.lastName}</strong><br />
-                    {partner.street ? `${partner.street}, ` : ''}{partner.postalCode} {partner.city}<br />
+                    {[partner.street, [partner.postalCode, partner.city].filter(Boolean).join(' ')].filter(Boolean).join(', ')}<br />
                   </>
                 )}
                 – nachfolgend „Vertriebspartner“ –
