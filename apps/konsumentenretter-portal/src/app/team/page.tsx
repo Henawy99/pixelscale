@@ -612,12 +612,50 @@ export default function TeamPage() {
 
               <div className="form-group">
                 <label>Geburtsdatum *</label>
-                <input
-                  required
-                  type="date"
-                  value={form.birthDate}
-                  onChange={(e) => setForm({ ...form, birthDate: e.target.value })}
-                />
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <select
+                    required
+                    value={form.birthDate ? form.birthDate.split('-')[2] || '' : ''}
+                    onChange={(e) => {
+                      const parts = (form.birthDate || '--').split('-');
+                      setForm({ ...form, birthDate: `${parts[0] || ''}-${parts[1] || ''}-${e.target.value}` });
+                    }}
+                    style={{ flex: 1 }}
+                  >
+                    <option value="">Tag</option>
+                    {Array.from({ length: 31 }, (_, i) => i + 1).map(d => (
+                      <option key={d} value={String(d).padStart(2, '0')}>{d}</option>
+                    ))}
+                  </select>
+                  <select
+                    required
+                    value={form.birthDate ? form.birthDate.split('-')[1] || '' : ''}
+                    onChange={(e) => {
+                      const parts = (form.birthDate || '--').split('-');
+                      setForm({ ...form, birthDate: `${parts[0] || ''}-${e.target.value}-${parts[2] || ''}` });
+                    }}
+                    style={{ flex: 1 }}
+                  >
+                    <option value="">Monat</option>
+                    {['Jänner','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'].map((m, i) => (
+                      <option key={i} value={String(i + 1).padStart(2, '0')}>{m}</option>
+                    ))}
+                  </select>
+                  <select
+                    required
+                    value={form.birthDate ? form.birthDate.split('-')[0] || '' : ''}
+                    onChange={(e) => {
+                      const parts = (form.birthDate || '--').split('-');
+                      setForm({ ...form, birthDate: `${e.target.value}-${parts[1] || ''}-${parts[2] || ''}` });
+                    }}
+                    style={{ flex: 1 }}
+                  >
+                    <option value="">Jahr</option>
+                    {Array.from({ length: 80 }, (_, i) => new Date().getFullYear() - 18 - i).map(y => (
+                      <option key={y} value={String(y)}>{y}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               <div className="form-group">
