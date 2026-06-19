@@ -16,37 +16,60 @@ interface PartnerNode {
 // Demo team data removed to ensure only real tree structure is shown
 
 function TreeNode({ node, depth = 0 }: { node: PartnerNode; depth?: number }) {
+  const [isExpanded, setIsExpanded] = useState(true);
   const isPending = node.status === 'pending';
+  const hasChildren = node.children && node.children.length > 0;
+
   return (
     <div style={{ marginLeft: depth * 32 }}>
       <div className="tree-node" style={depth === 0 ? { paddingLeft: 0 } : undefined}>
-        <div className="tree-node-card" style={depth === 0 ? { border: '2px solid var(--teal)' } : undefined}>
-          <div className="tree-node-avatar" style={isPending ? { background: 'var(--gray-400)' } : undefined}>
-            {node.name.slice(0, 2).toUpperCase()}
-          </div>
-          <div>
-            <div className="tree-node-name">
-              {node.name}
-              {isPending && <span className="status-badge yellow" style={{ marginLeft: 8, padding: '2px 6px', fontSize: '0.65rem' }}>Eingeladen</span>}
+        <div 
+          className="tree-node-card" 
+          style={{
+            ...(depth === 0 ? { border: '2px solid var(--teal)' } : {}),
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '16px',
+            width: '100%',
+            maxWidth: '450px'
+          }}
+          onClick={hasChildren ? () => setIsExpanded(!isExpanded) : undefined}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div className="tree-node-avatar" style={isPending ? { background: 'var(--gray-400)' } : undefined}>
+              {node.name.slice(0, 2).toUpperCase()}
             </div>
-            <div className="tree-node-meta" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
-              <span>Provision: {node.commission} · {node.leads} Leads</span>
-              {!isPending && node.id && (
-                <a
-                  href={`/team/contract/${node.id}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="status-badge blue"
-                  style={{ padding: '2px 6px', fontSize: '0.65rem', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', cursor: 'pointer' }}
-                >
-                  📄 Vertrag PDF
-                </a>
-              )}
+            <div>
+              <div className="tree-node-name">
+                {node.name}
+                {isPending && <span className="status-badge yellow" style={{ marginLeft: 8, padding: '2px 6px', fontSize: '0.65rem' }}>Eingeladen</span>}
+              </div>
+              <div className="tree-node-meta" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
+                <span>Provision: {node.commission} · {node.leads} Leads</span>
+                {!isPending && node.id && (
+                  <a
+                    href={`/team/contract/${node.id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="status-badge blue"
+                    style={{ padding: '2px 6px', fontSize: '0.65rem', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', cursor: 'pointer' }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    📄 Vertrag PDF
+                  </a>
+                )}
+              </div>
             </div>
           </div>
+          {hasChildren && (
+            <span style={{ fontSize: '0.8rem', color: 'var(--gray-400)', userSelect: 'none', marginRight: '4px' }}>
+              {isExpanded ? '▼' : '►'}
+            </span>
+          )}
         </div>
       </div>
-      {node.children.map((child, i) => (
+      {hasChildren && isExpanded && node.children.map((child, i) => (
         <TreeNode key={i} node={child} depth={depth + 1} />
       ))}
     </div>
@@ -56,6 +79,7 @@ function TreeNode({ node, depth = 0 }: { node: PartnerNode; depth?: number }) {
 export default function TeamPage() {
   const [team, setTeam] = useState<PartnerNode[]>([]);
   const [allPartners, setAllPartners] = useState<any[]>([]);
+  const [visiblePartners, setVisiblePartners] = useState<any[]>([]);
   const [isAdmin, setIsAdmin] = useState(false);
   const [activeTab, setActiveTab] = useState<'structure' | 'invitations'>('structure');
   const [searchQuery, setSearchQuery] = useState('');
@@ -134,6 +158,27 @@ export default function TeamPage() {
 
         if (roots.length > 0) {
           setTeam(roots);
+        }
+
+        // Helper to get descendant IDs recursively
+        const getDescendantIds = (pid: string): string[] => {
+          const ids: string[] = [];
+          const children = data.filter((p: any) => p.parent_partner_id === pid);
+          children.forEach(child => {
+            ids.push(child.id);
+            ids.push(...getDescendantIds(child.id));
+          });
+          return ids;
+        };
+
+        if (adminCheck) {
+          setVisiblePartners(data);
+        } else if (current) {
+          const teamIds = getDescendantIds(current.id);
+          const filtered = data.filter((p: any) => teamIds.includes(p.id));
+          setVisiblePartners(filtered);
+        } else {
+          setVisiblePartners([]);
         }
       }
     } catch (err) {
@@ -403,22 +448,20 @@ export default function TeamPage() {
           </div>
         </div>
 
-        {isAdmin && (
-          <div className="tabs-container">
-            <button
-              className={`tab-btn ${activeTab === 'structure' ? 'active' : ''}`}
-              onClick={() => setActiveTab('structure')}
-            >
-              Team-Struktur (Baum)
-            </button>
-            <button
-              className={`tab-btn ${activeTab === 'invitations' ? 'active' : ''}`}
-              onClick={() => setActiveTab('invitations')}
-            >
-              Eingeladene Partner & Status
-            </button>
-          </div>
-        )}
+        <div className="tabs-container">
+          <button
+            className={`tab-btn ${activeTab === 'structure' ? 'active' : ''}`}
+            onClick={() => setActiveTab('structure')}
+          >
+            Team-Struktur (Baum)
+          </button>
+          <button
+            className={`tab-btn ${activeTab === 'invitations' ? 'active' : ''}`}
+            onClick={() => setActiveTab('invitations')}
+          >
+            Eingeladene Partner & Status
+          </button>
+        </div>
 
         {activeTab === 'structure' ? (
           <div className="table-card" style={{ padding: 24 }}>
@@ -453,7 +496,7 @@ export default function TeamPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {allPartners
+                  {visiblePartners
                     .filter((p) => {
                       const search = searchQuery.toLowerCase().trim();
                       if (!search) return true;
@@ -515,7 +558,7 @@ export default function TeamPage() {
                         </tr>
                       );
                     })}
-                  {allPartners.length === 0 && (
+                  {visiblePartners.length === 0 && (
                     <tr>
                       <td colSpan={7} style={{ textAlign: 'center', color: 'var(--gray-400)', padding: '32px' }}>
                         Keine Partner gefunden.
