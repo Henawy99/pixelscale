@@ -35,12 +35,23 @@ const statusLabel: Record<string, { label: string; cls: string }> = {
 };
 
 export default function DashboardPage() {
-  const [stats, setStats] = useState({
-    myLeads: 0,
-    teamLeads: 0,
-    completedLeads: 0,
-    teamMembers: 0,
+  const [rawData, setRawData] = useState<{
+    myLeads: any[];
+    teamLeads: any[];
+    directPartners: any[];
+    allTeamPartners: any[];
+  }>({
+    myLeads: [],
+    teamLeads: [],
+    directPartners: [],
+    allTeamPartners: []
   });
+
+  const [myLeadsFilter, setMyLeadsFilter] = useState<'all' | '7d' | 'month'>('all');
+  const [teamLeadsFilter, setTeamLeadsFilter] = useState<'all' | '7d' | 'month'>('all');
+  const [completedFilter, setCompletedFilter] = useState<'all' | '7d' | 'month'>('all');
+  const [partnersFilter, setPartnersFilter] = useState<'all' | '7d' | 'month'>('all');
+
   const [latestLeads, setLatestLeads] = useState<LeadItem[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -48,72 +59,49 @@ export default function DashboardPage() {
     async function loadDashboardData() {
       try {
         setLoading(true);
-        let partnerId = null;
-        let isAdmin = false;
+        let loggedInUser = null;
         if (typeof window !== 'undefined') {
           const stored = localStorage.getItem('kr_partner');
           if (stored) {
             try {
-              const parsed = JSON.parse(stored);
-              partnerId = parsed.id;
-              isAdmin = parsed.email?.toLowerCase().trim() === 'office@konsumentenretter.at';
+              loggedInUser = JSON.parse(stored);
             } catch (e) {
               console.warn('Failed to parse partner ID', e);
             }
           }
         }
 
-        // 1. Fetch leads
-        let leadsQuery = supabase.from('leads').select('*');
-        if (partnerId && !isAdmin) {
-          leadsQuery = leadsQuery.eq('ref_partner_id', partnerId);
+        if (!loggedInUser || !loggedInUser.email) {
+          setLoading(false);
+          return;
         }
-        const { data: leadsData, error: leadsError } = await leadsQuery;
-        if (leadsError) throw leadsError;
 
-        // 2. Fetch direct partners
-        let partnersQuery = supabase.from('partners').select('*');
-        if (partnerId && !isAdmin) {
-          partnersQuery = partnersQuery.eq('parent_partner_id', partnerId);
-        }
-        const { data: partnersData, error: partnersError } = await partnersQuery;
+        const res = await fetch(`/api/dashboard-data?email=${encodeURIComponent(loggedInUser.email)}`);
+        if (!res.ok) throw new Error('Failed to fetch dashboard data');
+        const dashboardData = await res.json();
 
-        let myLeadsCount = 0;
-        let completedCount = 0;
-        let latest: LeadItem[] = [];
+        setRawData({
+          myLeads: dashboardData.myLeads || [],
+          teamLeads: dashboardData.teamLeads || [],
+          directPartners: dashboardData.directPartners || [],
+          allTeamPartners: dashboardData.allTeamPartners || []
+        });
 
-        if (leadsData) {
-          myLeadsCount = leadsData.length;
-          completedCount = leadsData.filter((l: any) => 
-            l.status === 'zugesagt' || l.status === 'bereit' || l.status === 'akt_angelegt'
-          ).length;
-
+        if (dashboardData.myLeads) {
           // Sort by created_at desc and take top 5
-          const sorted = [...leadsData].sort((a: any, b: any) => 
+          const sorted = [...dashboardData.myLeads].sort((a: any, b: any) => 
             new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
           ).slice(0, 5);
 
-          latest = sorted.map((lead: any) => ({
+          const latest = sorted.map((lead: any) => ({
             id: lead.id,
             name: `${lead.first_name} ${lead.last_name}`,
             campaign: lead.campaign,
             status: lead.status || 'kooperationsvertrag',
             date: lead.created_at ? new Date(lead.created_at).toLocaleDateString('de-AT', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '-',
           }));
+          setLatestLeads(latest);
         }
-
-        let teamMembersCount = 0;
-        if (partnersData) {
-          teamMembersCount = partnersData.length;
-        }
-
-        setStats({
-          myLeads: myLeadsCount,
-          teamLeads: isAdmin ? myLeadsCount : 0, // Admin sees all leads, so team leads equals total leads. Otherwise, under RLS non-admins can't see team leads directly
-          completedLeads: completedCount,
-          teamMembers: teamMembersCount,
-        });
-        setLatestLeads(latest);
 
       } catch (err) {
         console.error('Error loading dashboard data:', err);
@@ -125,6 +113,39 @@ export default function DashboardPage() {
     loadDashboardData();
   }, []);
 
+  const filterByTimeframe = (items: any[], filter: 'all' | '7d' | 'month') => {
+    if (filter === 'all') return items;
+    const now = new Date();
+    if (filter === '7d') {
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(now.getDate() - 7);
+      return items.filter(item => new Date(item.created_at) >= sevenDaysAgo);
+    }
+    if (filter === 'month') {
+      const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      return items.filter(item => new Date(item.created_at) >= firstDayOfMonth);
+    }
+    return items;
+  };
+
+  const currentMyLeadsCount = filterByTimeframe(rawData.myLeads, myLeadsFilter).length;
+  const currentTeamLeadsCount = filterByTimeframe(rawData.teamLeads, teamLeadsFilter).length;
+
+  const allLeads = [...rawData.myLeads, ...rawData.teamLeads];
+  const completedLeads = allLeads.filter(l => 
+    l.status === 'zugesagt' || l.status === 'bereit' || l.status === 'akt_angelegt'
+  );
+  const currentCompletedCount = filterByTimeframe(completedLeads, completedFilter).length;
+  const currentPartnersCount = filterByTimeframe(rawData.directPartners, partnersFilter).length;
+
+  const renderTimeframeSelector = (currentFilter: 'all' | '7d' | 'month', setFilter: (f: 'all' | '7d' | 'month') => void) => (
+    <div className="timeframe-selector">
+      <button type="button" className={currentFilter === 'all' ? 'active' : ''} onClick={() => setFilter('all')}>Gesamt</button>
+      <button type="button" className={currentFilter === '7d' ? 'active' : ''} onClick={() => setFilter('7d')}>7 Tage</button>
+      <button type="button" className={currentFilter === 'month' ? 'active' : ''} onClick={() => setFilter('month')}>Monat</button>
+    </div>
+  );
+
   return (
     <div className="app-layout">
       <Sidebar />
@@ -133,23 +154,23 @@ export default function DashboardPage() {
         <div className="stats-grid">
           <div className="stat-card">
             <div className="stat-card-header"><span>Meine Leads</span><span className="icon">👥</span></div>
-            <div className="stat-value">{loading ? '...' : stats.myLeads}</div>
-            <div className="stat-change">{loading ? '' : 'Gesamt'}</div>
+            <div className="stat-value">{loading ? '...' : currentMyLeadsCount}</div>
+            {renderTimeframeSelector(myLeadsFilter, setMyLeadsFilter)}
           </div>
           <div className="stat-card">
             <div className="stat-card-header"><span>Team Leads</span><span className="icon">🏗️</span></div>
-            <div className="stat-value">{loading ? '...' : stats.teamLeads}</div>
-            <div className="stat-change">{loading ? '' : 'Gesamt'}</div>
+            <div className="stat-value">{loading ? '...' : currentTeamLeadsCount}</div>
+            {renderTimeframeSelector(teamLeadsFilter, setTeamLeadsFilter)}
           </div>
           <div className="stat-card">
             <div className="stat-card-header"><span>Abgeschlossen</span><span className="icon">✅</span></div>
-            <div className="stat-value">{loading ? '...' : stats.completedLeads}</div>
-            <div className="stat-change">{loading ? '' : 'Zusagen & Bereit'}</div>
+            <div className="stat-value">{loading ? '...' : currentCompletedCount}</div>
+            {renderTimeframeSelector(completedFilter, setCompletedFilter)}
           </div>
           <div className="stat-card">
             <div className="stat-card-header"><span>Direkte Partner</span><span className="icon">🤝</span></div>
-            <div className="stat-value">{loading ? '...' : stats.teamMembers}</div>
-            <div className="stat-change">{loading ? '' : 'Eingeladen / Aktiv'}</div>
+            <div className="stat-value">{loading ? '...' : currentPartnersCount}</div>
+            {renderTimeframeSelector(partnersFilter, setPartnersFilter)}
           </div>
         </div>
         <div className="table-card">

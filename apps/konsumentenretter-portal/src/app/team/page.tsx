@@ -102,7 +102,7 @@ export default function TeamPage() {
             id: p.id,
             name: p.company_name ? `${p.first_name} ${p.last_name} (${p.company_name})` : `${p.first_name} ${p.last_name}`,
             commission: `${p.commission_percent}%`,
-            leads: 0,
+            leads: p.leads_count || 0,
             status: p.status,
             children: []
           });
@@ -318,6 +318,37 @@ export default function TeamPage() {
     }
   };
 
+  // Helper to count descendants recursively
+  const countDescendants = (node: PartnerNode): number => {
+    let count = 0;
+    if (node.children) {
+      count += node.children.length;
+      node.children.forEach(child => {
+        count += countDescendants(child);
+      });
+    }
+    return count;
+  };
+
+  // Helper to sum leads recursively
+  const sumLeads = (node: PartnerNode): number => {
+    let total = node.leads || 0;
+    if (node.children) {
+      node.children.forEach(child => {
+        total += sumLeads(child);
+      });
+    }
+    return total;
+  };
+
+  const directPartnersCount = isAdmin ? team.length : (team[0]?.children?.length || 0);
+  const totalTeamCount = isAdmin 
+    ? (team.length + team.reduce((acc, root) => acc + countDescendants(root), 0))
+    : (team[0] ? countDescendants(team[0]) : 0);
+  const totalLeadsCount = isAdmin
+    ? team.reduce((acc, root) => acc + sumLeads(root), 0)
+    : (team[0] ? sumLeads(team[0]) : 0);
+
   return (
     <div className="app-layout">
       <Sidebar />
@@ -360,19 +391,15 @@ export default function TeamPage() {
         <div className="stats-grid">
           <div className="stat-card">
             <div className="stat-card-header"><span>Direkte Partner</span><span className="icon">👤</span></div>
-            <div className="stat-value">{team[0]?.children?.length || 0}</div>
+            <div className="stat-value">{directPartnersCount}</div>
           </div>
           <div className="stat-card">
             <div className="stat-card-header"><span>Gesamtes Team</span><span className="icon">🏗️</span></div>
-            <div className="stat-value">
-              {team[0] ? team[0].children.reduce((acc, curr) => acc + 1 + curr.children.length, 0) : 0}
-            </div>
+            <div className="stat-value">{totalTeamCount}</div>
           </div>
           <div className="stat-card">
             <div className="stat-card-header"><span>Team Leads gesamt</span><span className="icon">👥</span></div>
-            <div className="stat-value">
-              {team[0] ? (team[0].leads + team[0].children.reduce((acc, curr) => acc + curr.leads + curr.children.reduce((a, c) => a + c.leads, 0), 0)) : 0}
-            </div>
+            <div className="stat-value">{totalLeadsCount}</div>
           </div>
         </div>
 
