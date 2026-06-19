@@ -9,6 +9,8 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [view, setView] = useState<'login' | 'forgot'>('login');
+  const [successMessage, setSuccessMessage] = useState('');
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -81,31 +83,93 @@ export default function LoginPage() {
     }
   };
 
+  const handleResetPasswordRequest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+    setSuccessMessage('');
+
+    try {
+      const origin = typeof window !== 'undefined' ? window.location.origin : 'https://konsumentenretter-portal.vercel.app';
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${origin}/reset-password`,
+      });
+
+      if (resetError) {
+        setError(resetError.message);
+      } else {
+        setSuccessMessage('Ein Link zum Zurücksetzen Ihres Passworts wurde an Ihre E-Mail-Adresse gesendet.');
+      }
+    } catch (err: any) {
+      setError('Fehler beim Senden des Links. Bitte versuchen Sie es erneut.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="login-page">
       <div className="login-card">
         <h1>Konsumenten<span>retter</span></h1>
-        <p className="login-subtitle">Partner Portal – Anmelden</p>
-        
-        {error && (
-          <div style={{ color: 'var(--red)', background: 'rgba(239,68,68,0.1)', padding: '10px', borderRadius: 'var(--radius-sm)', fontSize: '0.85rem', marginBottom: '16px', textAlign: 'center' }}>
-            {error}
-          </div>
-        )}
+        {view === 'login' ? (
+          <>
+            <p className="login-subtitle">Partner Portal – Anmelden</p>
+            
+            {error && (
+              <div style={{ color: 'var(--red)', background: 'rgba(239,68,68,0.1)', padding: '10px', borderRadius: 'var(--radius-sm)', fontSize: '0.85rem', marginBottom: '16px', textAlign: 'center' }}>
+                {error}
+              </div>
+            )}
 
-        <form className="login-form" onSubmit={handleLogin}>
-          <div className="form-group">
-            <label>E-Mail</label>
-            <input type="email" required value={email} onChange={e => setEmail(e.target.value)} placeholder="partner@beispiel.at" />
-          </div>
-          <div className="form-group">
-            <label>Passwort</label>
-            <input type="password" required value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" />
-          </div>
-          <button type="submit" className="btn btn-primary" disabled={loading}>
-            {loading ? 'Anmelden...' : 'Anmelden'}
-          </button>
-        </form>
+            <form className="login-form" onSubmit={handleLogin}>
+              <div className="form-group">
+                <label>E-Mail</label>
+                <input type="email" required value={email} onChange={e => setEmail(e.target.value)} placeholder="partner@beispiel.at" />
+              </div>
+              <div className="form-group">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                  <label style={{ margin: 0 }}>Passwort</label>
+                  <button type="button" onClick={() => { setView('forgot'); setError(''); setSuccessMessage(''); }} style={{ background: 'none', border: 'none', color: 'var(--teal)', fontSize: '0.8rem', cursor: 'pointer' }}>
+                    Passwort vergessen?
+                  </button>
+                </div>
+                <input type="password" required value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" />
+              </div>
+              <button type="submit" className="btn btn-primary" disabled={loading}>
+                {loading ? 'Anmelden...' : 'Anmelden'}
+              </button>
+            </form>
+          </>
+        ) : (
+          <>
+            <p className="login-subtitle">Passwort zurücksetzen</p>
+            
+            {error && (
+              <div style={{ color: 'var(--red)', background: 'rgba(239,68,68,0.1)', padding: '10px', borderRadius: 'var(--radius-sm)', fontSize: '0.85rem', marginBottom: '16px', textAlign: 'center' }}>
+                {error}
+              </div>
+            )}
+
+            {successMessage && (
+              <div style={{ color: 'var(--green)', background: 'rgba(16,185,129,0.1)', padding: '10px', borderRadius: 'var(--radius-sm)', fontSize: '0.85rem', marginBottom: '16px', textAlign: 'center' }}>
+                {successMessage}
+              </div>
+            )}
+
+            <form className="login-form" onSubmit={handleResetPasswordRequest}>
+              <div className="form-group">
+                <label>E-Mail-Adresse</label>
+                <input type="email" required value={email} onChange={e => setEmail(e.target.value)} placeholder="partner@beispiel.at" />
+              </div>
+              <button type="submit" className="btn btn-primary" disabled={loading}>
+                {loading ? 'Senden...' : 'Link senden'}
+              </button>
+              <button type="button" className="btn btn-outline" style={{ width: '100%', marginTop: '8px' }} onClick={() => { setView('login'); setError(''); setSuccessMessage(''); }}>
+                Zurück zum Login
+              </button>
+            </form>
+          </>
+        )}
       </div>
     </div>
   );

@@ -9,7 +9,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const checkAuth = () => {
-      const isPublicPath = pathname === '/' || pathname.startsWith('/register');
+      const isPublicPath = pathname === '/' || pathname.startsWith('/register') || pathname === '/reset-password';
       const stored = localStorage.getItem('kr_partner');
 
       if (!stored) {
@@ -30,7 +30,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     checkAuth();
   }, [pathname, router]);
 
-  const isPublicPath = pathname === '/' || pathname.startsWith('/register');
+  const isPublicPath = pathname === '/' || pathname.startsWith('/register') || pathname === '/reset-password';
 
   // Render a loading state to prevent flash of protected content
   if (!authorized && !isPublicPath) {
