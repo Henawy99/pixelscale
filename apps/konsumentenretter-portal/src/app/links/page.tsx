@@ -14,7 +14,7 @@ export default function LinksPage() {
         try {
           const partner = JSON.parse(stored);
           if (partner.id === 'admin-root') {
-            setRefCode('ref_hashim_admin');
+            setRefCode('10000');
             return;
           }
           const { data, error } = await supabase
@@ -52,7 +52,7 @@ export default function LinksPage() {
       <main className="main-content">
         <div className="page-header"><h1>Meine Ref-Links</h1></div>
         <div className="stat-card" style={{ marginBottom: 24 }}>
-          <p style={{ fontSize: '0.9rem', color: 'var(--gray-500)' }}>Dein persönlicher Ref-Code: <strong style={{ color: 'var(--teal)', fontSize: '1.1rem' }}>{refCode}</strong></p>
+          <p style={{ fontSize: '0.9rem', color: 'var(--gray-500)' }}>Deine Vertriebspartner-Nummer: <strong style={{ color: 'var(--teal)', fontSize: '1.1rem' }}>{refCode}</strong></p>
         </div>
         <div className="ref-links-grid">
           {links.map(l => (

@@ -178,6 +178,21 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: dbError.message }, { status: 500 });
       }
     } else {
+      // Generate a random unique 5-digit partner number
+      let partnerNumber = String(Math.floor(10000 + Math.random() * 90000));
+      try {
+        const { data: dupCode } = await supabase
+          .from('partners')
+          .select('id')
+          .eq('ref_code', partnerNumber)
+          .maybeSingle();
+        if (dupCode) {
+          partnerNumber = String(Math.floor(10000 + Math.random() * 90000));
+        }
+      } catch (err) {
+        console.warn('Failed to verify unique partnerNumber:', err);
+      }
+
       // Insert new partner
       const { error: dbError } = await supabase.from('partners').insert({
         id: inviteId,
@@ -193,7 +208,7 @@ export async function POST(request: Request) {
         company_address: partnerType === 'company' ? companyAddress : null,
         commission_percent: percent,
         parent_partner_id: finalParentId || null,
-        ref_code: `ref_${firstName.toLowerCase().slice(0, 3)}_${lastName.toLowerCase().slice(0, 3)}_${Math.floor(100 + Math.random() * 900)}`,
+        ref_code: partnerNumber,
         status: 'pending',
       });
 
