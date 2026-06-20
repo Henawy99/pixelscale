@@ -55,7 +55,7 @@ export async function POST(request: Request) {
 
     const percent = parseFloat(commissionPercent);
 
-    // Check if partner with this email already exists
+    // 1. Check if partner with this email already exists
     const { data: existingPartner, error: fetchError } = await supabase
       .from('partners')
       .select('id, status')
@@ -67,15 +67,89 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: fetchError.message }, { status: 500 });
     }
 
+    if (existingPartner && existingPartner.status !== 'pending') {
+      return NextResponse.json(
+        { error: 'Ein Partner mit dieser E-Mail-Adresse ist bereits aktiv oder registriert.' },
+        { status: 400 }
+      );
+    }
+
+    // 2. Check Name and Address or Birth Date combination for individuals
+    if (firstName && lastName) {
+      const { data: nameMatches, error: nameMatchError } = await supabase
+        .from('partners')
+        .select('id, first_name, last_name, status, email, street, city, birth_date, partner_type, company_name')
+        .ilike('first_name', firstName.trim())
+        .ilike('last_name', lastName.trim());
+
+      if (nameMatchError) {
+        console.error('Failed to query partner name matches:', nameMatchError.message);
+      } else if (nameMatches && nameMatches.length > 0) {
+        for (const match of nameMatches) {
+          if (match.status !== 'pending') {
+            // Check street and city match
+            if (street && city && match.street && match.city) {
+              const matchStreetClean = match.street.replace(/\s+/g, '').toLowerCase();
+              const inputStreetClean = street.replace(/\s+/g, '').toLowerCase();
+              const matchCityClean = match.city.replace(/\s+/g, '').toLowerCase();
+              const inputCityClean = city.replace(/\s+/g, '').toLowerCase();
+
+              if (matchStreetClean === inputStreetClean && matchCityClean === inputCityClean) {
+                return NextResponse.json(
+                  { error: `Ein aktiver Partner mit diesem Namen und dieser Adresse existiert bereits (E-Mail: ${match.email}).` },
+                  { status: 400 }
+                );
+              }
+            }
+
+            // Check birth date match
+            if (birthDate && match.birth_date && match.birth_date === birthDate) {
+              return NextResponse.json(
+                { error: `Ein aktiver Partner mit diesem Namen und diesem Geburtsdatum existiert bereits (E-Mail: ${match.email}).` },
+                { status: 400 }
+              );
+            }
+          }
+        }
+      }
+    }
+
+    // 3. Check Company Name and Address combination for corporate partners
+    if (partnerType === 'company' && companyName) {
+      const { data: companyMatches, error: companyMatchError } = await supabase
+        .from('partners')
+        .select('id, status, email, company_name, company_address')
+        .ilike('company_name', companyName.trim());
+
+      if (companyMatchError) {
+        console.error('Failed to query company matches:', companyMatchError.message);
+      } else if (companyMatches && companyMatches.length > 0) {
+        for (const match of companyMatches) {
+          if (match.status !== 'pending') {
+            if (companyAddress && match.company_address) {
+              const matchAddrClean = match.company_address.replace(/\s+/g, '').toLowerCase();
+              const inputAddrClean = companyAddress.replace(/\s+/g, '').toLowerCase();
+
+              if (matchAddrClean === inputAddrClean) {
+                return NextResponse.json(
+                  { error: `Ein aktiver Partner mit dieser Firma und Firmenadresse existiert bereits (E-Mail: ${match.email}).` },
+                  { status: 400 }
+                );
+              }
+            } else {
+              return NextResponse.json(
+                { error: `Ein aktiver Partner mit dieser Firma existiert bereits (E-Mail: ${match.email}).` },
+                { status: 400 }
+              );
+            }
+          }
+        }
+      }
+    }
+
     let isResend = false;
 
     if (existingPartner) {
-      if (existingPartner.status !== 'pending') {
-        return NextResponse.json(
-          { error: 'Ein Partner mit dieser E-Mail-Adresse ist bereits aktiv oder registriert.' },
-          { status: 400 }
-        );
-      }
       // Re-use the existing ID and flag as resend
       inviteId = existingPartner.id;
       isResend = true;
