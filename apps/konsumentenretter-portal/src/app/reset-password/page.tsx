@@ -3,6 +3,26 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 
+const translateAuthError = (message: string): string => {
+  const msg = message.toLowerCase();
+  if (msg.includes('should be different') || msg.includes('different from')) {
+    return 'Das neue Passwort muss sich vom alten Passwort unterscheiden.';
+  }
+  if (msg.includes('at least 6 characters') || msg.includes('too short')) {
+    return 'Das Passwort muss mindestens 6 Zeichen lang sein.';
+  }
+  if (msg.includes('too weak') || msg.includes('strength')) {
+    return 'Das gewählte Passwort ist zu schwach.';
+  }
+  if (msg.includes('session') || msg.includes('token') || msg.includes('expired') || msg.includes('invalid')) {
+    return 'Deine Wiederherstellungssitzung ist abgelaufen oder ungültig. Bitte fordere einen neuen Passwort-Reset-Link an.';
+  }
+  if (msg.includes('rate limit')) {
+    return 'Zu viele Anfragen. Bitte warte einen Moment und versuche es erneut.';
+  }
+  return 'Ein Fehler ist beim Zurücksetzen aufgetreten. Bitte versuche es erneut.';
+};
+
 export default function ResetPasswordPage() {
   const router = useRouter();
   const [password, setPassword] = useState('');
@@ -43,7 +63,7 @@ export default function ResetPasswordPage() {
       });
 
       if (updateError) {
-        setError(updateError.message);
+        setError(translateAuthError(updateError.message));
       } else {
         setSuccess('Ihr Passwort wurde erfolgreich zurückgesetzt. Sie werden gleich zum Login weitergeleitet.');
         

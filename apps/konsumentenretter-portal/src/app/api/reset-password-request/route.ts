@@ -45,7 +45,14 @@ export async function POST(request: Request) {
 
     if (linkError) {
       console.error('Supabase generateLink error:', linkError.message);
-      return NextResponse.json({ error: linkError.message }, { status: 400 });
+      const msg = linkError.message.toLowerCase();
+      let germanError = 'Ein Fehler ist beim Erstellen des Links aufgetreten.';
+      if (msg.includes('user not found') || msg.includes('no user')) {
+        germanError = 'Es wurde kein Partner mit dieser E-Mail-Adresse gefunden.';
+      } else if (msg.includes('rate limit')) {
+        germanError = 'Zu viele Anfragen. Bitte warte einen Moment und versuche es erneut.';
+      }
+      return NextResponse.json({ error: germanError }, { status: 400 });
     }
 
     const actionLink = linkData.properties.action_link;

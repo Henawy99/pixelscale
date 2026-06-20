@@ -3,6 +3,20 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 
+const translateAuthError = (message: string): string => {
+  const msg = message.toLowerCase();
+  if (msg.includes('invalid login credentials') || msg.includes('invalid credentials')) {
+    return 'Ungültige E-Mail-Adresse oder Passwort.';
+  }
+  if (msg.includes('email not found') || msg.includes('user not found')) {
+    return 'Es wurde kein Partner mit dieser E-Mail-Adresse gefunden.';
+  }
+  if (msg.includes('rate limit')) {
+    return 'Zu viele Anfragen. Bitte warte einen Moment und versuche es erneut.';
+  }
+  return 'Ein Fehler ist aufgetreten. Bitte versuche es erneut.';
+};
+
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState('');
@@ -59,7 +73,7 @@ export default function LoginPage() {
       }
 
       if (authError) {
-        setError(authError.message === 'Invalid login credentials' ? 'Ungültige E-Mail-Adresse oder Passwort.' : authError.message);
+        setError(translateAuthError(authError.message));
       } else {
         setError('Ungültige Anmeldedaten.');
       }
