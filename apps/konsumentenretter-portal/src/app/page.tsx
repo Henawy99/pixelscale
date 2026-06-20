@@ -91,17 +91,28 @@ export default function LoginPage() {
 
     try {
       const origin = typeof window !== 'undefined' ? window.location.origin : 'https://konsumentenretter-portal.vercel.app';
-      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${origin}/reset-password`,
+      const res = await fetch('/api/reset-password-request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email,
+          redirectTo: `${origin}/reset-password`,
+        }),
       });
 
-      if (resetError) {
-        setError(resetError.message);
-      } else {
-        setSuccessMessage('Ein Link zum Zurücksetzen Ihres Passworts wurde an Ihre E-Mail-Adresse gesendet.');
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || 'Serverfehler beim Senden');
       }
+
+      const result = await res.json();
+      if (result.emailError) {
+        throw new Error(result.emailError);
+      }
+
+      setSuccessMessage('Ein Link zum Zurücksetzen Ihres Passworts wurde an Ihre E-Mail-Adresse gesendet.');
     } catch (err: any) {
-      setError('Fehler beim Senden des Links. Bitte versuchen Sie es erneut.');
+      setError(err.message || 'Fehler beim Senden des Links. Bitte versuchen Sie es erneut.');
     } finally {
       setLoading(false);
     }
