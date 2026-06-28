@@ -1,8 +1,15 @@
 
 # PowerShell Watcher Script for RestaurantAdmin Receipt Scanner to Supabase Edge Function
-# Version 2.0 (Edge Function Communication + Heartbeat Monitoring)
+# Version 2.1 (Edge Function + Heartbeat + ScanSnap Home / PDF Support)
 # Monitors one or two folders and sends new images to the Supabase Edge Function `scan-receipt`.
 # Sends heartbeats every 30 seconds to track scanner online/offline status.
+#
+# ScanSnap iX100 / ScanSnap Home SETUP:
+#   1. Open ScanSnap Home → Profile settings
+#   2. Set "Save to" folder to: C:\RestaurantAdmin\ReceiptScans
+#   3. Set File format to either PDF or JPEG (both are supported)
+#   4. Set this env var once: setx SCANNER_SECRET "your_secret"
+#   5. Run this script as Administrator
 
 # -------------------------------
 # CONFIGURATION
@@ -10,8 +17,8 @@
 # Single folder to watch (orders + purchases together). Create if it doesn't exist.
 $WatcherPath = "C:\RestaurantAdmin\ReceiptScans"
 
-# File types to watch
-$Filters = @("*.jpg", "*.jpeg", "*.png", "*.heic")
+# File types to watch — includes PDF for ScanSnap Home default output
+$Filters = @("*.jpg", "*.jpeg", "*.png", "*.heic", "*.pdf")
 
 # Processed folder (files moved here on success)
 $ProcessedPath = Join-Path $WatcherPath "Processed"
@@ -38,8 +45,25 @@ $AnonKey = $env:SUPABASE_ANON_KEY
 
 # Optional: default brand context for quicker testing
 $DefaultBrandName = "DEVILS SMASH BURGER"
+
+# -----------------------------------------------
+# STARTUP VALIDATION — catch misconfig early
+# -----------------------------------------------
+if ([string]::IsNullOrWhiteSpace($ScannerSecret) -and [string]::IsNullOrWhiteSpace($AuthToken)) {
+  Write-Host "`n====================================================" -ForegroundColor Red
+  Write-Host " ERROR: No authentication configured!" -ForegroundColor Red
+  Write-Host "====================================================" -ForegroundColor Red
+  Write-Host " You must set SCANNER_SECRET before running this script." -ForegroundColor Yellow
+  Write-Host " Run this ONCE in an Administrator PowerShell window:" -ForegroundColor Yellow
+  Write-Host "   setx SCANNER_SECRET `"your-scanner-secret-here`"" -ForegroundColor Cyan
+  Write-Host " Then close and reopen PowerShell." -ForegroundColor Yellow
+  Write-Host " (Get the secret from Supabase Dashboard → Edge Functions → Secrets)" -ForegroundColor DarkGray
+  Write-Host "===================================================="
+  exit 1
+}
+
 # Quick sanity logs
-if ($ScannerSecret) { Write-Host "Auth mode: Scanner-Secret" -ForegroundColor Cyan } elseif ($AuthToken) { Write-Host "Auth mode: User JWT" -ForegroundColor Yellow } else { Write-Host "Auth mode: NONE (will fail)" -ForegroundColor Red }
+if ($ScannerSecret) { Write-Host "Auth mode: Scanner-Secret" -ForegroundColor Cyan } elseif ($AuthToken) { Write-Host "Auth mode: User JWT" -ForegroundColor Yellow }
 Write-Host "Edge URL: $EdgeUrl" -ForegroundColor DarkCyan
 Write-Host "Heartbeat URL: $HeartbeatUrl" -ForegroundColor DarkCyan
 Write-Host "Scanner ID: $ScannerId" -ForegroundColor DarkCyan
@@ -179,7 +203,8 @@ function Process-Path {
   if (-not (Test-Path -LiteralPath $FilePath)) { return }
   $name = [IO.Path]::GetFileName($FilePath)
   $ext = [IO.Path]::GetExtension($name).ToLower()
-  if ($ext -notin @('.jpg','.jpeg','.png','.heic')) { return }
+  # Include .pdf for ScanSnap Home (saves PDFs by default)
+  if ($ext -notin @('.jpg','.jpeg','.png','.heic','.pdf')) { return }
 
   try {
     Write-Host "----------------------------------------------"
@@ -248,7 +273,16 @@ function Send-ImageToEdge {
     $bytes = [System.IO.File]::ReadAllBytes($ImagePath)
     $b64 = [System.Convert]::ToBase64String($bytes)
 
-    $payload = @{ receiptImageBase64 = $b64 }
+    # Detect content type (PDF for ScanSnap Home, JPEG for photo scanners)
+    $ext = [IO.Path]::GetExtension($ImagePath).ToLower()
+    $mimeType = switch ($ext) {
+      '.pdf'  { 'application/pdf' }
+      '.png'  { 'image/png' }
+      '.heic' { 'image/heic' }
+      default { 'image/jpeg' }
+    }
+
+    $payload = @{ receiptImageBase64 = $b64; mimeType = $mimeType }
     if ($BrandId)       { $payload.brandId = $BrandId }
     if ($BrandName)     { $payload.brandName = $BrandName }
     if ($PlatformOrderId) { $payload.platformOrderId = $PlatformOrderId }
@@ -324,7 +358,10 @@ function New-Watcher {
   $pollTimer.AutoReset = $true
   $pollAction = {
     param($sender, $args)
-    Get-ChildItem -LiteralPath $Path -Recurse -File -Include *.jpg, *.jpeg, *.png, *.heic | ForEach-Object {
+    # Include .pdf for ScanSnap Home compatibility
+    Get-ChildItem -LiteralPath $Path -Recurse -File | Where-Object {
+      $_.Extension.ToLower() -in @('.jpg','.jpeg','.png','.heic','.pdf')
+    } | ForEach-Object {
       $fakeEvent = New-Object PSObject -Property @{ FullPath = $_.FullName; ChangeType = 'Poll' }
       & $handler $null $fakeEvent
     }
@@ -362,10 +399,13 @@ if (-not [string]::IsNullOrWhiteSpace($WatcherPath)) {
 }
 
 Write-Host "Watching folder: $WatcherPath"
+Write-Host "File types    : JPG, JPEG, PNG, HEIC, PDF (ScanSnap Home)"
 Write-Host "Press CTRL+C to stop."
 Write-Host ""
 Write-Host "Scanner Status: ONLINE" -ForegroundColor Green
 Write-Host "Heartbeat: Every ${HeartbeatIntervalSeconds} seconds" -ForegroundColor DarkGray
+Write-Host ""
+Write-Host "TIP: In ScanSnap Home, set the save folder to: $WatcherPath" -ForegroundColor DarkCyan
 
 # Keep script alive
 try {

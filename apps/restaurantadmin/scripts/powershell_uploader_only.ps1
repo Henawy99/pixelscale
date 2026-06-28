@@ -1,14 +1,22 @@
 
 # PowerShell Receipt Uploader (Simple Mode)
-# Version 1.0 - No AI, No Order Creation
+# Version 1.1 - ScanSnap Home + PDF Support + Push Notifications
 # 
 # WHAT THIS DOES:
 #   Receipt gets scanned -> Image uploaded to Supabase Storage -> Shows in Receipt Watcher screen
+#   Also sends a push notification to your phone for each scan!
 #
 # WHAT THIS DOES NOT DO:
-#   - No Gemini AI processing
+#   - No Gemini AI processing (use powershell_watcher_edge.ps1 for AI)
 #   - No order creation
 #   - No purchase creation
+#
+# ScanSnap iX100 / ScanSnap Home SETUP:
+#   1. Open ScanSnap Home -> Profile settings
+#   2. Set "Save to" folder to: C:\RestaurantAdmin\ReceiptScans
+#   3. Set File format to either PDF or JPEG (both are supported)
+#   4. Set this env var once: setx SUPABASE_ANON_KEY "your-key"
+#   5. Run this script
 #
 # HOW TO RUN:
 #   1. Set your SUPABASE_ANON_KEY environment variable (one-time):
@@ -22,7 +30,8 @@
 # -------------------------------
 $WatcherPath   = "C:\RestaurantAdmin\ReceiptScans"
 $ProcessedPath = Join-Path $WatcherPath "Processed"
-$Filters       = @("*.jpg", "*.jpeg", "*.png", "*.heic")
+# Include .pdf for ScanSnap Home (which saves PDF by default)
+$Filters       = @("*.jpg", "*.jpeg", "*.png", "*.heic", "*.pdf")
 
 # Supabase project config
 $SupabaseUrl    = "https://iluhlynzkgubtaswvgwt.supabase.co"
@@ -32,8 +41,12 @@ $AnonKey        = $env:SUPABASE_ANON_KEY  # Set via: setx SUPABASE_ANON_KEY "...
 # Optional: label receipts with a brand name (shows in the Receipt Watcher UI)
 $DefaultBrandName = "DEVILS SMASH BURGER"
 
+# Scanner Secret (for heartbeat auth - set with: setx SCANNER_SECRET "your-secret")
+$ScannerSecret = $env:SCANNER_SECRET
+
 # Heartbeat
 $HeartbeatUrl             = "$SupabaseUrl/functions/v1/scanner-heartbeat"
+$PushNotificationUrl      = "$SupabaseUrl/functions/v1/send-push-notification"
 $HeartbeatIntervalSeconds = 30
 $ScannerId   = "$($env:COMPUTERNAME)-uploader"
 $ScannerName = "Receipt Uploader ($($env:COMPUTERNAME))"
@@ -66,6 +79,19 @@ function Get-AuthHeaders {
   }
 }
 
+# Get heartbeat headers (prefer scanner secret if available)
+function Get-HeartbeatHeaders {
+  $h = @{ "Content-Type" = "application/json" }
+  if ($ScannerSecret) {
+    $h["X-Scanner-Secret"] = $ScannerSecret
+  }
+  if ($AnonKey) {
+    $h["apikey"] = $AnonKey
+    $h["Authorization"] = "Bearer $AnonKey"
+  }
+  return $h
+}
+
 # -------------------------------
 # HEARTBEAT
 # -------------------------------
@@ -83,7 +109,7 @@ function Send-Heartbeat {
       action       = $Action
     } | ConvertTo-Json -Depth 3
 
-    $h = Get-AuthHeaders
+    $h = Get-HeartbeatHeaders
     Invoke-RestMethod -Uri $HeartbeatUrl -Method Post -Headers $h -Body $body -TimeoutSec 10 | Out-Null
 
     if ($Action -eq "startup")  { Write-Host "Scanner: ONLINE" -ForegroundColor Green }
@@ -144,7 +170,8 @@ function Upload-Receipt {
 
   $name = [IO.Path]::GetFileName($FilePath)
   $ext  = [IO.Path]::GetExtension($name).ToLower()
-  if ($ext -notin @('.jpg','.jpeg','.png','.heic')) { return }
+  # Include .pdf for ScanSnap Home (saves PDFs by default)
+  if ($ext -notin @('.jpg','.jpeg','.png','.heic','.pdf')) { return }
 
   # Dedup check
   $key = Get-FileKey -Path $FilePath
@@ -182,6 +209,7 @@ function Upload-Receipt {
   $contentType = switch ($ext) {
     ".png"  { "image/png" }
     ".heic" { "image/heic" }
+    ".pdf"  { "application/pdf" }
     default { "image/jpeg" }
   }
 
@@ -195,7 +223,7 @@ function Upload-Receipt {
       "x-upsert"      = "true"
     }
 
-    Write-Host "Uploading to Storage..." -ForegroundColor Cyan
+    Write-Host "Uploading to Storage ($contentType)..." -ForegroundColor Cyan
     Invoke-RestMethod -Uri $uploadUrl -Method Post -Headers $uploadHeaders -Body $bytes -TimeoutSec 60 | Out-Null
     Write-Host "Uploaded: $storagePath" -ForegroundColor Green
   } catch {
@@ -230,7 +258,27 @@ function Upload-Receipt {
     return
   }
 
-  # --- STEP 3: Move to Processed folder ---
+  # --- STEP 3: Send push notification ---
+  try {
+    $pushBody = @{
+      title = "New Receipt Scanned 📥"
+      body  = "A new receipt was scanned and is ready to review."
+      data  = @{ type = "receipt_scanned"; storage_path = $storagePath }
+    } | ConvertTo-Json -Depth 4
+
+    $pushHeaders = @{
+      "apikey"        = $AnonKey
+      "Authorization" = "Bearer $AnonKey"
+      "Content-Type"  = "application/json"
+    }
+    Invoke-RestMethod -Uri $PushNotificationUrl -Method Post -Headers $pushHeaders -Body $pushBody -TimeoutSec 15 | Out-Null
+    Write-Host "Push notification sent!" -ForegroundColor Green
+  } catch {
+    Write-Host "Push notification warning: $($_.Exception.Message)" -ForegroundColor DarkYellow
+    # Non-critical, continue
+  }
+
+  # --- STEP 4: Move to Processed folder ---
   try {
     $dest = Join-Path $ProcessedPath $name
     Move-Item -LiteralPath $FilePath -Destination $dest -Force
@@ -272,7 +320,7 @@ function Start-Watcher {
   $pollTimer.AutoReset = $true
   $pollAction = {
     Get-ChildItem -LiteralPath $WatcherPath -File | Where-Object {
-      $_.Extension.ToLower() -in @('.jpg','.jpeg','.png','.heic')
+      $_.Extension.ToLower() -in @('.jpg','.jpeg','.png','.heic','.pdf')
     } | ForEach-Object {
       Upload-Receipt -FilePath $_.FullName
     }
@@ -294,8 +342,10 @@ Write-Host " No AI | No Orders | Just Photo -> App      " -ForegroundColor Green
 Write-Host "============================================="
 Write-Host ""
 Write-Host "Watch folder : $WatcherPath"
+Write-Host "File types   : JPG, JPEG, PNG, HEIC, PDF (ScanSnap Home)"
 Write-Host "Storage      : $StorageBucket/receipts/"
 Write-Host "Brand label  : $DefaultBrandName"
+Write-Host "Push notif.  : $(if ($AnonKey) { 'Enabled' } else { 'Disabled (no anon key)' })"
 Write-Host ""
 
 Send-Heartbeat -Action "startup"

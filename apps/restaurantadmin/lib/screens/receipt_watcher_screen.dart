@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:convert';
 import 'dart:typed_data';
@@ -81,6 +82,10 @@ class _ReceiptWatcherScreenState extends State<ReceiptWatcherScreen> {
   String? _error;
   List<Map<String, dynamic>> _rows = [];
 
+  // Scanner status monitoring
+  List<Map<String, dynamic>> _scannerStatuses = [];
+  Timer? _scannerStatusTimer;
+
   // Filter and summary state
   dynamic _filterValue =
       'today'; // 'today', 'yesterday', 'this_week', or a DateTime
@@ -114,10 +119,17 @@ class _ReceiptWatcherScreenState extends State<ReceiptWatcherScreen> {
     _fetchLatest();
     _loadPrompt();
     _subscribeRealtime();
+    _fetchScannerStatuses();
+    // Poll scanner status every 30 seconds
+    _scannerStatusTimer = Timer.periodic(
+      const Duration(seconds: 30),
+      (_) => _fetchScannerStatuses(),
+    );
   }
 
   @override
   void dispose() {
+    _scannerStatusTimer?.cancel();
     try {
       _channel.unsubscribe();
     } catch (_) {}
@@ -136,6 +148,22 @@ class _ReceiptWatcherScreenState extends State<ReceiptWatcherScreen> {
           },
         )
         .subscribe();
+  }
+
+  Future<void> _fetchScannerStatuses() async {
+    try {
+      final data = await _supabase
+          .from('scanner_heartbeats')
+          .select('scanner_id, scanner_name, status, last_heartbeat, hostname')
+          .order('scanner_name');
+      if (mounted) {
+        setState(() {
+          _scannerStatuses = List<Map<String, dynamic>>.from(data as List);
+        });
+      }
+    } catch (_) {
+      // Silently ignore - scanner status is optional
+    }
   }
 
   Future<void> _loadPrompt() async {
@@ -2616,6 +2644,131 @@ IMPORTANT:
     );
   }
 
+  Widget _buildScannerStatusSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          child: Row(
+            children: [
+              Icon(Icons.scanner, size: 14, color: Colors.grey[600]),
+              const SizedBox(width: 6),
+              Text(
+                'Scanner Status',
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey[700],
+                  fontSize: 14,
+                ),
+              ),
+              const Spacer(),
+              InkWell(
+                onTap: _fetchScannerStatuses,
+                borderRadius: BorderRadius.circular(4),
+                child: Padding(
+                  padding: const EdgeInsets.all(4),
+                  child: Icon(Icons.refresh, size: 14, color: Colors.grey[500]),
+                ),
+              ),
+            ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Column(
+            children: _scannerStatuses.map((scanner) {
+              final isOnline = (scanner['status'] as String?) == 'online';
+              final name = (scanner['scanner_name'] as String?) ?? 'Scanner';
+              final lastHeartbeatStr = scanner['last_heartbeat'] as String?;
+              DateTime? lastHeartbeat;
+              if (lastHeartbeatStr != null) {
+                lastHeartbeat = DateTime.tryParse(lastHeartbeatStr)?.toLocal();
+              }
+              final minutesAgo = lastHeartbeat != null
+                  ? DateTime.now().difference(lastHeartbeat).inMinutes
+                  : null;
+              return Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: isOnline ? Colors.green[50] : Colors.red[50],
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: isOnline ? Colors.green[200]! : Colors.red[200]!,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    // Status dot (pulsing feel via color)
+                    Container(
+                      width: 10,
+                      height: 10,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: isOnline ? Colors.green[500] : Colors.red[400],
+                        boxShadow: isOnline
+                            ? [
+                                BoxShadow(
+                                  color: Colors.green.withOpacity(0.4),
+                                  blurRadius: 6,
+                                  spreadRadius: 2,
+                                ),
+                              ]
+                            : null,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            name,
+                            style: TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 12,
+                              color: isOnline ? Colors.green[800] : Colors.red[800],
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          if (lastHeartbeat != null)
+                            Text(
+                              minutesAgo != null && minutesAgo < 1
+                                  ? 'Just now'
+                                  : minutesAgo != null && minutesAgo < 60
+                                      ? '${minutesAgo}m ago'
+                                      : DateFormat.Hm().format(lastHeartbeat),
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: isOnline
+                                    ? Colors.green[600]
+                                    : Colors.red[600],
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    Text(
+                      isOnline ? 'ONLINE' : 'OFFLINE',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: isOnline ? Colors.green[700] : Colors.red[600],
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+        const Divider(height: 1),
+      ],
+    );
+  }
+
   void _showBulkDownloadDialog(BuildContext context) {
     DateTime? fromDate;
     DateTime? toDate;
@@ -3144,6 +3297,9 @@ IMPORTANT:
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Scanner Status
+                  if (_scannerStatuses.isNotEmpty)
+                    _buildScannerStatusSection(),
                   // Filter Section
                   Padding(
                     padding: const EdgeInsets.all(16),

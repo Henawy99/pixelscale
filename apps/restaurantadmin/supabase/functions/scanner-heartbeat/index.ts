@@ -122,10 +122,51 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Also check for other offline scanners (no heartbeat in 60s)
-    await supabase.rpc('check_scanner_status').catch(() => {
-      // Ignore if function doesn't exist yet
-    });
+    // --- STALENESS CHECK ---
+    // Mark any scanner offline if its last heartbeat was more than 90 seconds ago.
+    // This handles sudden power loss or script crash (no shutdown heartbeat sent).
+    try {
+      const stalenessThreshold = new Date(Date.now() - 90 * 1000).toISOString();
+
+      const { data: staleScanner } = await supabase
+        .from('scanner_heartbeats')
+        .select('scanner_id, scanner_name, status')
+        .neq('scanner_id', scanner_id) // Don't check the current one (just updated)
+        .eq('status', 'online')        // Only check ones still marked online
+        .lt('last_heartbeat', stalenessThreshold);
+
+      if (staleScanner && staleScanner.length > 0) {
+        for (const stale of staleScanner) {
+          console.log(`[scanner-heartbeat] Stale scanner detected: ${stale.scanner_id} — marking offline`);
+
+          // Mark it offline
+          await supabase
+            .from('scanner_heartbeats')
+            .update({ status: 'offline', updated_at: new Date().toISOString() })
+            .eq('scanner_id', stale.scanner_id);
+
+          // Send offline notification
+          try {
+            const staleName = stale.scanner_name || stale.scanner_id;
+            await sendPushNotification(supabase, {
+              title: '🔴 Scanner Went Offline',
+              body: `${staleName} stopped sending heartbeats. Check the scanner PC.`,
+              data: {
+                type: 'scanner_status',
+                scanner_id: stale.scanner_id,
+                status: 'offline',
+                reason: 'stale',
+              },
+            });
+          } catch (_) {
+            // Don't fail if notification fails
+          }
+        }
+      }
+    } catch (stalenessError) {
+      // Staleness check is best-effort, don't fail the main request
+      console.warn('[scanner-heartbeat] Staleness check failed:', stalenessError);
+    }
 
     return json({
       ok: true,

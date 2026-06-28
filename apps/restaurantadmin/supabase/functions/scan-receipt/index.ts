@@ -82,7 +82,11 @@ Deno.serve(async (req) => {
     platformOrderId,
     idempotencyKey,
     noSave, // Add a flag to prevent saving
+    mimeType, // Optional: 'image/jpeg', 'image/png', 'application/pdf' (ScanSnap Home)
   } = payload ?? {};
+
+  // Default mime type - detect from base64 magic bytes if not provided
+  const effectiveMimeType = mimeType || 'image/jpeg';
 
   if (!receiptImageBase64 && !storageSignedUrl) {
     return json({ error: 'Provide receiptImageBase64 or storageSignedUrl' }, 400);
@@ -150,12 +154,16 @@ Deno.serve(async (req) => {
         const m = String(now.getUTCMonth() + 1).padStart(2, '0');
         const d = String(now.getUTCDate()).padStart(2, '0');
         const uuid = crypto.randomUUID();
-        storagePath = `incoming/${y}/${m}/${d}/${uuid}.jpg`;
+        // Use correct extension based on mime type
+        const ext = effectiveMimeType === 'application/pdf' ? 'pdf'
+          : effectiveMimeType === 'image/png' ? 'png'
+          : 'jpg';
+        storagePath = `incoming/${y}/${m}/${d}/${uuid}.${ext}`;
         const bytes = base64Image ? Uint8Array.from(atob(base64Image), c => c.charCodeAt(0)) : new Uint8Array();
         const { error: upErr } = await supabaseService.storage
           .from('scanned-receipts')
-          .upload(storagePath, new Blob([bytes], { type: 'image/jpeg' }), {
-            contentType: 'image/jpeg',
+          .upload(storagePath, new Blob([bytes], { type: effectiveMimeType }), {
+            contentType: effectiveMimeType,
             upsert: false,
           } as any);
         if (upErr) {
@@ -178,7 +186,8 @@ Deno.serve(async (req) => {
             { text: extractionPrompt },
             { 
               inlineData: { 
-                mimeType: 'image/jpeg', 
+                // Use the actual mime type (handles PDF from ScanSnap Home)
+                mimeType: effectiveMimeType, 
                 data: base64Image 
               } 
             },
