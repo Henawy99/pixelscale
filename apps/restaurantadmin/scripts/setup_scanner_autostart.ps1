@@ -36,7 +36,7 @@ $TaskName = "RestaurantAdmin-ScannerWatcher"
 # Options:
 #   "powershell_watcher_edge.ps1"    <- recommended (AI + push notifications)
 #   "powershell_uploader_only.ps1"   <- simple (no AI, still gets push notifications)
-$WatcherScript = "powershell_watcher_edge.ps1"
+$WatcherScript = "powershell_uploader_only.ps1"
 
 # Folder where the script lives on this PC
 $ScriptsFolder = "C:\RestaurantAdmin"
