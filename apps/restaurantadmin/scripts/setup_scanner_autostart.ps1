@@ -27,6 +27,22 @@ param(
 )
 
 # -----------------------------------------------
+# ADMIN CHECK — must run as Administrator
+# -----------------------------------------------
+$currentUser = [Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()
+$isAdmin = $currentUser.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+if (-not $isAdmin) {
+  Write-Host ""
+  Write-Host "============================================================" -ForegroundColor Red
+  Write-Host " ERROR: This script must be run as Administrator!" -ForegroundColor Red
+  Write-Host "============================================================" -ForegroundColor Red
+  Write-Host " Right-click PowerShell and choose 'Run as Administrator'," -ForegroundColor Yellow
+  Write-Host " then run this script again." -ForegroundColor Yellow
+  Write-Host "============================================================" -ForegroundColor Red
+  exit 1
+}
+
+# -----------------------------------------------
 # CONFIGURATION — update if needed
 # -----------------------------------------------
 # Task name shown in Task Scheduler
@@ -130,7 +146,7 @@ try {
     -LogonType Interactive `
     -RunLevel Highest
 
-  # Register the task
+  # Register the task (-ErrorAction Stop ensures errors are caught by try/catch)
   Register-ScheduledTask `
     -TaskName $TaskName `
     -Action $Action `
@@ -138,7 +154,8 @@ try {
     -Settings $Settings `
     -Principal $Principal `
     -Description "RestaurantAdmin: Automatically start the receipt scanner watcher on login." `
-    -Force | Out-Null
+    -Force `
+    -ErrorAction Stop | Out-Null
 
   Write-Host ""
   Write-Host "============================================================" -ForegroundColor Green
