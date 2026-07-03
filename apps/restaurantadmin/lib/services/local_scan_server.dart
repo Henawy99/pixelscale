@@ -1,9 +1,11 @@
 import 'dart:io';
+import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:shelf/shelf.dart';
 import 'package:shelf/shelf_io.dart' as io;
 import 'package:shelf_router/shelf_router.dart';
+import 'package:restaurantadmin/services/label_printer_service.dart';
 
 // A singleton class to manage the local server and the latest scanned image.
 class LocalScanServer {
@@ -52,6 +54,55 @@ class LocalScanServer {
         print('Error handling image upload: $e');
         return Response.internalServerError(body: 'Error processing image.');
       }
+    });
+
+    // ── /print-label endpoint for the web app ─────────────────────────────
+    // The web app (running in a browser) cannot talk directly to a USB printer.
+    // It POSTs label data here and the desktop Dart server prints it via CUPS.
+    router.post('/print-label', (Request request) async {
+      try {
+        final body = await request.readAsString();
+        final Map<String, dynamic> json = jsonDecode(body) as Map<String, dynamic>;
+
+        final itemName = json['itemName'] as String? ?? 'Unknown Item';
+        final quantity = (json['quantity'] as num?)?.toInt() ?? 1;
+        final orderId = json['orderId'] as String? ?? '';
+        final orderType = json['orderType'] as String?;
+        final fulfillmentType = json['fulfillmentType'] as String?;
+
+        print('[LocalScanServer] /print-label request: $itemName x$quantity (order: $orderId)');
+
+        final success = await LabelPrinterService.printItemLabel(
+          itemName: itemName,
+          quantity: quantity,
+          orderId: orderId,
+          orderType: orderType,
+          fulfillmentType: fulfillmentType,
+        );
+
+        if (success) {
+          return Response.ok(
+            jsonEncode({'success': true}),
+            headers: {'content-type': 'application/json'},
+          );
+        } else {
+          return Response.internalServerError(
+            body: jsonEncode({'success': false, 'error': 'Printer not found or lp command failed'}),
+            headers: {'content-type': 'application/json'},
+          );
+        }
+      } catch (e) {
+        print('[LocalScanServer] Error in /print-label: $e');
+        return Response.internalServerError(
+          body: jsonEncode({'success': false, 'error': e.toString()}),
+          headers: {'content-type': 'application/json'},
+        );
+      }
+    });
+
+    // Allow OPTIONS pre-flight for /print-label
+    router.options('/print-label', (Request request) async {
+      return Response.ok(null, headers: _corsHeaders);
     });
 
     // Add CORS headers for all responses to allow cross-origin requests from the browser.

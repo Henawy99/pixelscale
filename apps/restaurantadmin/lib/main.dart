@@ -30,6 +30,7 @@ import 'package:restaurantadmin/models/menu_category.dart'; // Import MenuCatego
 import 'package:restaurantadmin/models/menu_item_model.dart'; // Import MenuItem model
 import 'package:restaurantadmin/models/worker_cache_models.dart'; // Import worker cache models
 import 'package:restaurantadmin/services/local_scan_server.dart'; // Import the local server
+import 'package:restaurantadmin/services/label_printer_service.dart'; // Import label printer service
 import 'package:restaurantadmin/widgets/global_purchase_listener.dart';
 import 'package:restaurantadmin/screens/receipt_scanner_screen.dart';
 import 'package:restaurantadmin/widgets/global_order_listener.dart';
@@ -96,6 +97,11 @@ Future<void> main() async {
       print('WARNING: LocalScanServer failed to start: $e');
       // Non-critical - the app can run without the scan server
     }
+
+    // ── ZD220 raw queue override ──────────────────────────────────────────
+    // Always prefer the raw CUPS queue (bypasses the rastertolabel PPD filter).
+    // Auto-detection falls back to this if not explicitly set.
+    LabelPrinterService.setOverridePrinterName('ZD220_RAW');
   }
 
   try {

@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:provider/provider.dart';
 import 'package:restaurantadmin/models/cart_item.dart';
 import 'package:restaurantadmin/models/menu_item_material.dart';
 import 'dart:async'; // For StreamSubscription
 import 'package:restaurantadmin/providers/cart_provider.dart';
 import 'package:restaurantadmin/services/order_service.dart';
+import 'package:restaurantadmin/utils/label_print_dispatcher.dart'; // ZD220 labels (macOS + web)
+import 'package:restaurantadmin/screens/label_printer_settings_dialog.dart'; // Printer settings
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:restaurantadmin/screens/order_type_settings_screen.dart'; // For OrderTypeConfig model
 import 'package:restaurantadmin/utils/web_printing_service.dart'; // Import the printing service
@@ -745,6 +748,41 @@ class _CartViewWidgetState extends State<CartViewWidget> {
           ),
         );
 
+        // ── ZD220 Label Printing ──────────────────────────────────────────
+        // printOrderItemLabel() dispatches to the correct implementation:
+        //  • macOS desktop → CUPS lp (dart:io, direct USB), no extra process needed.
+        //  • Web browser   → XHR to localhost:8080/print-label (LocalScanServer).
+        {
+          int failCount = 0;
+          for (final cartItem in currentCartItems) {
+            final success = await printOrderItemLabel(
+              itemName: cartItem.menuItemWithRecipe.menuItem.name,
+              quantity: cartItem.quantity,
+              orderId: createdOrderId,
+              orderType: orderTypeConfig?.name,
+              fulfillmentType: fulfillmentTypeToSave,
+            );
+            if (!success) failCount++;
+          }
+          if (failCount > 0 && mounted) {
+            if (kIsWeb) {
+              showWebPrinterBridgeWarning(context);
+            } else {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    '⚠️ $failCount label(s) failed to print. Check printer connection.'
+                    ' Tap Configure Printer in the cart to set the printer name.',
+                  ),
+                  backgroundColor: Colors.orange,
+                  duration: const Duration(seconds: 6),
+                ),
+              );
+            }
+          }
+        }
+        // ──────────────────────────────────────────────
+
         if (orderTypeConfig == null ||
             orderTypeConfig.name != _employeeOrderTypeName) {
           final receiptHtml = _generateReceiptHtml(
@@ -1046,6 +1084,27 @@ class _CartViewWidgetState extends State<CartViewWidget> {
             ),
             child: Column(
               children: [
+                // ── Printer settings shortcut (macOS only) ────────────────
+                if (defaultTargetPlatform == TargetPlatform.macOS)
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton.icon(
+                      onPressed: () => showDialog(
+                        context: context,
+                        builder: (_) => const LabelPrinterSettingsDialog(),
+                      ),
+                      icon: const Icon(Icons.label_outline, size: 16),
+                      label: const Text('Configure Printer'),
+                      style: TextButton.styleFrom(
+                        foregroundColor: Theme.of(context).colorScheme.outline,
+                        textStyle: const TextStyle(fontSize: 12),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                      ),
+                    ),
+                  ),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
