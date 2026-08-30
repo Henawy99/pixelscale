@@ -279,23 +279,76 @@ class RestaurantManagerApp extends StatelessWidget {
       navigatorKey: appNavigatorKey,
       title: 'Restaurant Manager',
       theme: ThemeData(
-        primaryColor: Colors.blue,
-        scaffoldBackgroundColor: Colors.white,
+        useMaterial3: true,
+        fontFamily: 'Inter',
+        colorSchemeSeed: const Color(0xFF4F46E5), // indigo-600
+        brightness: Brightness.light,
+        scaffoldBackgroundColor: const Color(0xFFF9FAFB), // grey-50
         appBarTheme: const AppBarTheme(
           backgroundColor: Colors.white,
-          elevation: 0.5,
+          elevation: 0,
+          scrolledUnderElevation: 0.5,
           titleTextStyle: TextStyle(
-            color: Colors.black,
+            fontFamily: 'Inter',
+            color: Color(0xFF111827), // grey-900
             fontSize: 17,
             fontWeight: FontWeight.w600,
           ),
-          iconTheme: IconThemeData(color: Colors.blue),
+          iconTheme: IconThemeData(color: Color(0xFF4F46E5)),
+        ),
+        cardTheme: CardThemeData(
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.all(Radius.circular(12)),
+            side: BorderSide(color: Color(0xFFE5E7EB)), // grey-200
+          ),
+          color: Colors.white,
+        ),
+        inputDecorationTheme: InputDecorationTheme(
+          filled: true,
+          fillColor: Colors.white,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.all(Radius.circular(8)),
+            borderSide: BorderSide(color: Color(0xFFD1D5DB)),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.all(Radius.circular(8)),
+            borderSide: BorderSide(color: Color(0xFFD1D5DB)),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.all(Radius.circular(8)),
+            borderSide: BorderSide(color: Color(0xFF4F46E5), width: 1.5),
+          ),
+        ),
+        elevatedButtonTheme: ElevatedButtonThemeData(
+          style: ElevatedButton.styleFrom(
+            elevation: 0,
+            backgroundColor: const Color(0xFF4F46E5),
+            foregroundColor: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.all(Radius.circular(8)),
+            ),
+            textStyle: const TextStyle(
+              fontFamily: 'Inter',
+              fontWeight: FontWeight.w500,
+              fontSize: 14,
+            ),
+          ),
         ),
         bottomNavigationBarTheme: const BottomNavigationBarThemeData(
           backgroundColor: Colors.white,
-          selectedItemColor: Colors.blue,
-          unselectedItemColor: Colors.grey,
-          elevation: 0.5,
+          selectedItemColor: Color(0xFF4F46E5), // indigo-600
+          unselectedItemColor: Color(0xFF9CA3AF), // grey-400
+          elevation: 0,
+          type: BottomNavigationBarType.fixed,
+          selectedLabelStyle: TextStyle(fontFamily: 'Inter', fontSize: 12, fontWeight: FontWeight.w500),
+          unselectedLabelStyle: TextStyle(fontFamily: 'Inter', fontSize: 12),
+        ),
+        dividerTheme: const DividerThemeData(
+          color: Color(0xFFE5E7EB),
+          thickness: 1,
+          space: 1,
         ),
         visualDensity: VisualDensity.adaptivePlatformDensity,
       ),

@@ -5,6 +5,7 @@ import 'package:restaurantadmin/screens/menus_screen.dart';
 import 'package:restaurantadmin/screens/payments_screen.dart';
 import 'package:restaurantadmin/screens/receipt_watcher_screen.dart';
 import 'package:restaurantadmin/screens/employees/schedule_tab.dart';
+import 'package:restaurantadmin/screens/delivery_sessions_screen.dart';
 import 'package:restaurantadmin/services/employee_assignments_repository.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:restaurantadmin/models/employee.dart';
@@ -31,6 +32,7 @@ class _MainScreenState extends State<MainScreen> {
     const PaymentsScreen(),
     const ReceiptWatcherScreen(),
     _EmployeesRoot(),
+    const DeliverySessionsScreen(),
   ];
 
   static const List<String> _appBarTitles = <String>[
@@ -40,6 +42,7 @@ class _MainScreenState extends State<MainScreen> {
     'Payments',
     'Receipts',
     'Employees',
+    'Platforms',
   ];
 
   void _onItemTapped(int index) {
@@ -93,47 +96,50 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Employees tab (index 5) has its own Scaffold with AppBar
-    final bool showAppBar = _selectedIndex != 5;
-    
     return Scaffold(
-      appBar: showAppBar ? AppBar(
-        title: Text(_appBarTitles[_selectedIndex]),
-      ) : null,
       body: IndexedStack(
         index: _selectedIndex,
         children: _widgetOptions,
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        items: const <BottomNavigationBarItem>[
-          BottomNavigationBarItem(
-            icon: Icon(Icons.receipt_long),
-            label: 'Orders',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.inventory_2),
-            label: 'Inventory',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.restaurant_menu),
-            label: 'Menus',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.payment),
-            label: 'Payments',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.image_search),
-            label: 'Receipts',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.group),
-            label: 'Employees',
-          ),
-        ],
-        currentIndex: _selectedIndex,
-        onTap: _onItemTapped,
-        type: BottomNavigationBarType.fixed,
+      bottomNavigationBar: Container(
+        decoration: const BoxDecoration(
+          border: Border(top: BorderSide(color: Color(0xFFE5E7EB), width: 1)),
+        ),
+        child: BottomNavigationBar(
+          items: const <BottomNavigationBarItem>[
+            BottomNavigationBarItem(
+              icon: Icon(Icons.receipt_long),
+              label: 'Orders',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.inventory_2_outlined),
+              label: 'Inventory',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.restaurant_menu),
+              label: 'Menus',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.payment),
+              label: 'Payments',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.image_search),
+              label: 'Receipts',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.group_outlined),
+              label: 'Employees',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.cloud_sync_outlined),
+              label: 'Platforms',
+            ),
+          ],
+          currentIndex: _selectedIndex,
+          onTap: _onItemTapped,
+          type: BottomNavigationBarType.fixed,
+        ),
       ),
     );
   }

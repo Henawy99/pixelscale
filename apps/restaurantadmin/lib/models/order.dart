@@ -30,8 +30,16 @@ class Order {
   final String? customerStreet; // Full street address including number
   final String? customerPostcode;
   final String? customerCity;
+  final String? customerPhone; // Customer contact phone
+  final String? verificationCode; // Lieferando phone masking/verify code
+  final String? publicReference; // Platform short reference (e.g. #3FPDK7)
+  final String? deliveryNotes; // Floor, door, buzzer instructions
+  final dynamic platformRawData; // Complete raw JSON data from platform
+  final int? foodPrepDuration; // Preparation duration in minutes
   final DateTime? requestedDeliveryTime;
   final DateTime? actualDeliveryTime;
+  final DateTime? estimatedDeliveryTime; // Lieferando restaurant_estimated_delivery_time
+  final DateTime? estimatedPickupTime; // Lieferando restaurant_estimated_pickup_time
   final String? platformOrderId; // For receipt-specific order IDs
   final String? note; // Order notes/comments
   final String?
@@ -69,8 +77,16 @@ class Order {
     this.customerStreet,
     this.customerPostcode,
     this.customerCity,
+    this.customerPhone,
+    this.verificationCode,
+    this.publicReference,
+    this.deliveryNotes,
+    this.platformRawData,
+    this.foodPrepDuration,
     this.requestedDeliveryTime,
     this.actualDeliveryTime,
+    this.estimatedDeliveryTime,
+    this.estimatedPickupTime,
     this.platformOrderId,
     this.note,
     this.deliveryStatus,
@@ -105,8 +121,16 @@ class Order {
       'customer_street': customerStreet,
       'customer_postcode': customerPostcode,
       'customer_city': customerCity,
+      'customer_phone': customerPhone,
+      'verification_code': verificationCode,
+      'public_reference': publicReference,
+      'delivery_notes': deliveryNotes,
+      'platform_raw_data': platformRawData,
+      'food_prep_duration': foodPrepDuration,
       'requested_delivery_time': requestedDeliveryTime?.toIso8601String(),
       'actual_delivery_time': actualDeliveryTime?.toIso8601String(),
+      'estimated_delivery_time': estimatedDeliveryTime?.toIso8601String(),
+      'estimated_pickup_time': estimatedPickupTime?.toIso8601String(),
       'platform_order_id': platformOrderId,
       'note': note,
       'delivery_status': deliveryStatus,
@@ -146,6 +170,64 @@ class Order {
       }
     }
 
+    // Fallback extraction from platform_raw_data if direct columns are null
+    Map<String, dynamic>? rawMap;
+    if (json['platform_raw_data'] is Map) {
+      rawMap = Map<String, dynamic>.from(json['platform_raw_data'] as Map);
+    }
+    final rawCustomer = rawMap != null && rawMap['customer'] is Map ? rawMap['customer'] as Map : null;
+    final detailsOrder = rawMap != null && rawMap['details'] is Map && rawMap['details']['order'] is Map
+        ? rawMap['details']['order'] as Map
+        : null;
+    final deliveryLocation = detailsOrder != null && detailsOrder['delivery'] is Map && detailsOrder['delivery']['location'] is Map
+        ? detailsOrder['delivery']['location'] as Map
+        : null;
+
+    final String? parsedCustomerPhone = (json['customer_phone'] as String?) ??
+        (rawCustomer != null ? rawCustomer['phone_number']?.toString() : null);
+
+    final String? parsedVerificationCode = (json['verification_code'] as String?) ??
+        (rawCustomer != null ? rawCustomer['phone_masking_code']?.toString() : null);
+
+    final String? parsedPublicRef = (json['public_reference'] as String?) ??
+        (rawMap != null ? rawMap['public_reference']?.toString() : null) ??
+        (json['platform_order_id'] as String?);
+
+    final String? parsedCustomerStreet = (json['customer_street'] as String?) ??
+        (deliveryLocation != null ? deliveryLocation['AddressText']?.toString() : null);
+
+    final String? parsedCustomerCity = (json['customer_city'] as String?) ??
+        (deliveryLocation != null ? deliveryLocation['city']?.toString() : null);
+
+    final String? parsedCustomerPostcode = (json['customer_postcode'] as String?) ??
+        (deliveryLocation != null ? deliveryLocation['postCode']?.toString() : null);
+
+    DateTime? parseDateHelper(String? key, String? rawKey) {
+      final val = json[key] as String?;
+      if (val != null && val.isNotEmpty) {
+        final d = DateTime.tryParse(val);
+        if (d != null) return d;
+      }
+      if (rawMap != null && rawKey != null) {
+        final rVal = rawMap[rawKey]?.toString();
+        if (rVal != null && rVal.isNotEmpty) {
+          return DateTime.tryParse(rVal);
+        }
+      }
+      return null;
+    }
+
+    final DateTime? parsedEstDelivery = parseDateHelper('estimated_delivery_time', 'restaurant_estimated_delivery_time');
+    final DateTime? parsedEstPickup = parseDateHelper('estimated_pickup_time', 'restaurant_estimated_pickup_time');
+
+    // If items passed directly or inside json
+    List<OrderItem> resolvedItems = items;
+    if (resolvedItems.isEmpty && json['order_items'] is List && (json['order_items'] as List).isNotEmpty) {
+      resolvedItems = (json['order_items'] as List)
+          .map((i) => OrderItem.fromJson(i as Map<String, dynamic>))
+          .toList();
+    }
+
     return Order(
       id: json['id'] as String?,
       orderNumber: json['order_number'] as String?,
@@ -153,7 +235,7 @@ class Order {
       brandId:
           json['brand_id'] as String? ?? 'UNKNOWN_BRAND_ID', // Provide fallback
       brandName: fetchedBrandName,
-      orderItems: items,
+      orderItems: resolvedItems,
       totalPrice:
           (json['total_price'] as num?)?.toDouble() ??
           0.0, // Handle null total_price
@@ -177,15 +259,26 @@ class Order {
       deliveryLatitude: (json['delivery_latitude'] as num?)?.toDouble(),
       deliveryLongitude: (json['delivery_longitude'] as num?)?.toDouble(),
       customerName: json['customer_name'] as String?,
-      customerStreet: json['customer_street'] as String?,
-      customerPostcode: json['customer_postcode'] as String?,
-      customerCity: json['customer_city'] as String?,
+      customerStreet: parsedCustomerStreet,
+      customerPostcode: parsedCustomerPostcode,
+      customerCity: parsedCustomerCity,
+      customerPhone: parsedCustomerPhone,
+      verificationCode: parsedVerificationCode,
+      publicReference: parsedPublicRef,
+      deliveryNotes: json['delivery_notes'] as String?,
+      platformRawData: json['platform_raw_data'],
+      foodPrepDuration: (json['food_prep_duration'] as num?)?.toInt() ??
+          (rawMap != null && rawMap['food_preparation_duration'] != null
+              ? int.tryParse(rawMap['food_preparation_duration'].toString())
+              : null),
       requestedDeliveryTime: json['requested_delivery_time'] == null
           ? null
           : DateTime.tryParse(json['requested_delivery_time'] as String),
       actualDeliveryTime: json['actual_delivery_time'] == null
           ? null
           : DateTime.tryParse(json['actual_delivery_time'] as String),
+      estimatedDeliveryTime: parsedEstDelivery,
+      estimatedPickupTime: parsedEstPickup,
       platformOrderId: json['platform_order_id'] as String?,
       note: json['note'] as String?,
       deliveryStatus: json['delivery_status'] as String?,

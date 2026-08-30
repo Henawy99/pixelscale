@@ -1,0 +1,362 @@
+{
+  "customer-details": {
+    "variation": true,
+    "abTest": false,
+    "mabTest": false,
+    "explanation": {
+      "kind": "RULE"
+    },
+    "relevantContext": "platformIdentifiers,email,userId,googleClientId",
+    "trackInfo": {
+      "variationName": true,
+      "flagType": "boolean",
+      "flagEnabled": true,
+      "trackerServices": [
+        "FWF_GTM_DATA_LAYER_TRACKER"
+      ]
+    },
+    "holdoutsEvaluations": null
+  },
+  "delayed-orders": {
+    "variation": true,
+    "abTest": false,
+    "mabTest": false,
+    "explanation": {
+      "kind": "DEFAULT_RULE"
+    },
+    "relevantContext": "platformIdentifiers",
+    "trackInfo": {
+      "variationName": true,
+      "flagType": "boolean",
+      "flagEnabled": true,
+      "trackerServices": [
+        "FWF_GTM_DATA_LAYER_TRACKER"
+      ]
+    },
+    "holdoutsEvaluations": null
+  },
+  "dispute-eligibility-check": {
+    "variation": false,
+    "abTest": false,
+    "mabTest": false,
+    "explanation": {
+      "kind": "DEFAULT_RULE"
+    },
+    "relevantContext": "platformIdentifiers",
+    "trackInfo": {
+      "variationName": "Disabled",
+      "flagType": "boolean",
+      "flagEnabled": true,
+      "trackerServices": [
+        "FWF_GTM_DATA_LAYER_TRACKER"
+      ]
+    },
+    "holdoutsEvaluations": null
+  },
+  "dispute-flow": {
+    "variation": true,
+    "abTest": false,
+    "mabTest": false,
+    "explanation": {
+      "kind": "RULE"
+    },
+    "relevantContext": "platformIdentifiers,email,userId,googleClientId",
+    "trackInfo": {
+      "variationName": true,
+      "flagType": "boolean",
+      "flagEnabled": true,
+      "trackerServices": [
+        "FWF_GTM_DATA_LAYER_TRACKER"
+      ]
+    },
+    "holdoutsEvaluations": null
+  },
+  "item-level-refund": {
+    "variation": false,
+    "abTest": false,
+    "mabTest": false,
+    "explanation": {
+      "kind": "DEFAULT_RULE"
+    },
+    "relevantContext": "platformIdentifiers,email,userId,googleClientId",
+    "trackInfo": {
+      "variationName": false,
+      "flagType": "boolean",
+      "flagEnabled": true,
+      "trackerServices": [
+        "FWF_GTM_DATA_LAYER_TRACKER"
+      ]
+    },
+    "holdoutsEvaluations": null
+  },
+  "order-receipt-upload": {
+    "variation": false,
+    "abTest": false,
+    "mabTest": false,
+    "explanation": {
+      "kind": "DEFAULT_RULE"
+    },
+    "relevantContext": "platformIdentifiers,email,userId,googleClientId",
+    "trackInfo": {
+      "variationName": "hidden",
+      "flagType": "boolean",
+      "flagEnabled": true,
+      "trackerServices": [
+        "FWF_GTM_DATA_LAYER_TRACKER"
+      ]
+    },
+    "holdoutsEvaluations": null
+  },
+  "orders-fees-and-deductions-filter": {
+    "variation": false,
+    "abTest": false,
+    "mabTest": false,
+    "explanation": {
+      "kind": "OFF_VARIATION"
+    },
+    "relevantContext": "",
+    "trackInfo": {
+      "variationName": "Hidden",
+      "flagType": "boolean",
+      "flagEnabled": false,
+      "trackerServices": [
+        "FWF_GTM_DATA_LAYER_TRACKER"
+      ]
+    },
+    "holdoutsEvaluations": null
+  },
+  "orders-issues-tab": {
+    "variation": false,
+    "abTest": false,
+    "mabTest": false,
+    "explanation": {
+      "kind": "DEFAULT_RULE"
+    },
+    "relevantContext": "email,userId,googleClientId",
+    "trackInfo": {
+      "variationName": "Hidden",
+      "flagType": "boolean",
+      "flagEnabled": true,
+      "trackerServices": [
+        "FWF_GTM_DATA_LAYER_TRACKER"
+      ]
+    },
+    "holdoutsEvaluations": null
+  },
+  "orders-with-weighable-items": {
+    "variation": false,
+    "abTest": false,
+    "mabTest": false,
+    "explanation": {
+      "kind": "DEFAULT_RULE"
+    },
+    "relevantContext": "platformIdentifiers,email,userId,googleClientId",
+    "trackInfo": {
+      "variationName": false,
+      "flagType": "boolean",
+      "flagEnabled": true,
+      "trackerServices": [
+        "FWF_GTM_DATA_LAYER_TRACKER"
+      ]
+    },
+    "holdoutsEvaluations": null
+  },
+  "payment-types-filter": {
+    "variation": true,
+    "abTest": false,
+    "mabTest": false,
+    "explanation": {
+      "kind": "DEFAULT_RULE"
+    },
+    "relevantContext": "platformIdentifiers,email,userId,googleClientId",
+    "trackInfo": {
+      "variationName": true,
+      "flagType": "boolean",
+      "flagEnabled": true,
+      "trackerServices": [
+        "FWF_GTM_DATA_LAYER_TRACKER"
+      ]
+    },
+    "holdoutsEvaluations": null
+  },
+  "photo-evidence": {
+    "variation": true,
+    "abTest": false,
+    "mabTest": false,
+    "explanation": {
+      "kind": "RULE"
+    },
+    "relevantContext": "platformIdentifiers,email,userId,googleClientId",
+    "trackInfo": {
+      "variationName": true,
+      "flagType": "boolean",
+      "flagEnabled": true,
+      "trackerServices": [
+        "FWF_GTM_DATA_LAYER_TRACKER"
+      ]
+    },
+    "holdoutsEvaluations": null
+  },
+  "pro-order": {
+    "variation": true,
+    "abTest": false,
+    "mabTest": false,
+    "explanation": {
+      "kind": "DEFAULT_RULE"
+    },
+    "relevantContext": "platformIdentifiers,email,userId,googleClientId",
+    "trackInfo": {
+      "variationName": true,
+      "flagType": "boolean",
+      "flagEnabled": true,
+      "trackerServices": [
+        "FWF_GTM_DATA_LAYER_TRACKER"
+      ]
+    },
+    "holdoutsEvaluations": null
+  },
+  "return-pin": {
+    "variation": false,
+    "abTest": false,
+    "mabTest": false,
+    "explanation": {
+      "kind": "DEFAULT_RULE"
+    },
+    "relevantContext": "platformIdentifiers,verticalTypes,email,userId,googleClientId",
+    "trackInfo": {
+      "variationName": false,
+      "flagType": "boolean",
+      "flagEnabled": true,
+      "trackerServices": [
+        "FWF_GTM_DATA_LAYER_TRACKER"
+      ]
+    },
+    "holdoutsEvaluations": null
+  },
+  "show-earnings-message": {
+    "variation": false,
+    "abTest": false,
+    "mabTest": false,
+    "explanation": {
+      "kind": "DEFAULT_RULE"
+    },
+    "relevantContext": "platformIdentifiers,email,userId,googleClientId",
+    "trackInfo": {
+      "variationName": false,
+      "flagType": "boolean",
+      "flagEnabled": true,
+      "trackerServices": [
+        "FWF_GTM_DATA_LAYER_TRACKER"
+      ]
+    },
+    "holdoutsEvaluations": null
+  },
+  "show-subtotal-modifications": {
+    "variation": true,
+    "abTest": false,
+    "mabTest": false,
+    "explanation": {
+      "kind": "RULE"
+    },
+    "relevantContext": "platformIdentifiers,email,userId,googleClientId",
+    "trackInfo": {
+      "variationName": true,
+      "flagType": "boolean",
+      "flagEnabled": true,
+      "trackerServices": [
+        "FWF_GTM_DATA_LAYER_TRACKER"
+      ]
+    },
+    "holdoutsEvaluations": null
+  },
+  "subsidised-discount-message": {
+    "variation": false,
+    "abTest": false,
+    "mabTest": false,
+    "explanation": {
+      "kind": "DEFAULT_RULE"
+    },
+    "relevantContext": "platformIdentifiers,country_code",
+    "trackInfo": {
+      "variationName": "Hidden",
+      "flagType": "boolean",
+      "flagEnabled": true,
+      "trackerServices": [
+        "FWF_GTM_DATA_LAYER_TRACKER"
+      ]
+    },
+    "holdoutsEvaluations": null
+  },
+  "use-refund-stream": {
+    "variation": false,
+    "abTest": false,
+    "mabTest": false,
+    "explanation": {
+      "kind": "DEFAULT_RULE"
+    },
+    "relevantContext": "email,userId,googleClientId",
+    "trackInfo": {
+      "variationName": false,
+      "flagType": "boolean",
+      "flagEnabled": true,
+      "trackerServices": [
+        "FWF_GTM_DATA_LAYER_TRACKER"
+      ]
+    },
+    "holdoutsEvaluations": null
+  },
+  "v3-billing-data": {
+    "variation": true,
+    "abTest": false,
+    "mabTest": false,
+    "explanation": {
+      "kind": "RULE"
+    },
+    "relevantContext": "platformIdentifiers,verticalTypes,role,email,userId,googleClientId",
+    "trackInfo": {
+      "variationName": "visible",
+      "flagType": "boolean",
+      "flagEnabled": true,
+      "trackerServices": [
+        "FWF_GTM_DATA_LAYER_TRACKER"
+      ]
+    },
+    "holdoutsEvaluations": null
+  },
+  "vendor-address": {
+    "variation": false,
+    "abTest": false,
+    "mabTest": false,
+    "explanation": {
+      "kind": "RULE"
+    },
+    "relevantContext": "platformIdentifiers,email,userId,googleClientId",
+    "trackInfo": {
+      "variationName": false,
+      "flagType": "boolean",
+      "flagEnabled": true,
+      "trackerServices": [
+        "FWF_GTM_DATA_LAYER_TRACKER"
+      ]
+    },
+    "holdoutsEvaluations": null
+  },
+  "wait-time-fee": {
+    "variation": true,
+    "abTest": false,
+    "mabTest": false,
+    "explanation": {
+      "kind": "RULE"
+    },
+    "relevantContext": "platformIdentifiers,email,userId,googleClientId",
+    "trackInfo": {
+      "variationName": true,
+      "flagType": "boolean",
+      "flagEnabled": true,
+      "trackerServices": [
+        "FWF_GTM_DATA_LAYER_TRACKER"
+      ]
+    },
+    "holdoutsEvaluations": null
+  }
+}

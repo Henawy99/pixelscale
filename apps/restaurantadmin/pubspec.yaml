@@ -41,6 +41,7 @@ dependencies:
   pixelscale_core:
     path: ../../packages/pixelscale_core
   flutter_dotenv: ^5.1.0 # Re-enabled for local mobile builds
+  url_launcher: ^6.3.1 # For phone calls and external links
   image_picker: ^1.1.0
   image_cropper: ^9.1.0 # Updated version
   google_mlkit_text_recognition: ^0.15.0 # Updated to latest
