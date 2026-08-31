@@ -82,8 +82,9 @@ class LieferandoService {
   static final LieferandoService _instance = LieferandoService._internal();
   factory LieferandoService() => _instance;
 
-  // Notifier for the base URL (settable from settings)
-  final ValueNotifier<String> monitorBaseUrl = ValueNotifier<String>('');
+  // Notifier for the base URL (settable from settings, default to Hetzner VPS)
+  final ValueNotifier<String> monitorBaseUrl =
+      ValueNotifier<String>('http://46.225.213.75:3001');
 
   String get _baseUrl => monitorBaseUrl.value.trim().replaceAll(RegExp(r'/$'), '');
 

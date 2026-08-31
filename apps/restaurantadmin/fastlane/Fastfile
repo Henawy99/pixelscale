@@ -145,3 +145,25 @@ platform :ios do
   end
 
 end
+
+  desc "Upload existing IPA"
+  lane :upload_only do
+    UI.header("🚀 Uploading to TestFlight...")
+    
+    # Setup API Key
+    @api_key = app_store_connect_api_key(
+      key_id: "6RM87HWDZY",
+      issuer_id: "dc9a069b-00fc-45f8-be31-84e435ea4d07",
+      key_filepath: File.expand_path("~/.appstoreconnect/private_keys/AuthKey_6RM87HWDZY.p8"),
+      duration: 1200,
+      in_house: false
+    )
+    
+    upload_to_testflight(
+      api_key: @api_key,
+      skip_waiting_for_build_processing: true,
+      skip_submission: false,
+      distribute_external: false,
+      ipa: Dir[File.expand_path("../build/ios/ipa/*.ipa", File.dirname(__FILE__))].first
+    )
+  end

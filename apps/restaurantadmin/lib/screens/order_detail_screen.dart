@@ -551,6 +551,38 @@ class _OrderDetailScreenState extends State<OrderDetailScreen>
                           _buildDetailRow(
                             'Address:',
                             widget.order.customerStreet!,
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  padding: EdgeInsets.zero,
+                                  constraints: const BoxConstraints(),
+                                  icon: const Icon(Icons.map_outlined, size: 20, color: Colors.blue),
+                                  tooltip: 'Open in Google Maps',
+                                  onPressed: () async {
+                                    final address = '${widget.order.customerStreet ?? ''}, ${widget.order.customerPostcode ?? ''} ${widget.order.customerCity ?? ''}'.trim();
+                                    final uri = Uri.parse('https://www.google.com/maps/search/?api=1&query=${Uri.encodeComponent(address)}');
+                                    if (await canLaunchUrl(uri)) {
+                                      await launchUrl(uri, mode: LaunchMode.externalApplication);
+                                    } else {
+                                      snackbar_utils.showErrorSnackbar(context, 'Could not open Google Maps');
+                                    }
+                                  },
+                                ),
+                                const SizedBox(width: 12),
+                                IconButton(
+                                  padding: EdgeInsets.zero,
+                                  constraints: const BoxConstraints(),
+                                  icon: const Icon(Icons.copy, size: 18),
+                                  tooltip: 'Copy Address',
+                                  onPressed: () {
+                                    final address = '${widget.order.customerStreet ?? ''}, ${widget.order.customerPostcode ?? ''} ${widget.order.customerCity ?? ''}'.trim();
+                                    Clipboard.setData(ClipboardData(text: address));
+                                    snackbar_utils.showSuccessSnackbar(context, 'Address copied');
+                                  },
+                                ),
+                              ],
+                            ),
                           ),
                         if (widget.order.customerPostcode != null ||
                             widget.order.customerCity != null)
@@ -1010,6 +1042,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen>
     String label,
     String value, {
     bool isEmphasized = false,
+    Widget? trailing,
   }) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6.0),
@@ -1028,13 +1061,24 @@ class _OrderDetailScreenState extends State<OrderDetailScreen>
             ),
           ),
           Expanded(
-            child: Text(
-              value,
-              style: TextStyle(
-                fontSize: isEmphasized ? 14 : 13,
-                fontWeight: isEmphasized ? FontWeight.bold : FontWeight.normal,
-                color: isEmphasized ? Colors.green[700] : Colors.black87,
-              ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Text(
+                    value,
+                    style: TextStyle(
+                      fontSize: isEmphasized ? 14 : 13,
+                      fontWeight: isEmphasized ? FontWeight.bold : FontWeight.normal,
+                      color: isEmphasized ? Colors.green[700] : Colors.black87,
+                    ),
+                  ),
+                ),
+                if (trailing != null) ...[
+                  const SizedBox(width: 8),
+                  trailing,
+                ],
+              ],
             ),
           ),
         ],

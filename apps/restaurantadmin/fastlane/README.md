@@ -13,6 +13,17 @@ For _fastlane_ installation instructions, see [Installing _fastlane_](https://do
 
 # Available Actions
 
+### upload_only
+
+```sh
+[bundle exec] fastlane upload_only
+```
+
+Upload existing IPA
+
+----
+
+
 ## iOS
 
 ### ios upload_app

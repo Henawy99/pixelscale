@@ -666,29 +666,45 @@ class _SessionCard extends StatelessWidget {
               ],
             ),
 
-            // Reconnect button
-            if (isExpired) ...[
-              const SizedBox(height: 14),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton.icon(
-                  onPressed: isReconnecting ? null : onReconnect,
-                  icon: isReconnecting
-                      ? const SizedBox(
-                          width: 16, height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                        )
-                      : const Icon(Icons.refresh_rounded, size: 18),
-                  label: Text(isReconnecting ? 'Opening login window...' : 'Reconnect Account'),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFFEF4444),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+            // Reconnect / Re-login button (always accessible for all accounts)
+            const SizedBox(height: 14),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: isReconnecting ? null : onReconnect,
+                icon: isReconnecting
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Icon(Icons.login_rounded, size: 18),
+                label: Text(
+                  isReconnecting
+                      ? 'Opening login window on VPS...'
+                      : isExpired
+                          ? 'Reconnect Account'
+                          : 'Re-login / Refresh Session',
+                ),
+                style: FilledButton.styleFrom(
+                  backgroundColor: isExpired
+                      ? const Color(0xFFEF4444)
+                      : const Color(0xFF334155),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  textStyle: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ),
-            ],
+            ),
           ],
         ),
       ),

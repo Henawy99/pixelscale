@@ -76,7 +76,23 @@ class _OrdersScreenState extends State<OrdersScreen>
   late DateTime _selectedDate;
 
   int _todayOrderCount = 0;
-  double _todayTotalRevenue = 0.0;
+  List<app_order.Order> _loadedOrders = [];
+
+  double get _todayTotalRevenue {
+    final filtered = _filterOrders(_loadedOrders);
+    double revenue = 0.0;
+    for (var order in filtered) {
+      if (order.orderTypeName != _employeeOrderTypeName) {
+        final bucket = _deriveStatusBucket(order);
+        final statusLower = (order.status ?? '').toLowerCase();
+        if (bucket != 'cancelled' && statusLower != 'cancelled' && statusLower != 'canceled') {
+          revenue += order.totalPrice;
+        }
+      }
+    }
+    return revenue;
+  }
+
   bool _isLoadingTodayStats = true;
   bool _isGeneratingSummary = false;
   static const String _employeeOrderTypeName = "Employee Meal";
@@ -169,6 +185,7 @@ class _OrdersScreenState extends State<OrdersScreen>
     _ordersChannel?.unsubscribe();
     _newOrderSubscription?.cancel();
     _periodicRefreshTimer?.cancel();
+    _livePollTimer?.cancel();
     _scannerStatusTimer?.cancel();
     _scannerStatusChannel?.unsubscribe();
     super.dispose();
@@ -349,6 +366,9 @@ class _OrdersScreenState extends State<OrdersScreen>
     await _fetchActiveDrivers();
     _ordersFuture.then((allOrders) {
       if (mounted) {
+        setState(() {
+          _loadedOrders = allOrders;
+        });
         _filterAndSetDeliveryOrders(allOrders);
         _animationController.forward(from: 0.0);
       }
@@ -455,21 +475,21 @@ class _OrdersScreenState extends State<OrdersScreen>
   }
 
   String _formatDateForQuery(DateTime date) {
-    final year = date.year.toString().padLeft(4, '0');
-    final month = date.month.toString().padLeft(2, '0');
-    final day = date.day.toString().padLeft(2, '0');
-    return '$year-$month-${day}T00:00:00';
+    // Convert local time to UTC so Supabase timestamp comparisons are correct
+    final utc = date.toUtc();
+    return utc.toIso8601String();
   }
 
   Future<void> _fetchTodayStats() async {
     if (!mounted) return;
     try {
+      // Use local midnight boundaries so "today" aligns with local clock
       final startOfDay = DateTime(
         _selectedDate.year,
         _selectedDate.month,
         _selectedDate.day,
-      );
-      final endOfDay = startOfDay.add(const Duration(days: 1));
+      ); // local midnight
+      final endOfDay = startOfDay.add(const Duration(days: 1)); // local next midnight
 
       final dayStart = _formatDateForQuery(startOfDay);
       final dayEnd = _formatDateForQuery(endOfDay);
@@ -488,12 +508,10 @@ class _OrdersScreenState extends State<OrdersScreen>
         final orderMap = orderData as Map<String, dynamic>;
         if (orderMap['order_type_name'] != _employeeOrderTypeName) {
           count++;
-          revenue += (orderMap['total_price'] as num?)?.toDouble() ?? 0.0;
         }
       }
       setState(() {
         _todayOrderCount = count;
-        _todayTotalRevenue = revenue;
         _isLoadingTodayStats = false;
       });
     } catch (e) {
@@ -503,7 +521,6 @@ class _OrdersScreenState extends State<OrdersScreen>
         setState(() {
           _isLoadingTodayStats = false;
           _todayOrderCount = 0;
-          _todayTotalRevenue = 0.0;
         });
       }
     }
@@ -511,6 +528,7 @@ class _OrdersScreenState extends State<OrdersScreen>
 
   Future<List<app_order.Order>> _fetchOrders() async {
     try {
+      // Local midnight boundaries → converted to UTC in _formatDateForQuery
       final startOfDay = DateTime(
         _selectedDate.year,
         _selectedDate.month,
@@ -521,12 +539,15 @@ class _OrdersScreenState extends State<OrdersScreen>
       final dayStart = _formatDateForQuery(startOfDay);
       final dayEnd = _formatDateForQuery(endOfDay);
 
+      print('[OrdersScreen] Fetching orders from $dayStart to $dayEnd');
+
       final response = await _supabase
           .from('orders')
           .select('*, brands(name), profit')
           .gte('created_at', dayStart)
           .lt('created_at', dayEnd)
           .order('created_at', ascending: false);
+      print('[OrdersScreen] Fetched ${(response as List).length} orders');
       return (response as List)
           .map((data) => app_order.Order.fromJson(data as Map<String, dynamic>))
           .toList();
@@ -1925,6 +1946,20 @@ class _OrdersScreenState extends State<OrdersScreen>
   }
 
   Widget _buildOrderCard(app_order.Order order) {
+    int? minutesLeft;
+    bool isOverdue = false;
+    String etaText = '';
+
+    final targetTime = order.estimatedDeliveryTime ?? order.estimatedPickupTime;
+    if (targetTime != null) {
+      final now = DateTime.now();
+      minutesLeft = targetTime.difference(now).inMinutes;
+      isOverdue = minutesLeft < 0;
+      etaText = 'Est. ${DateFormat('HH:mm').format(targetTime.toLocal())}';
+    }
+
+    final bool isPickup = order.fulfillmentType == 'pickup';
+
     return FadeTransition(
       opacity: _fadeAnimation,
       child: SlideTransition(
@@ -1954,336 +1989,194 @@ class _OrdersScreenState extends State<OrdersScreen>
                     builder: (context) => OrderDetailScreen(order: order),
                   ),
                 ).then((result) {
-                  // Refresh orders if order was modified (cancelled, etc.)
                   if (result == true && mounted) {
                     _loadAllData();
                   }
                 });
               },
               child: Padding(
-                padding: const EdgeInsets.all(20),
+                padding: const EdgeInsets.all(16),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // Header with logos and status
+                    // ROW 1: Brand & Status
                     Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
-                        // Order type logo
                         Container(
                           padding: const EdgeInsets.all(2),
                           decoration: BoxDecoration(
-                            color: Colors.grey[50],
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.grey[200]!),
-                          ),
-                          child: _getOrderTypeLogo(order.orderTypeName),
-                        ),
-                        const SizedBox(width: 12),
-
-                        // Brand logo
-                        Container(
-                          padding: const EdgeInsets.all(2),
-                          decoration: BoxDecoration(
-                            color: Colors.grey[50],
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.grey[200]!),
+                            color: Colors.grey.shade50,
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: Colors.grey.shade200),
                           ),
                           child: _getBrandLogo(order.brandId, order.brandName),
                         ),
-                        const SizedBox(width: 16),
-
-                        // Order info
+                        const SizedBox(width: 8),
                         Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                order.brandName ?? 'Unknown Brand',
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.black87,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              const SizedBox(height: 4),
-                              Row(
-                                children: [
-                                  Icon(
-                                    Icons.tag,
-                                    size: 14,
-                                    color: Colors.grey[600],
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    order.publicReference != null
-                                        ? '#${order.publicReference}'
-                                        : 'ID: ${order.id?.substring(0, 8) ?? 'N/A'}...',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: order.publicReference != null
-                                          ? const Color(0xFF1565C0)
-                                          : Colors.grey[600],
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  if (order.fulfillmentType != null &&
-                                      order.fulfillmentType!.isNotEmpty) ...[
-                                    const SizedBox(width: 8),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 8,
-                                        vertical: 2,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: order.fulfillmentType == 'pickup'
-                                            ? Colors.orange[50]
-                                            : Colors.blue[50],
-                                        borderRadius: BorderRadius.circular(12),
-                                        border: Border.all(
-                                          color: order.fulfillmentType == 'pickup'
-                                              ? Colors.orange[300]!
-                                              : Colors.blue[200]!,
-                                        ),
-                                      ),
-                                      child: Text(
-                                        order.fulfillmentType == 'pickup'
-                                            ? '🏃 PICKUP'
-                                            : '🛵 DELIVERY',
-                                        style: TextStyle(
-                                          fontSize: 10,
-                                          color: order.fulfillmentType == 'pickup'
-                                              ? Colors.orange[900]
-                                              : Colors.blue[700],
-                                          fontWeight: FontWeight.w700,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ],
-                              ),
-                              if (order.customerName != null ||
-                                  order.customerPhone != null) ...[
-                                const SizedBox(height: 4),
-                                Row(
-                                  children: [
-                                    Icon(
-                                      Icons.person_outline,
-                                      size: 13,
-                                      color: Colors.grey[600],
-                                    ),
-                                    const SizedBox(width: 4),
-                                    Flexible(
-                                      child: Text(
-                                        [
-                                          if (order.customerName != null)
-                                            order.customerName!,
-                                          if (order.customerPhone != null)
-                                            '📞 ${order.customerPhone!}',
-                                        ].join(' • '),
-                                        style: TextStyle(
-                                          fontSize: 11,
-                                          color: Colors.grey[800],
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                              if (order.estimatedDeliveryTime != null ||
-                                  order.estimatedPickupTime != null) ...[
-                                const SizedBox(height: 4),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 8,
-                                    vertical: 2,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFE8F5E9),
-                                    borderRadius: BorderRadius.circular(6),
-                                    border: Border.all(color: const Color(0xFFA5D6A7)),
-                                  ),
+                          child: Text(
+                            order.brandName ?? 'Unknown Brand',
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black87,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        _buildStatusBadge(order.status),
+                        if (order.status != 'cancelled_stock_returned' &&
+                            order.status != 'cancelled_discarded' &&
+                            order.status != 'paid' &&
+                            order.status != 'completed_employee_meal') ...[
+                          const SizedBox(width: 4),
+                          SizedBox(
+                            width: 32,
+                            height: 32,
+                            child: PopupMenuButton<String>(
+                              padding: EdgeInsets.zero,
+                              icon: const Icon(Icons.more_vert, size: 20, color: Colors.grey),
+                              onSelected: (value) {
+                                if (value == 'cancel') _showCancelOrderDialog(order);
+                              },
+                              itemBuilder: (BuildContext context) => [
+                                const PopupMenuItem<String>(
+                                  value: 'cancel',
                                   child: Row(
-                                    mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      const Icon(
-                                        Icons.alarm,
-                                        size: 12,
-                                        color: Color(0xFF2E7D32),
-                                      ),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        order.estimatedDeliveryTime != null
-                                            ? 'Est. Delivery: ${DateFormat('HH:mm').format(order.estimatedDeliveryTime!.toLocal())}'
-                                            : 'Est. Pickup: ${DateFormat('HH:mm').format(order.estimatedPickupTime!.toLocal())}',
-                                        style: const TextStyle(
-                                          fontSize: 11,
-                                          color: Color(0xFF1B5E20),
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
+                                      Icon(Icons.cancel_outlined, color: Colors.red, size: 18),
+                                      SizedBox(width: 8),
+                                      Text('Cancel Order', style: TextStyle(fontSize: 14)),
                                     ],
                                   ),
                                 ),
                               ],
-                            ],
-                          ),
-                        ),
-
-                        // Status badge
-                        _buildStatusBadge(order.status),
-                      ],
-                    ),
-
-                    const SizedBox(height: 16),
-
-                    // Divider
-                    Container(
-                      height: 1,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            Colors.transparent,
-                            Colors.grey[300]!,
-                            Colors.transparent,
-                          ],
-                        ),
-                      ),
-                    ),
-
-                    const SizedBox(height: 16),
-
-                    // Order details in cards
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _buildOrderDetailCard(
-                            'Total Amount',
-                            '€${order.totalPrice.toStringAsFixed(2)}',
-                            Icons.euro,
-                            [Colors.green[600]!, Colors.green[400]!],
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        if (order.profit != null)
-                          Expanded(
-                            child: _buildOrderDetailCard(
-                              'Profit',
-                              '€${order.profit!.toStringAsFixed(2)}',
-                              Icons.trending_up,
-                              order.profit! >= 0
-                                  ? [Colors.teal[600]!, Colors.teal[400]!]
-                                  : [Colors.red[600]!, Colors.red[400]!],
                             ),
                           ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _buildOrderDetailCard(
-                            'Order Time',
-                            DateFormat(
-                              'HH:mm',
-                            ).format(order.createdAt.toLocal()),
-                            Icons.access_time,
-                            [Colors.blue[600]!, Colors.blue[400]!],
-                          ),
-                        ),
+                        ]
                       ],
                     ),
+                    const SizedBox(height: 12),
 
-                    const SizedBox(height: 16),
-
-                    // Date and actions row
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 6,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.grey[100],
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: Colors.grey[300]!),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                Icons.calendar_today,
-                                size: 14,
-                                color: Colors.grey[600],
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                DateFormat(
-                                  'MMM dd, yyyy',
-                                ).format(order.createdAt.toLocal()),
+                    // ROW 2: Address
+                    if (order.customerStreet != null || order.customerPostcode != null || order.customerCity != null)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 6),
+                        child: Text(
+                          [
+                            if (order.customerPostcode != null || order.customerCity != null)
+                              '${order.customerPostcode ?? ''} ${order.customerCity ?? ''}'.trim(),
+                            if (order.customerStreet != null) order.customerStreet!,
+                          ].join('\n'),
+                          style: TextStyle(fontSize: 14, color: Colors.grey.shade800, height: 1.3),
+                        ),
+                      ),
+                    
+                    // ROW 3: Customer Name & Phone
+                    if (order.customerName != null || order.customerPhone != null)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(Icons.person_outline, size: 16, color: Colors.grey.shade600),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                [
+                                  if (order.customerName != null) order.customerName!,
+                                  if (order.customerPhone != null) order.customerPhone!,
+                                ].join(' • '),
                                 style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.grey[700],
+                                  fontSize: 14,
+                                  color: Colors.grey.shade700,
                                   fontWeight: FontWeight.w500,
                                 ),
                               ),
-                            ],
+                            ),
+                          ],
+                        ),
+                      ),
+
+                    // ROW 4: ETA & Minutes Left
+                    if (targetTime != null)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: Row(
+                          children: [
+                            Icon(isPickup ? Icons.directions_walk : Icons.moped, size: 16, color: Colors.grey.shade700),
+                            const SizedBox(width: 6),
+                            Text(
+                              etaText,
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.grey.shade800,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: isOverdue ? Colors.red.shade50 : Colors.green.shade50,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: isOverdue ? Colors.red.shade200 : Colors.green.shade200,
+                                ),
+                              ),
+                              child: Text(
+                                isOverdue ? '$minutesLeft min' : '$minutesLeft min left',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: isOverdue ? Colors.red.shade700 : Colors.green.shade700,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                    const Divider(height: 1),
+                    const SizedBox(height: 12),
+
+                    // ROW 5: Platform, Ref, Amount
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(2),
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade50,
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: Colors.grey.shade200),
+                          ),
+                          child: _getOrderTypeLogo(order.orderTypeName),
+                        ),
+                        const SizedBox(width: 8),
+                        Flexible(
+                          child: Text(
+                            order.publicReference != null ? '#${order.publicReference}' : (order.id?.substring(0, 8) ?? ''),
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.blue.shade700,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
-
-                        // Action menu
-                        if (order.status != 'cancelled_stock_returned' &&
-                            order.status != 'cancelled_discarded' &&
-                            order.status != 'paid' &&
-                            order.status != 'completed_employee_meal')
-                          Container(
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: [Colors.grey[600]!, Colors.grey[400]!],
-                                begin: Alignment.centerLeft,
-                                end: Alignment.centerRight,
-                              ),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Material(
-                              color: Colors.transparent,
-                              child: PopupMenuButton<String>(
-                                icon: const Icon(
-                                  Icons.more_vert,
-                                  color: Colors.white,
-                                  size: 18,
-                                ),
-                                tooltip: "Order Actions",
-                                onSelected: (value) {
-                                  if (value == 'cancel') {
-                                    _showCancelOrderDialog(order);
-                                  }
-                                },
-                                itemBuilder: (BuildContext context) => [
-                                  const PopupMenuItem<String>(
-                                    value: 'cancel',
-                                    child: Row(
-                                      children: [
-                                        Icon(
-                                          Icons.cancel_outlined,
-                                          color: Colors.red,
-                                          size: 18,
-                                        ),
-                                        SizedBox(width: 8),
-                                        Text(
-                                          'Cancel Order',
-                                          style: TextStyle(
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.w500,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
+                        const SizedBox(width: 8),
+                        Text(
+                          '€${order.totalPrice.toStringAsFixed(2)}',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
                           ),
+                        ),
                       ],
                     ),
                   ],

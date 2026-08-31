@@ -124,7 +124,7 @@ app.post('/api/sessions/:accountId/relogin', (req, res) => {
   if (!session) return res.status(404).json({ error: `Unknown accountId: ${accountId}` });
 
   const vpsIp = process.env.VPS_PUBLIC_IP || null;
-  const vncPort = Number(process.env.VNC_PORT) || 5901;
+  const vncPort = Number(process.env.VNC_PORT) || 5900;
 
   if (activeRelogins.has(accountId)) {
     return res.json({
@@ -143,7 +143,7 @@ app.post('/api/sessions/:accountId/relogin', (req, res) => {
 
   const child = spawn(process.execPath, ['login.js', '--account', accountId], {
     env,
-    cwd: path.resolve(__dirname, '..'), // login.js is in the lieferando project root
+    cwd: __dirname, // login.js is in the same directory as api-server.js
     detached: false,
     stdio: 'inherit',
   });

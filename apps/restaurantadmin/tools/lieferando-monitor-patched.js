@@ -222,10 +222,17 @@ async function runAccount(account) {
 
   await page.goto(account.ordersUrl, { waitUntil: 'domcontentloaded' });
 
-  // Detect expired session (redirected to login page)
-  if (/login|signin/i.test(page.url())) {
+  function isSessionExpired(url) {
+    return (
+      /login|signin|auth|openid-connect|partner-hub/i.test(url) ||
+      !url.includes('live-orders.takeaway.com/orders')
+    );
+  }
+
+  // Detect expired session (redirected to login or auth page)
+  if (isSessionExpired(page.url())) {
     console.warn(
-      `[${account.id}] ⚠️  Session appears expired (redirected to login). ` +
+      `[${account.id}] ⚠️  Session appears expired (redirected to ${page.url().slice(0, 60)}...). ` +
       `Use the POS "Platforms" screen → Reconnect, or run: node login.js --account ${account.id}`,
     );
     // ❌ Mark as expired in the API
@@ -240,7 +247,7 @@ async function runAccount(account) {
     try {
       await page.reload({ waitUntil: 'domcontentloaded' });
       // Re-check for login redirect after reload
-      if (/login|signin/i.test(page.url())) {
+      if (isSessionExpired(page.url())) {
         apiServer.markExpired(account.id);
       }
     } catch (err) {
