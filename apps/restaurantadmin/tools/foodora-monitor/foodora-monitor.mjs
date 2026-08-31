@@ -252,69 +252,101 @@ async function pollOrders() {
       return;
     }
 
-    const result = await page.evaluate(async (vendorCodes) => {
-      const jwtRegex = /eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/;
-      let token = null;
-      for (const k of Object.keys(sessionStorage)) {
-        const m = (sessionStorage.getItem(k) || '').match(jwtRegex);
-        if (m) { token = m[0]; break; }
-      }
-      if (!token) {
-        for (const k of Object.keys(localStorage)) {
-          const m = (localStorage.getItem(k) || '').match(jwtRegex);
+    let result;
+    try {
+      result = await page.evaluate(async (vendorCodes) => {
+        const jwtRegex = /eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/;
+        let token = null;
+        for (const k of Object.keys(sessionStorage)) {
+          const m = (sessionStorage.getItem(k) || '').match(jwtRegex);
           if (m) { token = m[0]; break; }
         }
-      }
+        if (!token) {
+          for (const k of Object.keys(localStorage)) {
+            const m = (localStorage.getItem(k) || '').match(jwtRegex);
+            if (m) { token = m[0]; break; }
+          }
+        }
 
-      if (!token) return { error: 'No auth token found' };
+        if (!token) return { error: 'No auth token found in storage' };
 
-      const now = new Date();
-      const past24h = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+        const now = new Date();
+        const past24h = new Date(now.getTime() - 24 * 60 * 60 * 1000);
 
-      const query = `
-        query ListOrders($params: ListOrdersReq!) {
-          orders {
-            listOrders(input: $params) {
-              orders {
-                orderId
-                globalEntityId
-                vendorId
-                vendorName
-                orderStatus
-                placedTimestamp
-                subtotal
-                deliveryType
+        const query = `
+          query ListOrders($params: ListOrdersReq!) {
+            orders {
+              listOrders(input: $params) {
+                orders {
+                  orderId
+                  globalEntityId
+                  vendorId
+                  vendorName
+                  orderStatus
+                  placedTimestamp
+                  subtotal
+                  deliveryType
+                }
               }
             }
           }
-        }
-      `;
+        `;
 
-      const variables = {
-        params: {
-          pagination: { pageSize: 50 },
-          timeFrom: past24h.toISOString(),
-          timeTo: now.toISOString(),
-          globalVendorCodes: vendorCodes,
-        },
-      };
-
-      try {
-        const res = await window.fetch('https://vagw-api.eu.prd.portal.restaurant/query', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer ' + token,
+        const variables = {
+          params: {
+            pagination: { pageSize: 50 },
+            timeFrom: past24h.toISOString(),
+            timeTo: now.toISOString(),
+            globalVendorCodes: vendorCodes,
           },
-          body: JSON.stringify({ operationName: 'ListOrders', query, variables }),
-        });
-        return { status: res.status, data: await res.json(), token };
-      } catch (e) {
-        return { error: e.message };
+        };
+
+        try {
+          const res = await window.fetch('https://vagw-api.eu.prd.portal.restaurant/query', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer ' + token,
+            },
+            body: JSON.stringify({ operationName: 'ListOrders', query, variables }),
+          });
+          const text = await res.text();
+          let data = null;
+          try { data = JSON.parse(text); } catch (e) { data = text; }
+          return { status: res.status, data, token };
+        } catch (e) {
+          return { error: 'Fetch failed: ' + e.message };
+        }
+      }, GLOBAL_VENDOR_CODES);
+    } catch (evalErr) {
+      console.error('[Foodora] page.evaluate failed (connection lost?). Resetting connection:', evalErr.message);
+      monitorPage = null;
+      if (browserInstance) {
+        try { browserInstance.disconnect(); } catch (_) {}
+        browserInstance = null;
       }
-    }, GLOBAL_VENDOR_CODES);
+      return;
+    }
 
     lastPollTime = new Date().toISOString();
+
+    if (result?.error) {
+      console.error('[Foodora] ListOrders query error:', result.error);
+      return;
+    }
+
+    if (result?.status && result.status !== 200) {
+      console.error(`[Foodora] API returned status ${result.status}`);
+      if (result.status === 401 || result.status === 403) {
+        console.log('[Foodora] Token likely expired. Auto-reloading the page to refresh session...');
+        try {
+          await page.reload({ waitUntil: 'networkidle2' });
+        } catch (reloadErr) {
+          console.error('[Foodora] Failed to reload page:', reloadErr.message);
+        }
+      }
+      return;
+    }
 
     if (result?.data?.data?.orders?.listOrders?.orders) {
       const orders = result.data.data.orders.listOrders.orders;

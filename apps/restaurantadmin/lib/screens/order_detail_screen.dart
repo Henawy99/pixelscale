@@ -191,19 +191,14 @@ class _OrderDetailScreenState extends State<OrderDetailScreen>
       margin: const EdgeInsets.all(16),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
+        color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        gradient: LinearGradient(
-          colors: isPickup
-              ? [const Color(0xFFE65100), const Color(0xFFF57C00)]
-              : [Colors.blue[700]!, Colors.blue[500]!],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        border: Border.all(color: Colors.grey.shade200),
         boxShadow: [
           BoxShadow(
-            color: (isPickup ? Colors.orange : Colors.blue).withOpacity(0.35),
-            blurRadius: 14,
-            offset: const Offset(0, 6),
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -215,13 +210,13 @@ class _OrderDetailScreenState extends State<OrderDetailScreen>
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
+                  color: Colors.grey.shade100,
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: Icon(
                   isPickup ? Icons.shopping_bag_outlined : Icons.delivery_dining_outlined,
-                  color: Colors.white,
-                  size: 32,
+                  color: Colors.grey.shade800,
+                  size: 28,
                 ),
               ),
               const SizedBox(width: 16),
@@ -235,7 +230,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen>
                           child: Text(
                             '#$ref',
                             style: const TextStyle(
-                              color: Colors.white,
+                              color: Colors.black87,
                               fontSize: 22,
                               fontWeight: FontWeight.bold,
                               letterSpacing: 0.5,
@@ -246,18 +241,19 @@ class _OrderDetailScreenState extends State<OrderDetailScreen>
                         Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 8,
-                            vertical: 3,
+                            vertical: 4,
                           ),
                           decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.25),
-                            borderRadius: BorderRadius.circular(8),
+                            color: Colors.grey.shade100,
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: Colors.grey.shade300),
                           ),
                           child: Text(
                             isPickup ? 'PICKUP' : 'DELIVERY',
-                            style: const TextStyle(
-                              color: Colors.white,
+                            style: TextStyle(
+                              color: Colors.grey.shade800,
                               fontSize: 11,
-                              fontWeight: FontWeight.w800,
+                              fontWeight: FontWeight.w700,
                             ),
                           ),
                         ),
@@ -266,8 +262,8 @@ class _OrderDetailScreenState extends State<OrderDetailScreen>
                     const SizedBox(height: 4),
                     Text(
                       widget.order.brandName ?? widget.order.brandId,
-                      style: const TextStyle(
-                        color: Colors.white70,
+                      style: TextStyle(
+                        color: Colors.grey.shade600,
                         fontSize: 14,
                         fontWeight: FontWeight.w500,
                       ),
@@ -281,20 +277,14 @@ class _OrderDetailScreenState extends State<OrderDetailScreen>
                   vertical: 6,
                 ),
                 decoration: BoxDecoration(
-                  color: statusColor,
+                  color: statusColor.withOpacity(0.15),
                   borderRadius: BorderRadius.circular(20),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.15),
-                      blurRadius: 4,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
+                  border: Border.all(color: statusColor.withOpacity(0.3)),
                 ),
                 child: Text(
                   widget.order.status.replaceAll('_', ' ').toUpperCase(),
-                  style: const TextStyle(
-                    color: Colors.white,
+                  style: TextStyle(
+                    color: statusColor,
                     fontSize: 11,
                     fontWeight: FontWeight.bold,
                   ),
@@ -302,65 +292,61 @@ class _OrderDetailScreenState extends State<OrderDetailScreen>
               ),
             ],
           ),
-          const SizedBox(height: 16),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.15),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              children: [
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 16),
+            child: Divider(height: 1, color: Color(0xFFEEEEEE)),
+          ),
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '€${widget.order.totalPrice.toStringAsFixed(2)}',
+                      style: const TextStyle(
+                        color: Colors.black87,
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Text(
+                      'Total Amount',
+                      style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+              if (widget.order.orderTypeName != null) ...[
+                Container(
+                  width: 1,
+                  height: 36,
+                  color: Colors.grey.shade200,
+                ),
+                const SizedBox(width: 16),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        '€${widget.order.totalPrice.toStringAsFixed(2)}',
+                        widget.order.orderTypeName!,
                         style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 20,
+                          color: Colors.black87,
+                          fontSize: 15,
                           fontWeight: FontWeight.bold,
                         ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      const Text(
-                        'Total Amount',
-                        style: TextStyle(color: Colors.white70, fontSize: 12),
+                      Text(
+                        'Platform',
+                        style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
                       ),
                     ],
                   ),
                 ),
-                if (widget.order.orderTypeName != null) ...[
-                  Container(
-                    width: 1,
-                    height: 36,
-                    color: Colors.white.withOpacity(0.3),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          widget.order.orderTypeName!,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const Text(
-                          'Platform',
-                          style: TextStyle(color: Colors.white70, fontSize: 12),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
               ],
-            ),
+            ],
           ),
         ],
       ),
