@@ -1,0 +1,15 @@
+#!/usr/bin/expect -f
+set timeout 30
+spawn ssh-copy-id -i /Users/youssefelhenawy/.ssh/hetzner_pixelscale.pub -o StrictHostKeyChecking=no root@46.225.213.75
+expect {
+    "password:" {
+        send "bvgn74UjhRCk\r"
+        exp_continue
+    }
+    "Number of key(s) added:" {
+        exit 0
+    }
+    timeout {
+        exit 1
+    }
+}
