@@ -77,7 +77,21 @@ class _OrdersScreenState extends State<OrdersScreen>
   // Date navigation
   late DateTime _selectedDate;
 
-  int _todayOrderCount = 0;
+  int get _todayOrderCount {
+    final filtered = _filterOrders(_loadedOrders);
+    int count = 0;
+    for (var order in filtered) {
+      if (order.orderTypeName != _employeeOrderTypeName) {
+        final bucket = _deriveStatusBucket(order);
+        final statusLower = (order.status ?? '').toLowerCase();
+        if (bucket != 'cancelled' && statusLower != 'cancelled' && statusLower != 'canceled') {
+          count++;
+        }
+      }
+    }
+    return count;
+  }
+
   List<app_order.Order> _loadedOrders = [];
 
   double get _todayTotalRevenue {
@@ -513,7 +527,6 @@ class _OrdersScreenState extends State<OrdersScreen>
         }
       }
       setState(() {
-        _todayOrderCount = count;
         _isLoadingTodayStats = false;
       });
     } catch (e) {
@@ -522,7 +535,6 @@ class _OrdersScreenState extends State<OrdersScreen>
         _showErrorSnackBar('Error fetching stats: $e');
         setState(() {
           _isLoadingTodayStats = false;
-          _todayOrderCount = 0;
         });
       }
     }
@@ -548,7 +560,7 @@ class _OrdersScreenState extends State<OrdersScreen>
           .select('*, brands(name), profit')
           .gte('created_at', dayStart)
           .lt('created_at', dayEnd)
-          .order('created_at', ascending: false);
+          .order('estimated_delivery_time', ascending: false, nullsFirst: false);
       print('[OrdersScreen] Fetched ${(response as List).length} orders');
       return (response as List)
           .map((data) => app_order.Order.fromJson(data as Map<String, dynamic>))
@@ -1040,6 +1052,16 @@ class _OrdersScreenState extends State<OrdersScreen>
                 ),
               ),
               const Spacer(),
+              IconButton(
+                icon: Icon(Icons.map_outlined, color: Colors.indigo[600]),
+                tooltip: 'Delivery Monitor',
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => DeliveryMonitorScreen(supabaseClient: _supabase)),
+                  );
+                },
+              ),
               IconButton(
                 icon: const Icon(Icons.settings_outlined),
                 tooltip: 'Settings',
@@ -2384,6 +2406,15 @@ class _OrdersScreenState extends State<OrdersScreen>
             ),
           ),
           const Spacer(),
+          Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text('$_todayOrderCount orders', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+              Text('€${_todayTotalRevenue.toStringAsFixed(2)}', style: TextStyle(color: Colors.grey[600], fontSize: 11)),
+            ],
+          ),
+          const SizedBox(width: 8),
           IconButton(
             icon: const Icon(Icons.filter_list),
             onPressed: _showFilterSheet,
@@ -2539,6 +2570,17 @@ class _OrdersScreenState extends State<OrdersScreen>
           ),
         ),
 
+        const SizedBox(width: 12),
+        
+        // Stats
+        Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Text('$_todayOrderCount orders', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+            Text('€${_todayTotalRevenue.toStringAsFixed(2)}', style: TextStyle(color: Colors.grey[600], fontSize: 11)),
+          ],
+        ),
         if (_searchQuery.isNotEmpty ||
             _selectedBrandFilter != 'all' ||
             _selectedStatusFilter != 'all') ...[
@@ -3043,30 +3085,8 @@ class _OrdersScreenState extends State<OrdersScreen>
                           fontWeight: FontWeight.w700,
                         ),
                       ),
-                      const SizedBox(width: 10),
-                      _buildMobileScannerPill(),
                       const Spacer(),
                       // Quick actions inline
-                      IconButton(
-                        icon: Icon(Icons.map_outlined,
-                            size: 22, color: Colors.blue[600]),
-                        tooltip: 'Delivery Monitor',
-                        onPressed: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => DeliveryMonitorScreen(
-                                supabaseClient: _supabase),
-                          ),
-                        ),
-                      ),
-                      IconButton(
-                        icon: Icon(Icons.picture_as_pdf,
-                            size: 20, color: Colors.indigo[600]),
-                        tooltip: 'Daily Summary',
-                        onPressed: _isGeneratingSummary
-                            ? null
-                            : _handleGenerateDailySummary,
-                      ),
                       IconButton(
                         icon: AnimatedBuilder(
                           animation: _refreshController,
@@ -3078,14 +3098,6 @@ class _OrdersScreenState extends State<OrdersScreen>
                         ),
                         tooltip: 'Refresh',
                         onPressed: _loadAllData,
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.add_circle_outline),
-                        tooltip: 'Create Order',
-                        onPressed: () => setState(
-                          () =>
-                              _showBrandPickerMobile = !_showBrandPickerMobile,
-                        ),
                       ),
                     ],
                   ),

@@ -5,6 +5,7 @@ import 'package:restaurantadmin/models/order.dart' as app_order;
 import 'package:restaurantadmin/models/order_item.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:restaurantadmin/services/order_service.dart';
+import 'package:restaurantadmin/services/label_printer_service.dart';
 import 'package:restaurantadmin/utils/snackbar_utils.dart' as snackbar_utils;
 import 'package:url_launcher/url_launcher.dart';
 
@@ -108,6 +109,45 @@ class _OrderDetailScreenState extends State<OrderDetailScreen>
     }
 
     return [];
+  }
+
+  Future<void> _printStickers() async {
+    try {
+      final items = await _orderItemsFuture;
+      if (items.isEmpty) {
+        _showErrorSnackBar('No items to print');
+        return;
+      }
+      
+      int successCount = 0;
+      for (var item in items) {
+        for (int i = 0; i < item.quantity; i++) {
+          final success = await LabelPrinterService.printItemLabel(
+            itemName: item.menuItemName,
+            quantity: 1,
+            orderId: widget.order.publicReference ?? widget.order.orderNumber ?? '',
+            orderType: widget.order.orderTypeName,
+            fulfillmentType: widget.order.fulfillmentType,
+          );
+          if (success) successCount++;
+        }
+      }
+      
+      if (mounted) {
+        if (successCount > 0) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('Sent $successCount stickers to printer!'),
+            backgroundColor: Colors.green,
+          ));
+        } else {
+          _showErrorSnackBar('Failed to print stickers. Check Zebra connection.');
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        _showErrorSnackBar('Print error: $e');
+      }
+    }
   }
 
   void _showErrorSnackBar(String message) {
@@ -781,6 +821,17 @@ class _OrderDetailScreenState extends State<OrderDetailScreen>
                         fontWeight: FontWeight.bold,
                         color: Colors.black87,
                       ),
+                    ),
+                    const Spacer(),
+                    ElevatedButton.icon(
+                      icon: const Icon(Icons.print, size: 18),
+                      label: const Text('Print Stickers'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue[600],
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      ),
+                      onPressed: _printStickers,
                     ),
                   ],
                 ),

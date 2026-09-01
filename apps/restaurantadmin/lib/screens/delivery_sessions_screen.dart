@@ -12,9 +12,9 @@ class DeliverySessionsScreen extends StatefulWidget {
 
 class _DeliverySessionsScreenState extends State<DeliverySessionsScreen>
     with WidgetsBindingObserver {
-  final LieferandoService _service = LieferandoService();
+  final PlatformSessionService _service = PlatformSessionService();
 
-  List<LieferandoSession> _sessions = [];
+  List<PlatformSession> _sessions = [];
   bool _isLoading = true;
   String? _error;
   Timer? _refreshTimer;
@@ -85,11 +85,11 @@ class _DeliverySessionsScreenState extends State<DeliverySessionsScreen>
   }
 
   // ── Reconnect flow ─────────────────────────────────────────────────────────
-  Future<void> _startReconnect(LieferandoSession session) async {
+  Future<void> _startReconnect(PlatformSession session) async {
     setState(() => _reconnecting.add(session.accountId));
 
     try {
-      final result = await _service.triggerRelogin(session.accountId);
+      final result = await _service.triggerRelogin(session.accountId, session.platform);
       if (!mounted) return;
 
       await _showReconnectDialog(session, result);
@@ -102,7 +102,7 @@ class _DeliverySessionsScreenState extends State<DeliverySessionsScreen>
     }
   }
 
-  Future<void> _showReconnectDialog(LieferandoSession session, ReloginResult result) async {
+  Future<void> _showReconnectDialog(PlatformSession session, ReloginResult result) async {
     await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -112,15 +112,15 @@ class _DeliverySessionsScreenState extends State<DeliverySessionsScreen>
         result: result,
         onDone: () async {
           Navigator.of(ctx).pop();
-          await _confirmReloginComplete(session.accountId);
+          await _confirmReloginComplete(session.accountId, session.platform);
         },
       ),
     );
   }
 
-  Future<void> _confirmReloginComplete(String accountId) async {
+  Future<void> _confirmReloginComplete(String accountId, String platform) async {
     try {
-      final status = await _service.confirmReloginComplete(accountId);
+      final status = await _service.confirmReloginComplete(accountId, platform);
       if (!mounted) return;
       final msg = status == SessionStatus.active
           ? '✅ Login confirmed — session is now active!'
@@ -253,7 +253,7 @@ class _DeliverySessionsScreenState extends State<DeliverySessionsScreen>
                   style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w700),
                 ),
                 Text(
-                  'Lieferando Session Manager',
+                  'Multi-Platform Session Manager',
                   style: TextStyle(color: Color(0xFF64748B), fontSize: 11),
                 ),
               ],
@@ -547,7 +547,7 @@ class _DeliverySessionsScreenState extends State<DeliverySessionsScreen>
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _SessionCard extends StatelessWidget {
-  final LieferandoSession session;
+  final PlatformSession session;
   final bool isReconnecting;
   final VoidCallback onReconnect;
 
@@ -604,6 +604,20 @@ class _SessionCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 12),
+                // Platform Icon
+                Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: session.platform == 'foodora' ? const Color(0xFFD70F64).withValues(alpha: 0.2) : const Color(0xFFFF8000).withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    session.platform == 'foodora' ? Icons.fastfood : Icons.delivery_dining,
+                    color: session.platform == 'foodora' ? const Color(0xFFD70F64) : const Color(0xFFFF8000),
+                    size: 16,
+                  ),
+                ),
+                const SizedBox(width: 8),
                 // Account label
                 Expanded(
                   child: Column(
@@ -756,7 +770,7 @@ class _MetaChip extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _ReconnectSheet extends StatelessWidget {
-  final LieferandoSession session;
+  final PlatformSession session;
   final ReloginResult result;
   final VoidCallback onDone;
 
@@ -848,9 +862,7 @@ class _ReconnectSheet extends StatelessWidget {
                       );
                     },
                   ),
-                  const SizedBox(height: 12),
-                  const _Step(number: 2, text: 'You will see the Chromium browser with the Lieferando login page.'),
-                  const SizedBox(height: 12),
+                  _Step(number: 2, text: 'You will see the Chromium browser with the ${session.platform.toUpperCase()} login page.'),
                   const _Step(number: 3, text: 'Type your credentials and complete any CAPTCHA / 2FA.'),
                   const SizedBox(height: 12),
                   const _Step(number: 4, text: 'Once logged in, tap "Done" below.'),

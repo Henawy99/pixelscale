@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:restaurantadmin/screens/orders_screen.dart';
 import 'package:restaurantadmin/screens/inventory_screen.dart';
 import 'package:restaurantadmin/screens/menus_screen.dart';
-import 'package:restaurantadmin/screens/payments_screen.dart';
+import 'package:restaurantadmin/screens/delivery_monitor_screen.dart';
 import 'package:restaurantadmin/screens/receipt_watcher_screen.dart';
 import 'package:restaurantadmin/screens/employees/schedule_tab.dart';
 import 'package:restaurantadmin/screens/delivery_sessions_screen.dart';
@@ -29,7 +29,7 @@ class _MainScreenState extends State<MainScreen> {
     const OrdersScreen(),
     const InventoryScreen(),
     const MenusScreen(),
-    const PaymentsScreen(),
+    DeliveryMonitorScreen(supabaseClient: Supabase.instance.client),
     const ReceiptWatcherScreen(),
     _EmployeesRoot(),
     const DeliverySessionsScreen(),
@@ -39,7 +39,7 @@ class _MainScreenState extends State<MainScreen> {
     'Orders',
     'Inventory',
     'Menus',
-    'Payments',
+    'Map',
     'Receipts',
     'Employees',
     'Platforms',
@@ -120,8 +120,8 @@ class _MainScreenState extends State<MainScreen> {
               label: 'Menus',
             ),
             BottomNavigationBarItem(
-              icon: Icon(Icons.payment),
-              label: 'Payments',
+              icon: Icon(Icons.map_outlined),
+              label: 'Map',
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.image_search),

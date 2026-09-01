@@ -9,22 +9,24 @@ import 'package:http/http.dart' as http;
 
 enum SessionStatus { active, expired, unknown }
 
-class LieferandoSession {
+class PlatformSession {
   final String accountId;
   final String label;
   final SessionStatus status;
   final DateTime? lastCheckedAt;
   final DateTime? lastOrderSeenAt;
+  final String platform;
 
-  const LieferandoSession({
+  const PlatformSession({
     required this.accountId,
     required this.label,
     required this.status,
+    required this.platform,
     this.lastCheckedAt,
     this.lastOrderSeenAt,
   });
 
-  factory LieferandoSession.fromJson(Map<String, dynamic> json) {
+  factory PlatformSession.fromJson(Map<String, dynamic> json, String platform) {
     SessionStatus parseStatus(String? s) {
       switch (s) {
         case 'active':
@@ -36,10 +38,11 @@ class LieferandoSession {
       }
     }
 
-    return LieferandoSession(
+    return PlatformSession(
       accountId: json['accountId'] as String? ?? '',
       label: json['label'] as String? ?? json['accountId'] as String? ?? 'Unknown',
       status: parseStatus(json['status'] as String?),
+      platform: platform,
       lastCheckedAt: json['lastCheckedAt'] != null
           ? DateTime.tryParse(json['lastCheckedAt'] as String)
           : null,
@@ -77,41 +80,70 @@ class ReloginResult {
 // Service
 // ─────────────────────────────────────────────────────────────────────────────
 
-class LieferandoService {
-  LieferandoService._internal();
-  static final LieferandoService _instance = LieferandoService._internal();
-  factory LieferandoService() => _instance;
+class PlatformSessionService {
+  PlatformSessionService._internal();
+  static final PlatformSessionService _instance = PlatformSessionService._internal();
+  factory PlatformSessionService() => _instance;
 
   // Notifier for the base URL (settable from settings, default to Hetzner VPS)
   final ValueNotifier<String> monitorBaseUrl =
       ValueNotifier<String>('http://46.225.213.75:3001');
 
-  String get _baseUrl => monitorBaseUrl.value.trim().replaceAll(RegExp(r'/$'), '');
+  String get _lieferandoBaseUrl => monitorBaseUrl.value.trim().replaceAll(RegExp(r'/$'), '');
+  String get _foodoraBaseUrl {
+    try {
+      final uri = Uri.parse(_lieferandoBaseUrl);
+      return '${uri.scheme}://${uri.host}:3002';
+    } catch (_) {
+      return '';
+    }
+  }
 
-  bool get isConfigured => _baseUrl.isNotEmpty;
+  bool get isConfigured => _lieferandoBaseUrl.isNotEmpty;
 
   // ── Fetch all session statuses ─────────────────────────────────────────────
-  Future<List<LieferandoSession>> fetchSessions() async {
+  Future<List<PlatformSession>> fetchSessions() async {
     if (!isConfigured) return [];
 
-    final uri = Uri.parse('$_baseUrl/api/sessions');
-    final response = await http
-        .get(uri, headers: {'Content-Type': 'application/json'})
-        .timeout(const Duration(seconds: 10));
+    final List<PlatformSession> allSessions = [];
 
-    if (response.statusCode != 200) {
-      throw Exception('Monitor returned ${response.statusCode}: ${response.body}');
+    // Fetch Lieferando
+    try {
+      final uri = Uri.parse('$_lieferandoBaseUrl/api/sessions');
+      final response = await http
+          .get(uri, headers: {'Content-Type': 'application/json'})
+          .timeout(const Duration(seconds: 5));
+      if (response.statusCode == 200) {
+        final List<dynamic> list = jsonDecode(response.body) as List<dynamic>;
+        allSessions.addAll(list.map((e) => PlatformSession.fromJson(e as Map<String, dynamic>, 'lieferando')));
+      }
+    } catch (e) {
+      print('Lieferando fetch error: $e');
     }
 
-    final List<dynamic> list = jsonDecode(response.body) as List<dynamic>;
-    return list
-        .map((e) => LieferandoSession.fromJson(e as Map<String, dynamic>))
-        .toList();
+    // Fetch Foodora
+    try {
+      final uri = Uri.parse('$_foodoraBaseUrl/api/foodora/sessions');
+      final response = await http
+          .get(uri, headers: {'Content-Type': 'application/json'})
+          .timeout(const Duration(seconds: 5));
+      if (response.statusCode == 200) {
+        final List<dynamic> list = jsonDecode(response.body) as List<dynamic>;
+        allSessions.addAll(list.map((e) => PlatformSession.fromJson(e as Map<String, dynamic>, 'foodora')));
+      }
+    } catch (e) {
+      print('Foodora fetch error: $e');
+    }
+
+    return allSessions;
   }
 
   // ── Trigger re-login for one account ──────────────────────────────────────
-  Future<ReloginResult> triggerRelogin(String accountId) async {
-    final uri = Uri.parse('$_baseUrl/api/sessions/$accountId/relogin');
+  Future<ReloginResult> triggerRelogin(String accountId, String platform) async {
+    final baseUrl = platform == 'foodora' ? _foodoraBaseUrl : _lieferandoBaseUrl;
+    final path = platform == 'foodora' ? '/api/foodora/sessions/$accountId/relogin' : '/api/sessions/$accountId/relogin';
+    
+    final uri = Uri.parse('$baseUrl$path');
     final response = await http
         .post(uri, headers: {'Content-Type': 'application/json'})
         .timeout(const Duration(seconds: 15));
@@ -124,8 +156,11 @@ class LieferandoService {
   }
 
   // ── Confirm re-login is complete ───────────────────────────────────────────
-  Future<SessionStatus> confirmReloginComplete(String accountId) async {
-    final uri = Uri.parse('$_baseUrl/api/sessions/$accountId/relogin-complete');
+  Future<SessionStatus> confirmReloginComplete(String accountId, String platform) async {
+    final baseUrl = platform == 'foodora' ? _foodoraBaseUrl : _lieferandoBaseUrl;
+    final path = platform == 'foodora' ? '/api/foodora/sessions/$accountId/relogin-complete' : '/api/sessions/$accountId/relogin-complete';
+    
+    final uri = Uri.parse('$baseUrl$path');
     final response = await http
         .post(uri, headers: {'Content-Type': 'application/json'})
         .timeout(const Duration(seconds: 15));

@@ -99,13 +99,15 @@ class LabelPrinterService {
     zpl.writeln('^XA');
     zpl.writeln('^PW$_labelWidthDots');  // 400 dots (50 mm)
     zpl.writeln('^LL$_labelHeightDots'); // 236 dots (30 mm)
+    zpl.writeln('^MNW');                 // Enforce Web/Gap sensing to stop drift
     zpl.writeln('^CI28');                // UTF-8
 
     // ── Item name — large, centred, wraps up to 3 lines ─────────────────
-    // ^FO10,40  → 10 dots from left, 40 from top (vertical centre)
-    // ^A0N,60,54 → font height 60, width 54
-    // ^FB380,3,6,C → 380-dot-wide block, max 3 lines, 6-dot spacing, centred
-    zpl.writeln('^FO10,40^A0N,60,54^FB380,3,6,C^FD${_zplSafe(itemName)}^FS');
+    // To make it bold in raw ZPL, we print it three times slightly shifted (1 dot offset)
+    final safeName = _zplSafe(itemName);
+    zpl.writeln('^FO10,15^A0N,45,40^FB380,3,6,C^FD$safeName^FS');
+    zpl.writeln('^FO11,15^A0N,45,40^FB380,3,6,C^FD$safeName^FS');
+    zpl.writeln('^FO10,16^A0N,45,40^FB380,3,6,C^FD$safeName^FS');
 
     zpl.writeln('^XZ');
     return zpl.toString();
