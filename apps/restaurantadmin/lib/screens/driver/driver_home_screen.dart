@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart' as ph;
+import 'package:url_launcher/url_launcher.dart';
 import 'package:restaurantadmin/services/location_foreground_service.dart';
 
 class DriverHomeScreen extends StatefulWidget {
@@ -35,7 +36,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
     _initializeForegroundService();
     _initializeDriver();
   }
@@ -687,6 +688,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
             unselectedLabelColor: Colors.white60,
             tabs: const [
               Tab(icon: Icon(Icons.power_settings_new), text: 'Status'),
+              Tab(icon: Icon(Icons.route), text: 'My Route'),
               Tab(icon: Icon(Icons.calendar_today), text: 'My Shifts'),
             ],
           ),
@@ -695,6 +697,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
           controller: _tabController,
           children: [
             _buildStatusTab(),
+            _DriverRouteTab(driverRecordId: _driverRecordId, isOnline: _isDriverOnline),
             _DriverShiftsTab(employeeId: _employeeId, driverName: _driverName),
           ],
         ),
@@ -1032,6 +1035,895 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
         ],
       ),
     );
+  }
+}
+
+// ============ DRIVER ROUTE TAB ============
+
+class _DriverRouteTab extends StatefulWidget {
+  final String? driverRecordId;
+  final bool isOnline;
+
+  const _DriverRouteTab({required this.driverRecordId, required this.isOnline});
+
+  @override
+  State<_DriverRouteTab> createState() => _DriverRouteTabState();
+}
+
+class _DriverRouteTabState extends State<_DriverRouteTab> {
+  final _supabase = Supabase.instance.client;
+  List<Map<String, dynamic>> _stops = [];
+  Map<String, dynamic>? _activeRoute;
+  bool _isLoading = true;
+  bool _isMarkingDelivered = false;
+  RealtimeChannel? _routeChannel;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRoute();
+    _setupRealtime();
+  }
+
+  @override
+  void didUpdateWidget(covariant _DriverRouteTab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.driverRecordId != widget.driverRecordId ||
+        oldWidget.isOnline != widget.isOnline) {
+      _loadRoute();
+    }
+  }
+
+  @override
+  void dispose() {
+    _routeChannel?.unsubscribe();
+    super.dispose();
+  }
+
+  void _setupRealtime() {
+    _routeChannel = _supabase
+        .channel('driver-route-updates')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'delivery_routes',
+          callback: (_) {
+            if (mounted) _loadRoute();
+          },
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'route_stops',
+          callback: (_) {
+            if (mounted) _loadRoute();
+          },
+        )
+        .subscribe();
+  }
+
+  Future<void> _loadRoute() async {
+    if (widget.driverRecordId == null) {
+      if (mounted) setState(() => _isLoading = false);
+      return;
+    }
+
+    try {
+      // Find active route for this driver
+      final routeResponse = await _supabase
+          .from('delivery_routes')
+          .select('*')
+          .eq('assigned_driver_id', widget.driverRecordId!)
+          .inFilter('status', ['assigned', 'in_progress'])
+          .order('created_at', ascending: false)
+          .limit(1);
+
+      final routeList = routeResponse as List;
+      if (routeList.isEmpty) {
+        if (mounted) {
+          setState(() {
+            _activeRoute = null;
+            _stops = [];
+            _isLoading = false;
+          });
+        }
+        return;
+      }
+
+      final route = Map<String, dynamic>.from(routeList.first as Map);
+      final routeId = route['id'] as String;
+
+      // Fetch stops for this route
+      final stopsResponse = await _supabase
+          .from('route_stops')
+          .select('*, orders!inner(id, customer_name, customer_address, customer_phone, delivery_notes, estimated_delivery_time, delivery_latitude, delivery_longitude, order_type_name, payment_method, total_price)')
+          .eq('delivery_route_id', routeId)
+          .order('sequence_number', ascending: true);
+
+      final stops = (stopsResponse as List)
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .toList();
+
+      if (mounted) {
+        setState(() {
+          _activeRoute = route;
+          _stops = stops;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('[DriverRouteTab] Error loading route: $e');
+      // Fallback: just load route without joins if orders join fails
+      try {
+        final routeResponse = await _supabase
+            .from('delivery_routes')
+            .select('*')
+            .eq('assigned_driver_id', widget.driverRecordId!)
+            .inFilter('status', ['assigned', 'in_progress'])
+            .order('created_at', ascending: false)
+            .limit(1);
+
+        final routeList = routeResponse as List;
+        if (routeList.isEmpty) {
+          if (mounted) setState(() { _activeRoute = null; _stops = []; _isLoading = false; });
+          return;
+        }
+
+        final route = Map<String, dynamic>.from(routeList.first as Map);
+        final routeId = route['id'] as String;
+
+        final stopsResponse = await _supabase
+            .from('route_stops')
+            .select('*')
+            .eq('delivery_route_id', routeId)
+            .order('sequence_number', ascending: true);
+
+        if (mounted) {
+          setState(() {
+            _activeRoute = route;
+            _stops = (stopsResponse as List)
+                .map((e) => Map<String, dynamic>.from(e as Map))
+                .toList();
+            _isLoading = false;
+          });
+        }
+      } catch (e2) {
+        debugPrint('[DriverRouteTab] Fallback also failed: $e2');
+        if (mounted) setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _markDelivered(Map<String, dynamic> stop) async {
+    if (_isMarkingDelivered) return;
+    setState(() => _isMarkingDelivered = true);
+
+    try {
+      final stopId = stop['id'] as String;
+      final orderId = stop['order_id'] as String?;
+
+      // Try calling the mark-delivered edge function (handles replanning automatically)
+      try {
+        await _supabase.functions.invoke(
+          'mark-delivered',
+          body: {
+            'route_stop_id': stopId,
+            'order_id': orderId,
+          },
+        );
+      } catch (edgeFnError) {
+        debugPrint('[DriverRouteTab] Edge function failed, using direct DB update: $edgeFnError');
+
+        // Fallback: direct DB update
+        await _supabase
+            .from('route_stops')
+            .update({
+              'status': 'completed',
+              'actual_arrival_time': DateTime.now().toUtc().toIso8601String(),
+            })
+            .eq('id', stopId);
+
+        if (orderId != null) {
+          await _supabase
+              .from('orders')
+              .update({
+                'delivery_status': 'delivered',
+                'status': 'delivered',
+                'actual_delivery_time': DateTime.now().toUtc().toIso8601String(),
+              })
+              .eq('id', orderId);
+        }
+
+        // Check if all stops done
+        final remaining = _stops.where((s) =>
+            s['type'] == 'customer_delivery' &&
+            s['status'] != 'delivered' &&
+            s['status'] != 'completed' &&
+            s['id'] != stopId).toList();
+
+        if (remaining.isEmpty && _activeRoute != null) {
+          await _supabase
+              .from('delivery_routes')
+              .update({
+                'status': 'completed',
+                'actual_return_at': DateTime.now().toUtc().toIso8601String(),
+              })
+              .eq('id', _activeRoute!['id'] as String);
+        }
+      }
+
+      if (mounted) {
+        final remaining = _stops.where((s) =>
+            s['type'] == 'customer_delivery' &&
+            s['status'] != 'delivered' &&
+            s['status'] != 'completed' &&
+            s['id'] != stop['id']).toList();
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle, color: Colors.white),
+                const SizedBox(width: 8),
+                Text(remaining.isEmpty
+                    ? 'All deliveries complete! 🎉'
+                    : 'Delivered! ${remaining.length} stop${remaining.length == 1 ? '' : 's'} left'),
+              ],
+            ),
+            backgroundColor: Colors.green[600],
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+
+      await _loadRoute();
+    } catch (e) {
+      debugPrint('[DriverRouteTab] Error marking delivered: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to mark delivered: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isMarkingDelivered = false);
+    }
+  }
+
+  void _openNavigation(double lat, double lng, String? address) async {
+    // Try Google Maps first, then Apple Maps
+    final googleUrl = Uri.parse('google.navigation:q=$lat,$lng&mode=d');
+    final appleMapsUrl = Uri.parse('https://maps.apple.com/?daddr=$lat,$lng&dirflg=d');
+    final fallbackUrl = Uri.parse('https://www.google.com/maps/dir/?api=1&destination=$lat,$lng&travelmode=driving');
+
+    try {
+      if (Platform.isAndroid) {
+        if (await canLaunchUrl(googleUrl)) {
+          await launchUrl(googleUrl);
+          return;
+        }
+      } else if (Platform.isIOS) {
+        if (await canLaunchUrl(appleMapsUrl)) {
+          await launchUrl(appleMapsUrl);
+          return;
+        }
+      }
+      // Fallback to browser
+      await launchUrl(fallbackUrl, mode: LaunchMode.externalApplication);
+    } catch (e) {
+      debugPrint('[DriverRouteTab] Error opening navigation: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not open navigation: $e'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!widget.isOnline) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.wifi_off, size: 64, color: Colors.grey[400]),
+              const SizedBox(height: 16),
+              Text(
+                'Go online to see your route',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey[600],
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Switch to the Status tab and toggle online',
+                style: TextStyle(fontSize: 14, color: Colors.grey[500]),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_activeRoute == null || _stops.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: Colors.blue[50],
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.delivery_dining, size: 64, color: Colors.blue[300]),
+              ),
+              const SizedBox(height: 24),
+              Text(
+                'No active route',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey[700],
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Waiting for new deliveries...\nRoutes are assigned automatically.',
+                style: TextStyle(fontSize: 14, color: Colors.grey[500]),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+              OutlinedButton.icon(
+                onPressed: _loadRoute,
+                icon: const Icon(Icons.refresh),
+                label: const Text('Refresh'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // Filter customer stops only (exclude store/depot stops)
+    final customerStops = _stops.where((s) => s['type'] == 'customer_delivery').toList();
+    final deliveredCount = customerStops.where((s) => s['status'] == 'delivered').length;
+    final totalStops = customerStops.length;
+    final routeStatus = _activeRoute!['status'] as String? ?? 'assigned';
+
+    return RefreshIndicator(
+      onRefresh: _loadRoute,
+      child: Column(
+        children: [
+          // Route header
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: routeStatus == 'in_progress'
+                    ? [Colors.blue[600]!, Colors.blue[800]!]
+                    : [Colors.orange[500]!, Colors.orange[700]!],
+              ),
+            ),
+            child: SafeArea(
+              top: false,
+              child: Row(
+                children: [
+                  // Progress circle
+                  SizedBox(
+                    width: 48,
+                    height: 48,
+                    child: Stack(
+                      children: [
+                        CircularProgressIndicator(
+                          value: totalStops > 0 ? deliveredCount / totalStops : 0,
+                          strokeWidth: 4,
+                          backgroundColor: Colors.white24,
+                          valueColor: const AlwaysStoppedAnimation(Colors.white),
+                        ),
+                        Center(
+                          child: Text(
+                            '$deliveredCount/$totalStops',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          routeStatus == 'in_progress' ? 'Route In Progress' : 'Route Assigned',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Text(
+                          '$deliveredCount of $totalStops delivered',
+                          style: const TextStyle(color: Colors.white70, fontSize: 13),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (_activeRoute!['plan_version'] != null)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.white24,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        'v${_activeRoute!['plan_version']}',
+                        style: const TextStyle(color: Colors.white, fontSize: 11),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+
+          // Stop list
+          Expanded(
+            child: ListView.builder(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              itemCount: customerStops.length,
+              itemBuilder: (context, index) {
+                final stop = customerStops[index];
+                return _buildStopCard(stop, index, customerStops.length);
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStopCard(Map<String, dynamic> stop, int index, int total) {
+    final isDelivered = stop['status'] == 'delivered';
+    final order = stop['orders'] as Map<String, dynamic>?;
+    final customerName = order?['customer_name'] as String? ??
+        stop['customer_name'] as String? ?? 'Customer';
+    final customerAddress = order?['customer_address'] as String? ??
+        stop['customer_address'] as String? ?? '';
+    final customerPhone = order?['customer_phone'] as String?;
+    final deliveryNotes = order?['delivery_notes'] as String?;
+    final orderType = order?['order_type_name'] as String?;
+    final paymentMethod = order?['payment_method'] as String?;
+    final totalPrice = (order?['total_price'] as num?)?.toDouble();
+
+    final lat = (stop['latitude'] as num?)?.toDouble() ??
+        (order?['delivery_latitude'] as num?)?.toDouble();
+    final lng = (stop['longitude'] as num?)?.toDouble() ??
+        (order?['delivery_longitude'] as num?)?.toDouble();
+
+    // ETA comparison
+    final plannedArrival = DateTime.tryParse(stop['planned_arrival_at'] as String? ?? '');
+    final promisedDelivery = DateTime.tryParse(order?['estimated_delivery_time'] as String? ?? '');
+    final estimatedArrival = DateTime.tryParse(stop['estimated_arrival_time'] as String? ?? '');
+
+    // Use planned arrival from solver, or fallback to estimated
+    final eta = plannedArrival ?? estimatedArrival;
+    int? latenessMin;
+    bool isLate = false;
+    if (eta != null && promisedDelivery != null) {
+      latenessMin = eta.difference(promisedDelivery).inMinutes;
+      isLate = latenessMin > 0;
+    }
+
+    // First non-delivered stop is the "current" one
+    final firstUndeliveredIdx = _stops
+        .where((s) => s['type'] == 'customer_delivery')
+        .toList()
+        .indexWhere((s) => s['status'] != 'delivered');
+    final isCurrentStop = index == firstUndeliveredIdx;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Timeline line + circle
+          SizedBox(
+            width: 40,
+            child: Column(
+              children: [
+                if (index > 0)
+                  Container(
+                    width: 2,
+                    height: 12,
+                    color: isDelivered ? Colors.green[300] : Colors.grey[300],
+                  ),
+                Container(
+                  width: 28,
+                  height: 28,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: isDelivered
+                        ? Colors.green[500]
+                        : isCurrentStop
+                            ? Colors.blue[600]
+                            : Colors.grey[300],
+                    border: isCurrentStop && !isDelivered
+                        ? Border.all(color: Colors.blue[200]!, width: 3)
+                        : null,
+                  ),
+                  child: Center(
+                    child: isDelivered
+                        ? const Icon(Icons.check, color: Colors.white, size: 16)
+                        : Text(
+                            '${index + 1}',
+                            style: TextStyle(
+                              color: isCurrentStop ? Colors.white : Colors.grey[600],
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                            ),
+                          ),
+                  ),
+                ),
+                if (index < total - 1)
+                  Container(
+                    width: 2,
+                    height: 12,
+                    color: isDelivered ? Colors.green[300] : Colors.grey[300],
+                  ),
+              ],
+            ),
+          ),
+
+          // Stop card
+          Expanded(
+            child: Card(
+              elevation: isCurrentStop && !isDelivered ? 3 : 1,
+              color: isDelivered
+                  ? Colors.green[50]
+                  : isLate && isCurrentStop
+                      ? Colors.red[50]
+                      : isCurrentStop
+                          ? Colors.blue[50]
+                          : isLate
+                              ? Colors.orange[50]
+                              : Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: isDelivered
+                    ? BorderSide.none
+                    : isLate && isCurrentStop
+                        ? BorderSide(color: Colors.red[300]!, width: 1.5)
+                        : isCurrentStop
+                            ? BorderSide(color: Colors.blue[300]!, width: 1.5)
+                            : isLate
+                                ? BorderSide(color: Colors.orange[300]!, width: 1)
+                                : BorderSide.none,
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Header row: customer name + platform badge
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            customerName,
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold,
+                              color: isDelivered ? Colors.grey[500] : Colors.grey[800],
+                              decoration: isDelivered ? TextDecoration.lineThrough : null,
+                            ),
+                          ),
+                        ),
+                        if (orderType != null)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: _platformColor(orderType).withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              orderType,
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                                color: _platformColor(orderType),
+                              ),
+                            ),
+                          ),
+                        if (paymentMethod != null) ...[
+                          const SizedBox(width: 4),
+                          Icon(
+                            paymentMethod.toLowerCase().contains('cash')
+                                ? Icons.payments_outlined
+                                : Icons.credit_card,
+                            size: 14,
+                            color: paymentMethod.toLowerCase().contains('cash')
+                                ? Colors.green[600]
+                                : Colors.blue[600],
+                          ),
+                        ],
+                      ],
+                    ),
+
+                    const SizedBox(height: 4),
+
+                    // Address
+                    if (customerAddress.isNotEmpty)
+                      Text(
+                        customerAddress,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: isDelivered ? Colors.grey[400] : Colors.grey[600],
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+
+                    // Notes
+                    if (deliveryNotes != null && deliveryNotes.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.amber[50],
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: Colors.amber[200]!),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.note, size: 14, color: Colors.amber[700]),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                deliveryNotes,
+                                style: TextStyle(fontSize: 11, color: Colors.amber[900]),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+
+                    const SizedBox(height: 8),
+
+                    // Target time vs ETA row
+                    Row(
+                      children: [
+                        // Target time (promised to customer)
+                        if (promisedDelivery != null) ...[
+                          Icon(
+                            Icons.flag,
+                            size: 14,
+                            color: Colors.grey[500],
+                          ),
+                          const SizedBox(width: 2),
+                          Text(
+                            'Target ${_formatTime(promisedDelivery)}',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.grey[500],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                        ],
+                        // Projected ETA
+                        if (eta != null) ...[
+                          Icon(
+                            isLate ? Icons.warning_amber : Icons.schedule,
+                            size: 14,
+                            color: isLate ? Colors.red[600] : Colors.green[600],
+                          ),
+                          const SizedBox(width: 2),
+                          Text(
+                            'ETA ${_formatTime(eta)}',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: isLate ? Colors.red[600] : Colors.green[600],
+                            ),
+                          ),
+                        ],
+                        const Spacer(),
+                        // Late/Early badge
+                        if (latenessMin != null)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: isLate
+                                  ? Colors.red.withOpacity(0.1)
+                                  : latenessMin == 0
+                                      ? Colors.green.withOpacity(0.1)
+                                      : Colors.green.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(
+                                color: isLate ? Colors.red.withOpacity(0.3) : Colors.green.withOpacity(0.3),
+                              ),
+                            ),
+                            child: Text(
+                              isLate
+                                  ? '⚠️ +${latenessMin}min late'
+                                  : latenessMin == 0
+                                      ? '✅ On time'
+                                      : '✅ ${-latenessMin}min early',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                color: isLate ? Colors.red[700] : Colors.green[700],
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+
+                    // Price row
+                    if (totalPrice != null) ...[
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          if (paymentMethod != null && paymentMethod.toLowerCase().contains('cash'))
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.amber[100],
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.payments, size: 12, color: Colors.amber[900]),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    'CASH €${totalPrice.toStringAsFixed(2)}',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.amber[900],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            )
+                          else
+                            Text(
+                              '€${totalPrice.toStringAsFixed(2)}',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                        ],
+                      ),
+                    ],
+
+                    // Action buttons for current stop
+                    if (!isDelivered) ...[
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          // Navigate button
+                          if (lat != null && lng != null)
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                onPressed: () => _openNavigation(lat, lng, customerAddress),
+                                icon: const Icon(Icons.navigation, size: 16),
+                                label: const Text('Navigate', style: TextStyle(fontSize: 12)),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: Colors.blue[700],
+                                  side: BorderSide(color: Colors.blue[300]!),
+                                  padding: const EdgeInsets.symmetric(vertical: 8),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          if (lat != null && lng != null)
+                            const SizedBox(width: 8),
+                          // Call button
+                          if (customerPhone != null && customerPhone.isNotEmpty)
+                            SizedBox(
+                              width: 44,
+                              child: OutlinedButton(
+                                onPressed: () => launchUrl(Uri.parse('tel:$customerPhone')),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: Colors.green[700],
+                                  side: BorderSide(color: Colors.green[300]!),
+                                  padding: EdgeInsets.zero,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                ),
+                                child: const Icon(Icons.phone, size: 16),
+                              ),
+                            ),
+                          if (customerPhone != null && customerPhone.isNotEmpty)
+                            const SizedBox(width: 8),
+                          // Mark delivered button
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: _isMarkingDelivered
+                                  ? null
+                                  : () => _markDelivered(stop),
+                              icon: _isMarkingDelivered
+                                  ? const SizedBox(
+                                      width: 14,
+                                      height: 14,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Colors.white,
+                                      ),
+                                    )
+                                  : const Icon(Icons.check_circle, size: 16),
+                              label: Text(
+                                isCurrentStop ? 'Delivered' : 'Done',
+                                style: const TextStyle(fontSize: 12),
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.green[600],
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(vertical: 8),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Color _platformColor(String platform) {
+    switch (platform.toLowerCase()) {
+      case 'lieferando':
+        return Colors.orange[700]!;
+      case 'foodora':
+        return Colors.pink[600]!;
+      default:
+        return Colors.blue[600]!;
+    }
+  }
+
+  String _formatTime(DateTime dt) {
+    final local = dt.isUtc ? dt.toLocal() : dt;
+    return '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
   }
 }
 

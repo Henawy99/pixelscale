@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:restaurantadmin/services/lieferando_service.dart';
+import 'package:restaurantadmin/screens/platform_login_webview.dart';
 
 class DeliverySessionsScreen extends StatefulWidget {
   const DeliverySessionsScreen({super.key});
@@ -103,19 +104,18 @@ class _DeliverySessionsScreenState extends State<DeliverySessionsScreen>
   }
 
   Future<void> _showReconnectDialog(PlatformSession session, ReloginResult result) async {
-    await showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => _ReconnectSheet(
-        session: session,
-        result: result,
-        onDone: () async {
-          Navigator.of(ctx).pop();
-          await _confirmReloginComplete(session.accountId, session.platform);
-        },
+    final success = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => PlatformLoginWebView(session: session),
       ),
     );
+
+    if (success == true) {
+      if (mounted) {
+        _showInfoSnack('✅ Login confirmed — session is now active!');
+        _loadSessions(silent: true);
+      }
+    }
   }
 
   Future<void> _confirmReloginComplete(String accountId, String platform) async {

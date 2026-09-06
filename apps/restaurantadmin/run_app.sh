@@ -24,9 +24,12 @@ echo -e "${BLUE}========================================${NC}"
 echo -e "${YELLOW}📦 Getting dependencies...${NC}"
 flutter pub get
 
+# Fix for iOS 18+ simulator Swift WebKit dylib
+export SIMCTL_CHILD_DYLD_FALLBACK_LIBRARY_PATH="/Library/Developer/CoreSimulator/Volumes/iOS_22E238/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 18.4.simruntime/Contents/Resources/RuntimeRoot/System/Cryptexes/OS/usr/lib/swift:$SIMCTL_CHILD_DYLD_FALLBACK_LIBRARY_PATH"
+
 # Run on iOS device/simulator
 echo -e "${GREEN}📱 Running on iOS...${NC}"
-flutter run
+flutter run "$@"
 
 echo -e "${GREEN}✅ Done!${NC}"
 

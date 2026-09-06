@@ -179,4 +179,27 @@ class PlatformSessionService {
         return SessionStatus.unknown;
     }
   }
+
+  // ── Send cookies extracted from mobile WebView ─────────────────────────────
+  Future<SessionStatus> sendCookies(String accountId, String platform, List<Map<String, dynamic>> cookies) async {
+    final baseUrl = platform == 'foodora' ? _foodoraBaseUrl : _lieferandoBaseUrl;
+    final path = platform == 'foodora' ? '/api/foodora/sessions/$accountId/cookies' : '/api/sessions/$accountId/cookies';
+    
+    final uri = Uri.parse('$baseUrl$path');
+    final response = await http
+        .post(
+          uri, 
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({'cookies': cookies})
+        )
+        .timeout(const Duration(seconds: 15));
+
+    final json = jsonDecode(response.body) as Map<String, dynamic>;
+    if (response.statusCode != 200) {
+      throw Exception(json['error'] ?? 'Unknown error');
+    }
+
+    final s = json['status'] as String?;
+    return s == 'active' ? SessionStatus.active : SessionStatus.expired;
+  }
 }

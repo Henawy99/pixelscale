@@ -3,6 +3,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:restaurantadmin/services/app_nav_service.dart';
 
 class PushNotificationService {
   static final PushNotificationService _instance = PushNotificationService._internal();
@@ -105,24 +106,38 @@ class PushNotificationService {
         _registerToken(newToken);
       });
 
-      // Handle foreground messages
-      FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-        debugPrint('[PushNotification] Foreground message received: ${message.notification?.title}');
-        // You can show a local notification here if needed
-      });
+        // Allow notifications to show alerts, sound, and badge while app is in foreground
+        await _messaging.setForegroundNotificationPresentationOptions(
+          alert: true,
+          badge: true,
+          sound: true,
+        );
 
-      // Handle background messages (when app is in background but not terminated)
-      FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
-        debugPrint('[PushNotification] Background message opened: ${message.notification?.title}');
-        // Handle navigation based on message data
-      });
+        // Check if app was opened from a terminated notification
+        final initialMessage = await _messaging.getInitialMessage();
+        if (initialMessage != null && initialMessage.data['type'] == 'order') {
+          AppNavService().goToOrdersTab();
+        }
 
-      _initialized = true;
-      debugPrint('[PushNotification] Initialized successfully');
-    } catch (e) {
-      debugPrint('[PushNotification] Initialization error: $e');
+        // Handle foreground messages
+        FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+          debugPrint('[PushNotification] Foreground message received: ${message.notification?.title}');
+        });
+
+        // Handle background messages (when app is in background but not terminated)
+        FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
+          debugPrint('[PushNotification] Background message opened: ${message.notification?.title}');
+          if (message.data['type'] == 'order') {
+            AppNavService().goToOrdersTab();
+          }
+        });
+
+        _initialized = true;
+        debugPrint('[PushNotification] Initialized successfully');
+      } catch (e) {
+        debugPrint('[PushNotification] Initialization error: $e');
+      }
     }
-  }
 
   /// Register device token with Supabase
   Future<void> _registerToken(String token) async {

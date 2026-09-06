@@ -363,6 +363,15 @@ app.get('/health', (req, res) => {
   });
 });
 
+app.get('/download', (req, res) => {
+  const zipPath = path.join(__dirname, 'foodora-windows-pos.zip');
+  if (fs.existsSync(zipPath)) {
+    res.download(zipPath, 'foodora-windows-pos.zip');
+  } else {
+    res.status(404).send('Download file not found');
+  }
+});
+
 app.get('/api/foodora/sessions', (req, res) => {
   res.json([
     {

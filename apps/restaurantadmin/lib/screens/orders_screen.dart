@@ -18,6 +18,7 @@ import 'package:restaurantadmin/screens/delivery_monitor_screen.dart';
 import 'package:restaurantadmin/widgets/global_order_listener.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import 'package:url_launcher/url_launcher.dart';
+import 'package:restaurantadmin/screens/intensive_filter_screen.dart';
 
 class OrdersScreen extends StatefulWidget {
   const OrdersScreen({super.key});
@@ -2354,7 +2355,22 @@ class _OrdersScreenState extends State<OrdersScreen>
                   ),
                 ),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 20),
+              OutlinedButton.icon(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _openIntensiveFilterScreen();
+                },
+                icon: const Icon(Icons.analytics_outlined),
+                label: const Text('Intensive Filter & Analytics', style: TextStyle(fontWeight: FontWeight.bold)),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  foregroundColor: Colors.indigo.shade700,
+                  side: BorderSide(color: Colors.indigo.shade300, width: 1.5),
+                ),
+              ),
+              const SizedBox(height: 10),
               ElevatedButton(
                 onPressed: () => Navigator.pop(context),
                 style: ElevatedButton.styleFrom(
@@ -2372,6 +2388,14 @@ class _OrdersScreenState extends State<OrdersScreen>
     );
   }
 
+  void _openIntensiveFilterScreen() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => IntensiveFilterScreen(initialDate: _selectedDate),
+      ),
+    );
+  }
 
   Widget _buildDateNavigator() {
     return Padding(
@@ -2415,15 +2439,21 @@ class _OrdersScreenState extends State<OrdersScreen>
             ],
           ),
           const SizedBox(width: 8),
-          IconButton(
-            icon: const Icon(Icons.filter_list),
-            onPressed: _showFilterSheet,
-            tooltip: 'Search & Filters',
-            style: IconButton.styleFrom(
-              backgroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-                side: BorderSide(color: Colors.grey.shade300),
+          GestureDetector(
+            onLongPress: () {
+              HapticFeedback.mediumImpact();
+              _openIntensiveFilterScreen();
+            },
+            child: IconButton(
+              icon: const Icon(Icons.filter_list),
+              onPressed: _showFilterSheet,
+              tooltip: 'Filters (Long-press for Intensive Filter)',
+              style: IconButton.styleFrom(
+                backgroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: BorderSide(color: Colors.grey.shade300),
+                ),
               ),
             ),
           ),

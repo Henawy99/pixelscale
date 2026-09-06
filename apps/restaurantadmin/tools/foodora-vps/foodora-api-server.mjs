@@ -28,6 +28,22 @@ app.use((req, res, next) => {
 const sessionState = new Map();
 const activeRelogins = new Map();
 
+let cookieInjectorCallback = null;
+let browserResetCallback = null;
+let programmaticLoginCallback = null;
+
+export function setCookieInjector(cb) {
+  cookieInjectorCallback = cb;
+}
+
+export function setBrowserResetter(cb) {
+  browserResetCallback = cb;
+}
+
+export function setProgrammaticLogin(cb) {
+  programmaticLoginCallback = cb;
+}
+
 export function initSessions(accounts) {
   for (const a of accounts) {
     if (!sessionState.has(a.id)) {
@@ -125,6 +141,76 @@ app.post('/api/foodora/sessions/:accountId/relogin-complete', (req, res) => {
   
   const newStatus = _checkCookiesFreshness(accountId);
   res.json({ accountId, status: newStatus });
+});
+
+app.post('/api/foodora/sessions/:accountId/cookies', async (req, res) => {
+  const { accountId } = req.params;
+  const { cookies } = req.body;
+  const session = sessionState.get(accountId);
+  if (!session) return res.status(404).json({ error: `Unknown accountId: ${accountId}` });
+
+  if (cookieInjectorCallback) {
+    try {
+      await cookieInjectorCallback(accountId, cookies);
+      const newStatus = _checkCookiesFreshness(accountId);
+      res.json({ success: true, accountId, status: newStatus });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  } else {
+    res.status(500).json({ error: 'Cookie injector not registered on the server.' });
+  }
+});
+
+// Refresh endpoint: kills and relaunches the browser to pick up a fresh session
+app.post('/api/foodora/sessions/:accountId/refresh', async (req, res) => {
+  const { accountId } = req.params;
+  const session = sessionState.get(accountId);
+  if (!session) return res.status(404).json({ error: `Unknown accountId: ${accountId}` });
+
+  console.log(`[Foodora API] 🔄 Refresh requested for ${accountId}`);
+
+  if (browserResetCallback) {
+    try {
+      await browserResetCallback(accountId);
+      session.status = 'active';
+      session.lastCheckedAt = new Date().toISOString();
+      res.json({ success: true, accountId, status: 'active', message: 'Browser restarted and navigated to portal.' });
+    } catch (err) {
+      console.error(`[Foodora API] Refresh failed:`, err.message);
+      res.status(500).json({ error: err.message });
+    }
+  } else {
+    res.status(500).json({ error: 'Browser resetter not registered on the server.' });
+  }
+});
+
+// Programmatic login: receives credentials from mobile app, logs in via Puppeteer
+app.post('/api/foodora/sessions/:accountId/login', async (req, res) => {
+  const { accountId } = req.params;
+  const { email, password } = req.body;
+  const session = sessionState.get(accountId);
+  if (!session) return res.status(404).json({ error: `Unknown accountId: ${accountId}` });
+
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Email and password are required.' });
+  }
+
+  console.log(`[Foodora API] 🔐 Programmatic login requested for ${accountId} (${email})`);
+
+  if (programmaticLoginCallback) {
+    try {
+      const result = await programmaticLoginCallback(accountId, email, password);
+      session.status = result.success ? 'active' : 'expired';
+      session.lastCheckedAt = new Date().toISOString();
+      res.json({ success: result.success, accountId, status: session.status, message: result.message });
+    } catch (err) {
+      console.error(`[Foodora API] Programmatic login failed:`, err.message);
+      res.status(500).json({ error: err.message });
+    }
+  } else {
+    res.status(500).json({ error: 'Programmatic login not registered on the server.' });
+  }
 });
 
 function _checkCookiesFreshness(accountId) {

@@ -41,7 +41,7 @@ console.log(`[Foodora Login] Starting headed browser for ${accountId}...`);
   await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
 
   try {
-    await page.goto('https://portal.restaurant.foodora.at/', { waitUntil: 'networkidle2', timeout: 60000 });
+    await page.goto('https://partner.foodora.com/', { waitUntil: 'networkidle2', timeout: 60000 });
   } catch (err) {
     console.error('[Foodora Login] Timeout or error loading Foodora portal:', err.message);
   }
