@@ -35,6 +35,8 @@ export interface PlannerOrder {
   orderTypeName: string | null; // "Lieferando" | "Foodora" | "Website"
   paymentMethod: string | null;
   totalPrice: number;
+  /** Manually pinned driver ID that solver must respect */
+  pinnedDriverId?: string | null;
 }
 
 /** A driver available for delivery. */
@@ -47,6 +49,10 @@ export interface PlannerDriver {
   currentRouteId: string | null;
   /** When the driver is expected back at the restaurant. */
   projectedReturnAt: Date | null;
+  /** When driver is available to depart (now or projected return). */
+  availableAt?: Date | null;
+  /** Scheduled end of driver's shift (null if unlimited/manual). */
+  shiftEndAt?: Date | null;
 }
 
 /** Tunable planner settings loaded from delivery_settings table. */
@@ -64,6 +70,9 @@ export interface PlannerSettings {
   preorderEarlyGraceSecs: number;
   bundlingWaitSecs: number;
   planningHorizonSecs: number;
+
+  // Shift constraints
+  shiftEndGraceMinutes?: number;
 
   // Fallback
   citySpeedKmh: number;
@@ -157,6 +166,8 @@ export interface CandidateRoute {
   availableAt: Date;
   /** Stops that are already delivered (frozen). */
   frozenStopCount: number;
+  /** Driver's scheduled shift end time (null if none). */
+  shiftEndAt?: Date | null;
 }
 
 /** A full candidate plan (both/all drivers). */

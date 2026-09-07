@@ -29,10 +29,8 @@ import 'package:restaurantadmin/models/brand.dart'; // Import Brand model
 import 'package:restaurantadmin/models/menu_category.dart'; // Import MenuCategory model
 import 'package:restaurantadmin/models/menu_item_model.dart'; // Import MenuItem model
 import 'package:restaurantadmin/models/worker_cache_models.dart'; // Import worker cache models
-import 'package:restaurantadmin/services/local_scan_server.dart'; // Import the local server
 import 'package:restaurantadmin/services/label_printer_service.dart'; // Import label printer service
 import 'package:restaurantadmin/widgets/global_purchase_listener.dart';
-import 'package:restaurantadmin/screens/receipt_scanner_screen.dart';
 import 'package:restaurantadmin/widgets/global_order_listener.dart';
 import 'package:restaurantadmin/services/push_notification_service.dart'; // Import push notification service
 import 'package:firebase_messaging/firebase_messaging.dart'; // For background handler
@@ -72,32 +70,8 @@ Future<void> main() async {
     usePathUrlStrategy();
   }
 
-  // Start the local scan server on non-web platforms
+  // Non-web platform setup
   if (!kIsWeb) {
-    // Global listener: push ReceiptScannerScreen when an image arrives
-    LocalScanServer().onImageReceived = (bytes) {
-      final nav = appNavigatorKey.currentState;
-      if (nav == null) return;
-      // If we’re already on the scanner, just let that screen handle it.
-      final currentRoute = ModalRoute.of(nav.context)?.settings.name ?? '';
-      if (currentRoute == '/receipt-scanner') {
-        return;
-      }
-      nav.push(
-        MaterialPageRoute(
-          settings: const RouteSettings(name: '/receipt-scanner'),
-          builder: (_) => ReceiptScannerScreen(initialImageBytes: bytes),
-        ),
-      );
-    };
-
-    try {
-      await LocalScanServer().startServer();
-    } catch (e) {
-      print('WARNING: LocalScanServer failed to start: $e');
-      // Non-critical - the app can run without the scan server
-    }
-
     // ── ZD220 raw queue override ──────────────────────────────────────────
     // Always prefer the raw CUPS queue (bypasses the rastertolabel PPD filter).
     // Auto-detection falls back to this if not explicitly set.
@@ -521,19 +495,28 @@ class _AuthGateState extends State<AuthGate> {
                       print('[AuthGate] Not youssef@gmail.com, skipping push notifications. Email was: $email');
                     }
                     
-                    if (ModalRoute.of(context)?.settings.name != MainScreen.routeName) {
-                      Navigator.pushReplacementNamed(context, MainScreen.routeName);
-                    }
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      if (!context.mounted) return;
+                      if (ModalRoute.of(context)?.settings.name != MainScreen.routeName) {
+                        Navigator.pushReplacementNamed(context, MainScreen.routeName);
+                      }
+                    });
                     break;
                   case 'driver':
-                    if (ModalRoute.of(context)?.settings.name != DriverAppShell.routeName) {
-                      Navigator.pushReplacementNamed(context, DriverAppShell.routeName);
-                    }
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      if (!context.mounted) return;
+                      if (ModalRoute.of(context)?.settings.name != DriverAppShell.routeName) {
+                        Navigator.pushReplacementNamed(context, DriverAppShell.routeName);
+                      }
+                    });
                     break;
                   case 'worker':
-                    if (ModalRoute.of(context)?.settings.name != WorkerAppShell.routeName) {
-                      Navigator.pushReplacementNamed(context, WorkerAppShell.routeName);
-                    }
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      if (!context.mounted) return;
+                      if (ModalRoute.of(context)?.settings.name != WorkerAppShell.routeName) {
+                        Navigator.pushReplacementNamed(context, WorkerAppShell.routeName);
+                      }
+                    });
                     break;
                   default:
                     // Unknown role: attempt to self-heal for known worker via Edge Function, else sign out

@@ -43,6 +43,7 @@ CREATE TABLE IF NOT EXISTS delivery_settings (
 
 -- Enable RLS
 ALTER TABLE delivery_settings ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow all for authenticated on delivery_settings" ON delivery_settings;
 CREATE POLICY "Allow all for authenticated on delivery_settings"
   ON delivery_settings FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
@@ -65,6 +66,7 @@ CREATE INDEX IF NOT EXISTS idx_ttc_lookup
   ON travel_time_cache(origin_lat_bucket, origin_lng_bucket, dest_lat_bucket, dest_lng_bucket, hour_bucket);
 
 ALTER TABLE travel_time_cache ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow all for service_role on travel_time_cache" ON travel_time_cache;
 CREATE POLICY "Allow all for service_role on travel_time_cache"
   ON travel_time_cache FOR ALL USING (true) WITH CHECK (true);
 
@@ -85,6 +87,7 @@ CREATE INDEX IF NOT EXISTS idx_plan_log_brand_version
   ON plan_log(brand_id, plan_version DESC);
 
 ALTER TABLE plan_log ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow all for authenticated on plan_log" ON plan_log;
 CREATE POLICY "Allow all for authenticated on plan_log"
   ON plan_log FOR ALL TO authenticated USING (true) WITH CHECK (true);
 

@@ -1,12 +1,9 @@
 import 'dart:async';
-import 'package:restaurantadmin/screens/widgets/orders_settings_sheet.dart';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart'; // For date formatting
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:restaurantadmin/models/order.dart' as app_order;
-import 'package:restaurantadmin/models/remote_scanner_status.dart';
 import 'package:restaurantadmin/widgets/category_card.dart';
 import 'package:restaurantadmin/screens/orderable_brand_menu_screen.dart';
 import 'package:restaurantadmin/screens/order_detail_screen.dart';
@@ -16,9 +13,9 @@ import 'package:restaurantadmin/utils/pdf_generator.dart';
 import 'package:restaurantadmin/models/driver.dart';
 import 'package:restaurantadmin/screens/delivery_monitor_screen.dart';
 import 'package:restaurantadmin/widgets/global_order_listener.dart';
-import 'package:timeago/timeago.dart' as timeago;
 import 'package:url_launcher/url_launcher.dart';
 import 'package:restaurantadmin/screens/intensive_filter_screen.dart';
+import 'package:restaurantadmin/services/demo_order_service.dart';
 
 class OrdersScreen extends StatefulWidget {
   const OrdersScreen({super.key});
@@ -65,15 +62,11 @@ class _OrdersScreenState extends State<OrdersScreen>
   String _selectedBrandFilter = 'all';
   String _selectedStatusFilter = 'all';
   String _selectedTab = 'Prepare';
+  bool _showOnlyDemoOrders = false;
+  bool _isGeneratingDemoOrder = false;
 
   List<Driver> _activeDrivers = [];
   List<app_order.Order> _deliveryOrders = [];
-
-  // Receipt scanner status
-  List<RemoteScannerStatus> _remoteScanners = [];
-  RealtimeChannel? _scannerStatusChannel;
-  Timer? _scannerStatusTimer;
-  bool _scannerStatusExpanded = false;
 
   // Date navigation
   late DateTime _selectedDate;
@@ -184,11 +177,6 @@ class _OrdersScreenState extends State<OrdersScreen>
     _subscribeToNewOrderNotifications();
     _subscribeToOrdersStreamBackup();
     _startPeriodicRefresh();
-    _fetchScannerStatus();
-    _subscribeToScannerStatus();
-    _scannerStatusTimer = Timer.periodic(const Duration(seconds: 30), (_) {
-      _fetchScannerStatus();
-    });
     WidgetsBinding.instance.addObserver(this);
   }
 
@@ -203,8 +191,6 @@ class _OrdersScreenState extends State<OrdersScreen>
     _newOrderSubscription?.cancel();
     _periodicRefreshTimer?.cancel();
     _livePollTimer?.cancel();
-    _scannerStatusTimer?.cancel();
-    _scannerStatusChannel?.unsubscribe();
     super.dispose();
   }
 
@@ -338,40 +324,7 @@ class _OrdersScreenState extends State<OrdersScreen>
     });
   }
 
-  // ── Scanner Status ──────────────────────────────────────────────
-  Future<void> _fetchScannerStatus() async {
-    try {
-      final response = await _supabase
-          .from('scanner_heartbeats')
-          .select()
-          .order('last_heartbeat', ascending: false);
-      if (mounted) {
-        setState(() {
-          _remoteScanners = (response as List)
-              .map((data) => RemoteScannerStatus.fromJson(
-                    data as Map<String, dynamic>,
-                  ))
-              .toList();
-        });
-      }
-    } catch (e) {
-      debugPrint('[OrdersScreen] Error fetching scanner status: $e');
-    }
-  }
 
-  void _subscribeToScannerStatus() {
-    _scannerStatusChannel = _supabase
-        .channel('scanner_heartbeats_orders')
-        .onPostgresChanges(
-          event: PostgresChangeEvent.all,
-          schema: 'public',
-          table: 'scanner_heartbeats',
-          callback: (payload) {
-            _fetchScannerStatus();
-          },
-        )
-        .subscribe();
-  }
 
   Future<void> _loadAllData() async {
     setState(() {
@@ -646,6 +599,15 @@ class _OrdersScreenState extends State<OrdersScreen>
 
   List<app_order.Order> _filterOrders(List<app_order.Order> orders) {
     List<app_order.Order> filteredOrders = orders;
+
+    // Demo orders filter - never mix demo orders with real store orders
+    filteredOrders = filteredOrders.where((order) {
+      if (_showOnlyDemoOrders) {
+        return order.isDemo == true;
+      } else {
+        return order.isDemo != true;
+      }
+    }).toList();
 
     // Search filter
     if (_searchQuery.isNotEmpty) {
@@ -1063,17 +1025,6 @@ class _OrdersScreenState extends State<OrdersScreen>
                   );
                 },
               ),
-              IconButton(
-                icon: const Icon(Icons.settings_outlined),
-                tooltip: 'Settings',
-                onPressed: () async {
-                  await showModalBottomSheet(
-                    context: context,
-                    isScrollControlled: true,
-                    builder: (_) => const OrdersSettingsSheet(),
-                  );
-                },
-              ),
             ],
           ),
           const SizedBox(height: 16),
@@ -1448,6 +1399,12 @@ class _OrdersScreenState extends State<OrdersScreen>
       builder: (context, constraints) {
         // Apply search, brand, and status filters first
         final filteredOrders = _loadedOrders.where((order) {
+          // Never mix demo orders with real orders
+          if (_showOnlyDemoOrders) {
+            if (!order.isDemo) return false;
+          } else {
+            if (order.isDemo) return false;
+          }
           if (_selectedBrandFilter != 'all' &&
               order.brandId != _selectedBrandFilter) {
             return false;
@@ -2134,23 +2091,129 @@ class _OrdersScreenState extends State<OrdersScreen>
     );
   }
 
+  Widget _buildDemoSwitch() {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+      decoration: BoxDecoration(
+        color: _showOnlyDemoOrders ? Colors.amber.withOpacity(0.18) : Colors.grey[200],
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: _showOnlyDemoOrders ? Colors.amber[700]! : Colors.grey[350]!,
+          width: 1.2,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            _showOnlyDemoOrders ? Icons.flash_on : Icons.store_mall_directory_outlined,
+            size: 14,
+            color: _showOnlyDemoOrders ? Colors.amber[800] : Colors.grey[600],
+          ),
+          const SizedBox(width: 4),
+          Text(
+            _showOnlyDemoOrders ? 'DEMO' : 'LIVE',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              color: _showOnlyDemoOrders ? Colors.amber[900] : Colors.grey[700],
+              letterSpacing: 0.5,
+            ),
+          ),
+          const SizedBox(width: 4),
+          SizedBox(
+            height: 20,
+            width: 34,
+            child: Switch(
+              value: _showOnlyDemoOrders,
+              activeColor: Colors.amber[700],
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              onChanged: (val) {
+                setState(() {
+                  _showOnlyDemoOrders = val;
+                });
+              },
+            ),
+          ),
+          if (_showOnlyDemoOrders) ...[
+            const SizedBox(width: 4),
+            InkWell(
+              onTap: _isGeneratingDemoOrder ? null : _handleCreateDemoOrder,
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                decoration: BoxDecoration(
+                  color: Colors.amber[700],
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: _isGeneratingDemoOrder
+                    ? const SizedBox(
+                        width: 12,
+                        height: 12,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      )
+                    : const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.add, size: 12, color: Colors.white),
+                          SizedBox(width: 2),
+                          Text(
+                            'Order',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Future<void> _handleCreateDemoOrder() async {
+    setState(() => _isGeneratingDemoOrder = true);
+    try {
+      final res = await DemoOrderService.createDemoOrder();
+      if (mounted) {
+        final order = res['order'];
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('⚡ Demo Order Added: ${order?['customer_name'] ?? 'Order'} (60m ETA)'),
+            backgroundColor: Colors.amber[800],
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        _loadAllData();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to create demo order: $e'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isGeneratingDemoOrder = false);
+    }
+  }
+
   Widget _buildActionButtonsRow() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
-          IconButton(
-            icon: const Icon(Icons.settings_outlined),
-            tooltip: 'Settings',
-            onPressed: () async {
-              await showModalBottomSheet(
-                context: context,
-                isScrollControlled: true,
-                builder: (_) => const OrdersSettingsSheet(),
-              );
-            },
-          ),
+          _buildDemoSwitch(),
+          const SizedBox(width: 10),
           Container(
             decoration: BoxDecoration(
               gradient: LinearGradient(
@@ -2663,323 +2726,6 @@ class _OrdersScreenState extends State<OrdersScreen>
     );
   }
 
-  // ── Scanner Status Widgets ────────────────────────────────────
-  Widget _buildSidebarScannerStatus() {
-    final hasAnyScanners = _remoteScanners.isNotEmpty;
-    final onlineScanners =
-        _remoteScanners.where((s) => s.isOnline).toList();
-    final allOnline = hasAnyScanners && onlineScanners.length == _remoteScanners.length;
-    final someOnline = onlineScanners.isNotEmpty;
-
-    final Color statusColor = allOnline
-        ? Colors.green
-        : someOnline
-            ? Colors.orange
-            : Colors.red;
-    final String statusLabel = !hasAnyScanners
-        ? 'No Scanners'
-        : allOnline
-            ? '${onlineScanners.length} Online'
-            : someOnline
-                ? '${onlineScanners.length}/${_remoteScanners.length} Online'
-                : 'All Offline';
-
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: Column(
-        children: [
-          InkWell(
-            borderRadius: BorderRadius.circular(12),
-            onTap: () => setState(
-              () => _scannerStatusExpanded = !_scannerStatusExpanded,
-            ),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              child: Row(
-                children: [
-                  // Animated pulsing dot
-                  _AnimatedStatusDot(color: statusColor, pulse: someOnline),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Receipt Scanner',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          statusLabel,
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: statusColor,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Icon(
-                    _scannerStatusExpanded
-                        ? Icons.expand_less
-                        : Icons.expand_more,
-                    size: 20,
-                    color: Colors.grey[500],
-                  ),
-                ],
-              ),
-            ),
-          ),
-          // Expanded detail section
-          AnimatedCrossFade(
-            duration: const Duration(milliseconds: 200),
-            crossFadeState: _scannerStatusExpanded
-                ? CrossFadeState.showFirst
-                : CrossFadeState.showSecond,
-            firstChild: Column(
-              children: [
-                Divider(height: 1, color: Colors.grey[200]),
-                if (!hasAnyScanners)
-                  Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Text(
-                      'No scanners registered yet.',
-                      style: TextStyle(color: Colors.grey[500], fontSize: 12),
-                    ),
-                  )
-                else
-                  ..._remoteScanners.map((s) => _buildScannerDetailRow(s)),
-              ],
-            ),
-            secondChild: const SizedBox.shrink(),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildScannerDetailRow(RemoteScannerStatus s) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-      child: Row(
-        children: [
-          Container(
-            width: 8,
-            height: 8,
-            decoration: BoxDecoration(
-              color: s.isOnline ? Colors.green : Colors.red.shade400,
-              shape: BoxShape.circle,
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  s.scannerName,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                Text(
-                  '${s.hostname} • ${s.isOnline ? 'Online' : 'Last seen ${timeago.format(s.lastHeartbeat)}'}',
-                  style: TextStyle(fontSize: 10, color: Colors.grey[500]),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMobileScannerPill() {
-    final onlineScanners =
-        _remoteScanners.where((s) => s.isOnline).toList();
-    final hasAnyScanners = _remoteScanners.isNotEmpty;
-    final allOnline = hasAnyScanners &&
-        onlineScanners.length == _remoteScanners.length;
-    final someOnline = onlineScanners.isNotEmpty;
-
-    final Color statusColor = allOnline
-        ? Colors.green
-        : someOnline
-            ? Colors.orange
-            : Colors.red;
-    final String label = !hasAnyScanners
-        ? 'No Scanner'
-        : allOnline
-            ? 'Scanner Online'
-            : someOnline
-                ? 'Partial'
-                : 'Scanner Offline';
-
-    return GestureDetector(
-      onTap: () {
-        showModalBottomSheet(
-          context: context,
-          shape: const RoundedRectangleBorder(
-            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-          ),
-          builder: (_) => _buildScannerBottomSheet(),
-        );
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-        decoration: BoxDecoration(
-          color: statusColor.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: statusColor.withOpacity(0.4)),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _AnimatedStatusDot(color: statusColor, pulse: someOnline, size: 7),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: Color.lerp(statusColor, Colors.black, 0.3),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildScannerBottomSheet() {
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                margin: const EdgeInsets.only(bottom: 16),
-                decoration: BoxDecoration(
-                  color: Colors.grey[300],
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            const Text(
-              'Receipt Scanner Status',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 16),
-            if (_remoteScanners.isEmpty)
-              Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
-                    children: [
-                      Icon(Icons.scanner, size: 48, color: Colors.grey[400]),
-                      const SizedBox(height: 12),
-                      Text(
-                        'No scanners registered.',
-                        style: TextStyle(color: Colors.grey[600]),
-                      ),
-                    ],
-                  ),
-                ),
-              )
-            else
-              ..._remoteScanners.map((s) => Container(
-                    margin: const EdgeInsets.only(bottom: 12),
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: s.isOnline
-                          ? Colors.green.withOpacity(0.05)
-                          : Colors.red.withOpacity(0.05),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: s.isOnline
-                            ? Colors.green.withOpacity(0.2)
-                            : Colors.red.withOpacity(0.2),
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 10,
-                          height: 10,
-                          decoration: BoxDecoration(
-                            color: s.isOnline ? Colors.green : Colors.red,
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                s.scannerName,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 14,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                'Host: ${s.hostname}',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.grey[600],
-                                ),
-                              ),
-                              Text(
-                                s.isOnline
-                                    ? 'Online'
-                                    : 'Last seen ${timeago.format(s.lastHeartbeat)}',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: s.isOnline
-                                      ? Colors.green[700]
-                                      : Colors.red[700],
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                              if (s.watchPath.isNotEmpty)
-                                Text(
-                                  'Path: ${s.watchPath}',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    color: Colors.grey[500],
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  )),
-          ],
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -3115,6 +2861,8 @@ class _OrdersScreenState extends State<OrdersScreen>
                           fontWeight: FontWeight.w700,
                         ),
                       ),
+                      const SizedBox(width: 8),
+                      _buildDemoSwitch(),
                       const Spacer(),
                       // Quick actions inline
                       IconButton(
@@ -3132,6 +2880,36 @@ class _OrdersScreenState extends State<OrdersScreen>
                     ],
                   ),
                 ),
+
+                if (_showOnlyDemoOrders)
+                  Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.amber.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.amber.withOpacity(0.5)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.flash_on, size: 16, color: Colors.amber),
+                        const SizedBox(width: 8),
+                        const Expanded(
+                          child: Text(
+                            'Demo Mode Active: Showing test orders only (real orders hidden)',
+                            style: TextStyle(fontSize: 12, color: Colors.brown, fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () async {
+                            await DemoOrderService.resetDemoOrders();
+                            _loadAllData();
+                          },
+                          child: const Text('Reset', style: TextStyle(color: Colors.red, fontSize: 11, fontWeight: FontWeight.bold)),
+                        ),
+                      ],
+                    ),
+                  ),
 
                 // Dropdown brand row appears when + is pressed
                 AnimatedCrossFade(
@@ -3316,85 +3094,5 @@ class _OrdersScreenState extends State<OrdersScreen>
     } finally {
       if (mounted) setState(() => _isGeneratingSummary = false);
     }
-  }
-}
-
-/// A small animated pulsing dot used to indicate scanner online/offline status.
-class _AnimatedStatusDot extends StatefulWidget {
-  final Color color;
-  final bool pulse;
-  final double size;
-
-  const _AnimatedStatusDot({
-    required this.color,
-    this.pulse = false,
-    this.size = 10,
-  });
-
-  @override
-  State<_AnimatedStatusDot> createState() => _AnimatedStatusDotState();
-}
-
-class _AnimatedStatusDotState extends State<_AnimatedStatusDot>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _animation;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      duration: const Duration(milliseconds: 1500),
-      vsync: this,
-    );
-    _animation = Tween<double>(begin: 0.4, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
-    );
-    if (widget.pulse) {
-      _controller.repeat(reverse: true);
-    }
-  }
-
-  @override
-  void didUpdateWidget(covariant _AnimatedStatusDot oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.pulse && !_controller.isAnimating) {
-      _controller.repeat(reverse: true);
-    } else if (!widget.pulse && _controller.isAnimating) {
-      _controller.stop();
-      _controller.value = 1.0;
-    }
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _animation,
-      builder: (context, child) => Container(
-        width: widget.size,
-        height: widget.size,
-        decoration: BoxDecoration(
-          color: widget.color.withOpacity(
-            widget.pulse ? _animation.value : 1.0,
-          ),
-          shape: BoxShape.circle,
-          boxShadow: widget.pulse
-              ? [
-                  BoxShadow(
-                    color: widget.color.withOpacity(0.4 * _animation.value),
-                    blurRadius: widget.size * 0.8,
-                    spreadRadius: widget.size * 0.2,
-                  ),
-                ]
-              : null,
-        ),
-      ),
-    );
   }
 }

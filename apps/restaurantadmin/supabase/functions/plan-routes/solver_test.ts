@@ -39,7 +39,7 @@ function defaultSettings(): PlannerSettings {
     bundlingWaitSecs: 240, // 4 min
     planningHorizonSecs: 2700, // 45 min
     citySpeedKmh: 25,
-    maxStopsPerRoute: 3,
+    maxStopsPerRoute: 999,
     maxRouteDurationSecs: 3600, // 1 hour
     solverTimeLimitMs: 200,
     exhaustiveThreshold: 6,
@@ -524,3 +524,211 @@ Deno.test("S7: Timeline arithmetic — exact arrival times", () => {
     console.log("S7: Orders split across routes, checking individual timelines");
   }
 });
+
+// ============================================================
+// S8: Shift end awareness — 10 min left with 25 min route
+// ============================================================
+
+Deno.test("S8: Shift ending in 10 min with a 30-min route → route not assigned to them", () => {
+  const now = new Date("2026-01-01T18:00:00Z");
+  const settings = defaultSettings();
+  settings.shiftEndGraceMinutes = 5; // 5 min grace
+
+  // Depot at (0, 0), Order 1 at (0.05, 0.05) -> ~10 min drive each way + 5 min handover = 25 min route
+  const order: PlannerOrder = {
+    id: "ORD-1",
+    brandId: "b1",
+    location: { lat: 47.85, lng: 13.08 },
+    customerName: "Alice",
+    customerAddress: "Alice St",
+    customerPhone: null,
+    deliveryNotes: null,
+    targetDeliveryTime: new Date("2026-01-01T18:30:00Z"),
+    estimatedPickupTime: null, // ready now
+    requestedDeliveryTime: null,
+    deliveryStatus: "ready_to_deliver",
+    currentRouteId: null,
+    currentDriverId: null,
+    currentSequence: null,
+    orderTypeName: "Web",
+    paymentMethod: "online",
+    totalPrice: 20,
+  };
+
+  // Matrix: depot (0) -> ORD-1 (1) takes 600s (10 min), return takes 600s (10 min)
+  // Total route time: 600s + 300s (handover) + 600s = 1500s (25 minutes).
+  // Return time will be 18:25:00.
+  const matrix: TravelTimeMatrix = [
+    [
+      { durationSeconds: 0, distanceMeters: 0 },
+      { durationSeconds: 600, distanceMeters: 5000 },
+    ],
+    [
+      { durationSeconds: 600, distanceMeters: 5000 },
+      { durationSeconds: 0, distanceMeters: 0 },
+    ],
+  ];
+
+  // Driver shift ends at 18:10:00 (10 min from now).
+  // With 5 min grace, max return is 18:15:00.
+  // The route returns at 18:25:00, which exceeds 18:15:00!
+  const driverEndingSoon: PlannerDriver = {
+    id: "D-ENDING-SOON",
+    name: "Short Shift Driver",
+    isOnline: true,
+    currentLocation: null,
+    currentRouteId: null,
+    projectedReturnAt: null,
+    shiftEndAt: new Date("2026-01-01T18:10:00Z"),
+  };
+
+  const result = solve([order], [driverEndingSoon], matrix, settings, now, 1);
+
+  // The route should NOT be assigned to D-ENDING-SOON (filtered out because 0 stops)!
+  assertEquals(result.routes.length, 0, "No route should be created because driver's shift ends in 10m for a 25m route");
+  assertEquals(result.unassignedOrderIds.length, 1, "Order should remain unassigned because driver's shift ends too soon");
+  assertEquals(result.unassignedOrderIds[0], "ORD-1");
+  console.log("S8 passed: Route rejected due to shift end constraint");
+});
+
+// ============================================================
+// S9: Two drivers — one ending soon, one with full shift
+// ============================================================
+
+Deno.test("S9: Two drivers — one ending in 10m, one on shift for 2h → route assigned to available driver", () => {
+  const now = new Date("2026-01-01T18:00:00Z");
+  const settings = defaultSettings();
+  settings.shiftEndGraceMinutes = 5;
+
+  const order: PlannerOrder = {
+    id: "ORD-1",
+    brandId: "b1",
+    location: { lat: 47.85, lng: 13.08 },
+    customerName: "Alice",
+    customerAddress: "Alice St",
+    customerPhone: null,
+    deliveryNotes: null,
+    targetDeliveryTime: new Date("2026-01-01T18:30:00Z"),
+    estimatedPickupTime: null,
+    requestedDeliveryTime: null,
+    deliveryStatus: "ready_to_deliver",
+    currentRouteId: null,
+    currentDriverId: null,
+    currentSequence: null,
+    orderTypeName: "Web",
+    paymentMethod: "online",
+    totalPrice: 20,
+  };
+
+  const matrix: TravelTimeMatrix = [
+    [
+      { durationSeconds: 0, distanceMeters: 0 },
+      { durationSeconds: 600, distanceMeters: 5000 },
+    ],
+    [
+      { durationSeconds: 600, distanceMeters: 5000 },
+      { durationSeconds: 0, distanceMeters: 0 },
+    ],
+  ];
+
+  const driverEndingSoon: PlannerDriver = {
+    id: "D-ENDING-SOON",
+    name: "Short Shift Driver",
+    isOnline: true,
+    currentLocation: null,
+    currentRouteId: null,
+    projectedReturnAt: null,
+    shiftEndAt: new Date("2026-01-01T18:10:00Z"),
+  };
+
+  const driverFullShift: PlannerDriver = {
+    id: "D-FULL-SHIFT",
+    name: "Full Shift Driver",
+    isOnline: true,
+    currentLocation: null,
+    currentRouteId: null,
+    projectedReturnAt: null,
+    shiftEndAt: new Date("2026-01-01T21:00:00Z"),
+  };
+
+  const result = solve([order], [driverEndingSoon, driverFullShift], matrix, settings, now, 1);
+
+  // D-ENDING-SOON has 0 stops, so only D-FULL-SHIFT has a route
+  assertEquals(result.routes.length, 1, "Only one driver should have an active route");
+  assertEquals(result.routes[0].driverId, "D-FULL-SHIFT", "Route should be assigned to D-FULL-SHIFT");
+  const customerStops = result.routes[0].stops.filter((s: any) => s.type === "customer_delivery");
+  assertEquals(customerStops.length, 1, "D-FULL-SHIFT should have 1 customer stop");
+  assertEquals(customerStops[0].orderId, "ORD-1");
+  assertEquals(result.unassignedOrderIds.length, 0, "No unassigned orders");
+  console.log("S9 passed: Route correctly routed to the driver with sufficient shift time");
+});
+
+// ============================================================
+// S10: Manual driver pinning override
+// ============================================================
+
+Deno.test("S10: Manual driver pinning override — assigned strictly to pinned driver", () => {
+  const now = new Date("2026-01-01T18:00:00Z");
+  const settings = defaultSettings();
+
+  const order1: PlannerOrder = {
+    id: "ORD-PINNED-TO-D2",
+    brandId: "brand1",
+    location: { lat: 47.81, lng: 13.06 },
+    customerName: "Alice",
+    customerAddress: "Main St 1",
+    customerPhone: null,
+    deliveryNotes: null,
+    targetDeliveryTime: new Date("2026-01-01T18:30:00Z"),
+    estimatedPickupTime: null,
+    requestedDeliveryTime: null,
+    deliveryStatus: "ready_to_deliver",
+    currentRouteId: null,
+    currentDriverId: null,
+    currentSequence: null,
+    orderTypeName: "Website",
+    paymentMethod: "card",
+    totalPrice: 25,
+    pinnedDriverId: "D2", // Manually pinned to Driver 2!
+  };
+
+  const matrix: TravelTimeMatrix = [
+    [
+      { durationSeconds: 0, distanceMeters: 0 },
+      { durationSeconds: 300, distanceMeters: 2000 },
+    ],
+    [
+      { durationSeconds: 300, distanceMeters: 2000 },
+      { durationSeconds: 0, distanceMeters: 0 },
+    ],
+  ];
+
+  const driver1: PlannerDriver = {
+    id: "D1",
+    name: "Driver 1",
+    isOnline: true,
+    currentLocation: null,
+    currentRouteId: null,
+    projectedReturnAt: null,
+  };
+
+  const driver2: PlannerDriver = {
+    id: "D2",
+    name: "Driver 2",
+    isOnline: true,
+    currentLocation: null,
+    currentRouteId: null,
+    projectedReturnAt: null,
+  };
+
+  // Even if D1 is first in driver array, the order MUST be assigned to D2
+  const result = solve([order1], [driver1, driver2], matrix, settings, now, 1);
+
+  assertEquals(result.routes.length, 1, "Only one driver should have a route");
+  assertEquals(result.routes[0].driverId, "D2", "Route must be assigned to pinned driver D2");
+  const customerStops = result.routes[0].stops.filter((s: any) => s.type === "customer_delivery");
+  assertEquals(customerStops.length, 1, "Should have 1 customer delivery stop");
+  assertEquals(customerStops[0].orderId, "ORD-PINNED-TO-D2");
+  console.log("S10 passed: Manual pin override strictly honored by solver");
+});
+

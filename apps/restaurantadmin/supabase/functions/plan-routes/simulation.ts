@@ -119,7 +119,7 @@ function runSimulation(
     bundlingWaitSecs: 240,
     planningHorizonSecs: 2700,
     citySpeedKmh: 25,
-    maxStopsPerRoute: 3,
+    maxStopsPerRoute: 999,
     maxRouteDurationSecs: 3600,
     solverTimeLimitMs: 200,
     exhaustiveThreshold: 6,

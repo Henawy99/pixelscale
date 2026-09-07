@@ -210,9 +210,21 @@ function routeDurationOk(
   settings: PlannerSettings
 ): boolean {
   const { returnTime } = computeRouteTimeline(route, matrix, settings);
-  const durationSecs =
-    (returnTime.getTime() - route.availableAt.getTime()) / 1000;
-  return durationSecs <= settings.maxRouteDurationSecs;
+
+  // NOTE: Route duration (maxRouteDurationSecs) is not a hard blocker.
+  // Routes can exceed 60 minutes if necessary to deliver orders near estimated delivery time.
+
+  // Shift end awareness:
+  // Do not assign new orders to a driver whose projected return is after their
+  // shift end + configurable grace (delivery_settings.shift_end_grace_minutes, default 15).
+  if (route.shiftEndAt && route.stopOrderIndices.length > route.frozenStopCount) {
+    const graceMs = (settings.shiftEndGraceMinutes ?? 15) * 60 * 1000;
+    if (returnTime.getTime() > route.shiftEndAt.getTime() + graceMs) {
+      return false;
+    }
+  }
+
+  return true;
 }
 
 // ============================================================
@@ -239,8 +251,14 @@ function bestInsertion(
   const orderMap = new Map(orders.map((o) => [o.id, o]));
   const startPos = route.frozenStopCount; // Can't insert before frozen stops
 
-  // Enforce max stops per route
-  if (route.stopOrderIndices.length >= settings.maxStopsPerRoute) return null;
+  // Respect manual driver pinning
+  if (order.pinnedDriverId && order.pinnedDriverId !== route.driverId) {
+    return null;
+  }
+
+  // NOTE: maxStopsPerRoute is no longer a hard constraint.
+  // Route duration (maxRouteDurationSecs) and the cost function naturally
+  // limit how many orders a single driver should carry.
 
   for (let pos = startPos; pos <= route.stopOrderIndices.length; pos++) {
     // Create trial route with insertion
@@ -444,6 +462,7 @@ function moveImprove(
     ) {
       const movedIdx = fromRoute.stopOrderIndices[i];
       const movedId = fromRoute.stopOrderIds[i];
+      const movedOrder = orders.find((o) => o.id === movedId);
 
       // Remove from source route
       const srcRoute: CandidateRoute = {
@@ -461,6 +480,11 @@ function moveImprove(
       for (let toR = 0; toR < plan.routes.length; toR++) {
         if (toR === fromR) continue;
         const toRoute = plan.routes[toR];
+
+        // Respect manual driver pinning
+        if (movedOrder?.pinnedDriverId && movedOrder.pinnedDriverId !== toRoute.driverId) {
+          continue;
+        }
 
         for (
           let j = toRoute.frozenStopCount;
@@ -538,6 +562,12 @@ function swapImprove(
           j < route2.stopOrderIndices.length;
           j++
         ) {
+          // Respect manual driver pinning
+          const o1 = orders.find((o) => o.id === route1.stopOrderIds[i]);
+          const o2 = orders.find((o) => o.id === route2.stopOrderIds[j]);
+          if (o1?.pinnedDriverId && o1.pinnedDriverId !== route2.driverId) continue;
+          if (o2?.pinnedDriverId && o2.pinnedDriverId !== route1.driverId) continue;
+
           // Swap stops
           const newRoute1: CandidateRoute = {
             ...route1,
@@ -738,6 +768,21 @@ function exhaustiveSearch(
     }
 
     for (const combo of cartesian(permArrays, 0, [])) {
+      // Respect manual driver pinning
+      let pinViolation = false;
+      for (let rIdx = 0; rIdx < combo.length; rIdx++) {
+        const dId = initialRoutes[rIdx].driverId;
+        for (const oIdx of combo[rIdx]) {
+          const ord = unassignedOrders[oIdx];
+          if (ord.pinnedDriverId && ord.pinnedDriverId !== dId) {
+            pinViolation = true;
+            break;
+          }
+        }
+        if (pinViolation) break;
+      }
+      if (pinViolation) continue;
+
       const routes: CandidateRoute[] = initialRoutes.map((r, rIdx) => {
         const assignedIndices = combo[rIdx];
         return {
@@ -753,11 +798,9 @@ function exhaustiveSearch(
         };
       });
 
-      // Check duration and max-stops constraints
+      // Check duration constraint (max stops is no longer a hard limit)
       const allOk = routes.every(
-        (r) =>
-          routeDurationOk(r, matrix, settings) &&
-          r.stopOrderIndices.length <= settings.maxStopsPerRoute
+        (r) => routeDurationOk(r, matrix, settings)
       );
       if (!allOk) continue;
 
@@ -867,7 +910,9 @@ export function solve(
       (o) => o.deliveryStatus === "out_for_delivery"
     );
     const assignedOrders = driverOrders.filter(
-      (o) => o.deliveryStatus === "assigned_to_route"
+      (o) =>
+        o.deliveryStatus === "assigned_to_route" &&
+        (!o.pinnedDriverId || o.pinnedDriverId === driver.id)
     );
 
     // Sort by current sequence
@@ -888,10 +933,13 @@ export function solve(
       stopOrderIds: allDriverOrders.map((o) => o.id),
       isCurrentlyOut: driver.currentRouteId !== null,
       availableAt:
-        driver.currentRouteId && driver.projectedReturnAt
-          ? driver.projectedReturnAt
-          : now,
+        driver.availableAt
+          ? driver.availableAt
+          : (driver.currentRouteId && driver.projectedReturnAt
+              ? driver.projectedReturnAt
+              : now),
       frozenStopCount: frozenOrders.length,
+      shiftEndAt: driver.shiftEndAt ?? null,
     };
   });
 
@@ -902,7 +950,9 @@ export function solve(
   const unassignedOrders = orders.filter(
     (o) =>
       !assignedIds.has(o.id) &&
-      (o.deliveryStatus === "ready_to_deliver" ||
+      (o.deliveryStatus === "preparing" ||
+        o.deliveryStatus === "ready_to_deliver" ||
+        o.deliveryStatus === "assigned_to_route" ||
         o.deliveryStatus === null ||
         o.deliveryStatus === undefined) &&
       // Only include if food is ready or will be ready within planning horizon

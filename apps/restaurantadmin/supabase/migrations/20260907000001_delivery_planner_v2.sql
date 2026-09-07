@@ -6,7 +6,7 @@
 
 -- 1. Add max_stops_per_route to delivery_settings
 ALTER TABLE delivery_settings
-  ADD COLUMN IF NOT EXISTS max_stops_per_route INT NOT NULL DEFAULT 3;
+  ADD COLUMN IF NOT EXISTS max_stops_per_route INT NOT NULL DEFAULT 999;
 
 -- 2. Add auto_assign_delay_secs to delivery_settings
 ALTER TABLE delivery_settings

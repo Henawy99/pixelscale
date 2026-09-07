@@ -11,7 +11,11 @@ import 'dart:ui' as ui;
 import 'dart:math' as math;
 import 'package:restaurantadmin/models/driver.dart' as app_driver_model;
 import 'package:restaurantadmin/screens/delivery_settings_screen.dart';
+import 'package:restaurantadmin/screens/delivery_simulation_screen.dart';
+import 'package:restaurantadmin/screens/driver/driver_app_shell.dart';
 import 'package:restaurantadmin/models/order.dart' as app_order;
+import 'package:restaurantadmin/widgets/delivery_timeline_widget.dart';
+import 'package:restaurantadmin/services/demo_order_service.dart';
 
 /// Check if running on desktop platform
 bool get isDesktopPlatform {
@@ -55,6 +59,12 @@ class _DeliveryMonitorScreenState extends State<DeliveryMonitorScreen> with Tick
   List<Map<String, dynamic>> _plannedRoutes = [];
   List<Map<String, dynamic>> _planStops = [];
   RealtimeChannel? _planSubscription;
+  RealtimeChannel? _planLogSubscription;
+  bool _showTimelinePanel = true;
+  Set<String> _highlightedStopIds = {};
+  Timer? _highlightClearTimer;
+  final Map<String, String> _previousStopDriverMap = {};
+  List<Map<String, dynamic>> _unassignedOrders = [];
 
   // Track previous driver online states for notifications
   final Map<String, bool> _previousDriverOnlineStates = {};
@@ -122,6 +132,8 @@ class _DeliveryMonitorScreenState extends State<DeliveryMonitorScreen> with Tick
     _driversSubscription?.unsubscribe();
     _ordersSubscription?.unsubscribe();
     _planSubscription?.unsubscribe();
+    _planLogSubscription?.unsubscribe();
+    _highlightClearTimer?.cancel();
     _mapController?.dispose();
     super.dispose();
   }
@@ -298,9 +310,7 @@ class _DeliveryMonitorScreenState extends State<DeliveryMonitorScreen> with Tick
     try {
       final response = await widget.supabaseClient
           .from('drivers')
-          .select(
-            'id, user_id, name, is_online, current_latitude, current_longitude, current_heading, current_speed, last_seen_at, created_at',
-          )
+          .select('*')
           .order('name', ascending: true);
 
       if (!mounted) return;
@@ -1078,9 +1088,7 @@ class _DeliveryMonitorScreenState extends State<DeliveryMonitorScreen> with Tick
     try {
       final response = await widget.supabaseClient
           .from('drivers')
-          .select(
-            'id, user_id, name, is_online, current_latitude, current_longitude, current_heading, current_speed, last_seen_at',
-          )
+          .select('*')
           .eq('is_online', true);
 
       if (!mounted) return;
@@ -1735,7 +1743,7 @@ class _DeliveryMonitorScreenState extends State<DeliveryMonitorScreen> with Tick
       if (routeIds.isNotEmpty) {
         final stopsResponse = await widget.supabaseClient
             .from('route_stops')
-            .select('id, delivery_route_id, order_id, type, sequence_number, latitude, longitude, customer_name, customer_address, estimated_arrival_time, planned_arrival_at, target_delivery_time, status')
+            .select('id, delivery_route_id, order_id, type, sequence_number, latitude, longitude, customer_name, customer_address, estimated_arrival_time, planned_arrival_at, target_delivery_time, status, pinned_driver_id')
             .inFilter('delivery_route_id', routeIds)
             .order('sequence_number', ascending: true);
         stops = (stopsResponse as List)
@@ -1771,6 +1779,51 @@ class _DeliveryMonitorScreenState extends State<DeliveryMonitorScreen> with Tick
         }
       }
 
+      // Fetch unassigned / preparing delivery orders
+      final unassignedResponse = await widget.supabaseClient
+          .from('orders')
+          .select('id, customer_name, customer_street, customer_postcode, customer_city, delivery_status, estimated_pickup_time, requested_delivery_time, estimated_delivery_time, is_unassignable, unassignable_reason')
+          .eq('fulfillment_type', 'delivery')
+          .isFilter('delivery_route_id', null)
+          .inFilter('delivery_status', ['preparing', 'ready_to_deliver'])
+          .order('estimated_pickup_time', ascending: true)
+          .limit(20);
+
+      final List<Map<String, dynamic>> unassignedList = (unassignedResponse as List)
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .toList();
+
+      // Detect stop assignment shifts across plan versions
+      final newHighlightIds = <String>{};
+      final routeDriverMap = <String, String>{};
+      for (final r in routes) {
+        final rId = r['id'] as String?;
+        final dId = r['assigned_driver_id'] as String?;
+        if (rId != null && dId != null) {
+          routeDriverMap[rId] = dId;
+        }
+      }
+
+      for (final s in stops) {
+        final sId = s['id'] as String?;
+        final rId = s['delivery_route_id'] as String?;
+        if (sId != null && rId != null && routeDriverMap.containsKey(rId)) {
+          final currentDriver = routeDriverMap[rId]!;
+          if (_previousStopDriverMap.containsKey(sId) &&
+              _previousStopDriverMap[sId] != currentDriver) {
+            newHighlightIds.add(sId);
+          }
+          _previousStopDriverMap[sId] = currentDriver;
+        }
+      }
+
+      if (newHighlightIds.isNotEmpty) {
+        _highlightClearTimer?.cancel();
+        _highlightClearTimer = Timer(const Duration(seconds: 3), () {
+          if (mounted) setState(() => _highlightedStopIds = {});
+        });
+      }
+
       // Get latest plan version
       final logResponse = await widget.supabaseClient
           .from('plan_log')
@@ -1783,6 +1836,10 @@ class _DeliveryMonitorScreenState extends State<DeliveryMonitorScreen> with Tick
         setState(() {
           _plannedRoutes = routes;
           _planStops = stops;
+          _unassignedOrders = unassignedList;
+          if (newHighlightIds.isNotEmpty) {
+            _highlightedStopIds = newHighlightIds;
+          }
           if (logList.isNotEmpty) {
             _planVersion = (logList[0]['plan_version'] as num?)?.toInt() ?? 0;
             _lastPlanTime = DateTime.tryParse(logList[0]['created_at'] as String? ?? '');
@@ -1806,6 +1863,66 @@ class _DeliveryMonitorScreenState extends State<DeliveryMonitorScreen> with Tick
           },
         )
         .subscribe();
+
+    _planLogSubscription = widget.supabaseClient
+        .channel('plan-log-channel')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.insert,
+          schema: 'public',
+          table: 'plan_log',
+          callback: (payload) {
+            final newRec = payload.newRecord;
+            final newVer = (newRec['plan_version'] as num?)?.toInt();
+            if (mounted) {
+              if (newVer != null) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Row(
+                      children: [
+                        const Icon(Icons.route, color: Colors.amberAccent, size: 18),
+                        const SizedBox(width: 8),
+                        Text('Plan updated (v$newVer)', style: const TextStyle(fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                    backgroundColor: const Color(0xFF1E222D),
+                    behavior: SnackBarBehavior.floating,
+                    duration: const Duration(seconds: 2),
+                  ),
+                );
+              }
+              _fetchPlannedRoutes();
+              _fetchAllDrivers();
+            }
+          },
+        )
+        .subscribe();
+  }
+
+  Future<void> _reassignStopToDriver(String stopId, String targetDriverId) async {
+    try {
+      await widget.supabaseClient
+          .from('route_stops')
+          .update({'pinned_driver_id': targetDriverId})
+          .eq('id', stopId);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Stop pinned to driver. Replanning...'),
+            backgroundColor: Colors.indigo,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+
+      await _triggerReplan();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error pinning stop: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
   }
 
   Future<void> _triggerReplan() async {
@@ -2351,6 +2468,22 @@ class _DeliveryMonitorScreenState extends State<DeliveryMonitorScreen> with Tick
         centerTitle: true,
         iconTheme: const IconThemeData(color: Colors.white),
         actions: [
+          // Timeline Panel Toggle Button
+          Padding(
+            padding: const EdgeInsets.only(right: 4),
+            child: IconButton(
+              icon: Icon(
+                Icons.view_timeline,
+                color: _showTimelinePanel ? Colors.amber : Colors.white,
+                shadows: const [Shadow(color: Colors.black45, blurRadius: 4)],
+              ),
+              onPressed: () {
+                setState(() => _showTimelinePanel = !_showTimelinePanel);
+                if (_showTimelinePanel) _fetchPlannedRoutes();
+              },
+              tooltip: 'Driver Timeline',
+            ),
+          ),
           // Route Planner Panel Button
           Padding(
             padding: const EdgeInsets.only(right: 4),
@@ -2365,6 +2498,149 @@ class _DeliveryMonitorScreenState extends State<DeliveryMonitorScreen> with Tick
                 if (_showDispatchPanel) _fetchPlannedRoutes();
               },
               tooltip: 'Route Planner',
+            ),
+          ),
+          // Simulation Button
+          Padding(
+            padding: const EdgeInsets.only(right: 4),
+            child: IconButton(
+              icon: const Icon(
+                Icons.science,
+                color: Colors.white,
+                shadows: [Shadow(color: Colors.black45, blurRadius: 4)],
+              ),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => DeliverySimulationScreen(
+                      supabaseClient: widget.supabaseClient,
+                    ),
+                  ),
+                );
+              },
+              tooltip: 'Route Simulation',
+            ),
+          ),
+          // Demo Order Generator Button
+          Padding(
+            padding: const EdgeInsets.only(right: 2),
+            child: IconButton(
+              icon: const Icon(
+                Icons.flash_on,
+                color: Colors.amber,
+                shadows: [Shadow(color: Colors.black45, blurRadius: 4)],
+              ),
+              onPressed: () async {
+                try {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('⚡ Cloning random past order (60m ETA)...'),
+                      duration: Duration(seconds: 1),
+                    ),
+                  );
+                  final res = await DemoOrderService.createDemoOrder();
+                  if (context.mounted) {
+                    final order = res['order'];
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('✅ Demo Order Added: ${order?['customer_name'] ?? 'New Order'}! Route planned.'),
+                        backgroundColor: Colors.green[700],
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                    _fetchDeliveryOrders();
+                    _fetchPlannedRoutes();
+                    _fetchOnlineDrivers();
+                  }
+                } catch (e) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Failed to add demo order: $e'),
+                        backgroundColor: Colors.red,
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                  }
+                }
+              },
+              tooltip: 'Add Demo Order (60 Min ETA)',
+            ),
+          ),
+          // Reset Demo Button
+          Padding(
+            padding: const EdgeInsets.only(right: 2),
+            child: IconButton(
+              icon: const Icon(
+                Icons.cleaning_services_outlined,
+                color: Colors.white70,
+                shadows: [Shadow(color: Colors.black45, blurRadius: 4)],
+              ),
+              onPressed: () async {
+                final confirm = await showDialog<bool>(
+                  context: context,
+                  builder: (ctx) => AlertDialog(
+                    title: const Text('Reset Demo Data?'),
+                    content: const Text('This will delete all demo orders, demo routes, and reset demo driver assignments.'),
+                    actions: [
+                      TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+                      FilledButton(
+                        style: FilledButton.styleFrom(backgroundColor: Colors.red),
+                        onPressed: () => Navigator.pop(ctx, true),
+                        child: const Text('Reset'),
+                      ),
+                    ],
+                  ),
+                );
+                if (confirm != true) return;
+                try {
+                  await DemoOrderService.resetDemoOrders();
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('🧹 Demo orders and routes cleared.'),
+                        backgroundColor: Colors.blueGrey,
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                    _fetchDeliveryOrders();
+                    _fetchPlannedRoutes();
+                    _fetchOnlineDrivers();
+                  }
+                } catch (e) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Failed to reset demo: $e'),
+                        backgroundColor: Colors.red,
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                  }
+                }
+              },
+              tooltip: 'Reset Demo Orders',
+            ),
+          ),
+          // Driver App View Button (for testing)
+          Padding(
+            padding: const EdgeInsets.only(right: 4),
+            child: IconButton(
+              icon: const Icon(
+                Icons.delivery_dining,
+                color: Colors.white,
+                shadows: [Shadow(color: Colors.black45, blurRadius: 4)],
+              ),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const DriverAppShell(),
+                  ),
+                );
+              },
+              tooltip: 'Driver App View',
             ),
           ),
           // Coordinate Updates Button
@@ -2487,11 +2763,34 @@ class _DeliveryMonitorScreenState extends State<DeliveryMonitorScreen> with Tick
           ? const Center(child: CircularProgressIndicator())
           : Row(
               children: [
-                // Map - Full screen behind AppBar
+                // Map - Full screen behind AppBar with Docked Timeline Panel
                 Expanded(
-                  child: isDesktopPlatform
-                      ? _buildDesktopMap()
-                      : _buildMobileMap(),
+                  child: Stack(
+                    children: [
+                      Positioned.fill(
+                        child: isDesktopPlatform
+                            ? _buildDesktopMap()
+                            : _buildMobileMap(),
+                      ),
+                      if (_showTimelinePanel)
+                        Positioned(
+                          left: 16,
+                          right: 16,
+                          bottom: 16,
+                          child: DeliveryTimelineWidget(
+                            drivers: _allDrivers.where((d) => d.isOnline).toList().isNotEmpty
+                                ? _allDrivers.where((d) => d.isOnline).toList()
+                                : _allDrivers,
+                            routes: _plannedRoutes,
+                            stops: _planStops,
+                            unassignedOrders: _unassignedOrders,
+                            highlightedStopIds: _highlightedStopIds,
+                            onReassignStop: _reassignStopToDriver,
+                            onReplanRequested: _triggerReplan,
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
 
                 // Route Planner Dispatch Panel

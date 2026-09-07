@@ -7,7 +7,7 @@ The Delivery Route Manager assigns incoming delivery orders to **2 drivers** and
 ### Key Constraints
 - **Peak volume**: ~10 orders/hour
 - **2 drivers**, each starting/ending at the restaurant
-- **Max 3 orders per route** (configurable) — food quality degrades beyond that
+- **No hard stop limit** — the cost function + max route duration (1 hour) naturally limit how many orders a driver carries
 - **Handover time**: 5 min per stop (park, walk up, hand over)
 - **Planning horizon**: 45 min look-ahead for orders still in prep
 - **Solver time budget**: < 1 second for ≤ 15 open orders
@@ -38,7 +38,7 @@ The Delivery Route Manager assigns incoming delivery orders to **2 drivers** and
 
 States and transitions:
 
-1. **in_prepare** → Order created, kitchen working. estimated_pickup_time is in the future.
+1. **preparing** → Order created, kitchen working. estimated_pickup_time is in the future. Planner can see this order and pre-plan routes.
 2. **ready_to_deliver** → Kitchen marks done (estimated_pickup_time reached).
 3. **assigned_to_route** → Planner assigns to a route. Has assigned_driver_id, delivery_route_id, delivery_route_sequence.
 4. **assigned_to_route → ready_to_deliver** → Route cancelled/replaced (replan).
@@ -49,6 +49,7 @@ States and transitions:
 - Pickup orders (fulfillment_type = 'pickup') are IGNORED by the planner.
 - An order cannot ship before food is ready: departure = max(driver.availableAt, max(estimated_pickup_time for all orders in route)).
 - Orders already out_for_delivery are FROZEN — planner can re-order remaining stops but never reassign to a different driver.
+- There is no hard limit on orders per route — the cost function and max route duration (1 hour) naturally constrain route size.
 
 ---
 
@@ -190,7 +191,7 @@ All durations and weights live in delivery_settings (nothing hard-coded).
 | Early grace (pre-order) | preorder_early_grace_secs | 900 | seconds |
 | Bundling wait | bundling_wait_secs | 240 | seconds |
 | Planning horizon | planning_horizon_secs | 2700 | seconds |
-| Max stops per route | max_stops_per_route | 3 | count |
+| Max stops per route | max_stops_per_route | 999 | count (no hard limit) |
 | Max route duration | max_route_duration_secs | 3600 | seconds |
 | Solver time limit | solver_time_limit_ms | 200 | ms |
 | Exhaustive threshold | exhaustive_threshold | 6 | count |

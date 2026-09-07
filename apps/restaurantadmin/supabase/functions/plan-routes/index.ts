@@ -46,8 +46,13 @@ serve(async (req: Request) => {
     if (brandId) {
       settingsQuery = settingsQuery.eq("brand_id", brandId);
     }
-    const { data: settingsRows, error: settingsErr } = await settingsQuery.limit(1).single();
-    if (settingsErr || !settingsRows) {
+    let { data: settingsRows, error: settingsErr } = await settingsQuery.limit(1).maybeSingle();
+    if (!settingsRows) {
+      // Fallback to primary delivery_settings if brand specific not found
+      const { data: fallbackRows } = await supabase.from("delivery_settings").select("*").limit(1).maybeSingle();
+      settingsRows = fallbackRows;
+    }
+    if (!settingsRows) {
       console.error("Failed to load delivery_settings:", settingsErr);
       return new Response(
         JSON.stringify({ error: "No delivery_settings found. Create one first." }),
@@ -69,8 +74,9 @@ serve(async (req: Request) => {
       bundlingWaitSecs: settingsRows.bundling_wait_secs,
       planningHorizonSecs: settingsRows.planning_horizon_secs,
       citySpeedKmh: Number(settingsRows.city_speed_kmh),
-      maxStopsPerRoute: settingsRows.max_stops_per_route ?? 3,
+      maxStopsPerRoute: settingsRows.max_stops_per_route ?? 999,
       maxRouteDurationSecs: settingsRows.max_route_duration_secs,
+      shiftEndGraceMinutes: settingsRows.shift_end_grace_minutes ?? 15,
       solverTimeLimitMs: settingsRows.solver_time_limit_ms,
       exhaustiveThreshold: settingsRows.exhaustive_threshold,
       storeLocation: {
@@ -92,6 +98,7 @@ serve(async (req: Request) => {
       .eq("brand_id", brandId)
       .eq("fulfillment_type", "delivery")
       .in("delivery_status", [
+        "preparing",
         "ready_to_deliver",
         "assigned_to_route",
         "out_for_delivery",
@@ -126,6 +133,23 @@ serve(async (req: Request) => {
       );
     }
 
+    // Fetch existing driver pins from route_stops
+    const orderIds = ordersData.map((o: any) => o.id);
+    const { data: pinsData } = await supabase
+      .from("route_stops")
+      .select("order_id, pinned_driver_id")
+      .in("order_id", orderIds)
+      .not("pinned_driver_id", "is", null);
+
+    const pinMap = new Map<string, string>();
+    if (pinsData) {
+      for (const p of pinsData) {
+        if (p.order_id && p.pinned_driver_id) {
+          pinMap.set(p.order_id, p.pinned_driver_id);
+        }
+      }
+    }
+
     // Convert to PlannerOrder
     const orders: PlannerOrder[] = ordersData.map((o: any) => ({
       id: o.id,
@@ -153,19 +177,21 @@ serve(async (req: Request) => {
       orderTypeName: o.order_type_name,
       paymentMethod: o.payment_method,
       totalPrice: o.total_price ?? 0,
+      pinnedDriverId: pinMap.get(o.id) ?? null,
     }));
 
-    // 3. Load available drivers
+    // 3. Load available drivers (on-shift employees)
     const { data: driversData, error: driversErr } = await supabase
-      .from("drivers")
-      .select("id, name, is_online, current_latitude, current_longitude, current_route_id, projected_return_at")
-      .eq("is_online", true);
+      .from("available_drivers")
+      .select(
+        "id, employee_id, name, is_online, current_latitude, current_longitude, current_route_id, projected_return_at, available_at, shift_end_at"
+      );
 
     if (driversErr) throw driversErr;
     if (!driversData || driversData.length === 0) {
-      console.log("No online drivers.");
+      console.log("No drivers on shift available.");
       return new Response(
-        JSON.stringify({ message: "No online drivers available.", plan_version: 0 }),
+        JSON.stringify({ message: "No drivers on shift available.", plan_version: 0 }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
       );
     }
@@ -173,7 +199,7 @@ serve(async (req: Request) => {
     const drivers: PlannerDriver[] = driversData.map((d: any) => ({
       id: d.id,
       name: d.name,
-      isOnline: d.is_online,
+      isOnline: d.is_online ?? true,
       currentLocation:
         d.current_latitude && d.current_longitude
           ? { lat: d.current_latitude, lng: d.current_longitude }
@@ -182,6 +208,8 @@ serve(async (req: Request) => {
       projectedReturnAt: d.projected_return_at
         ? new Date(d.projected_return_at)
         : null,
+      availableAt: d.available_at ? new Date(d.available_at) : null,
+      shiftEndAt: d.shift_end_at ? new Date(d.shift_end_at) : null,
     }));
 
     // 4. Build travel time matrix
@@ -301,6 +329,7 @@ serve(async (req: Request) => {
         estimated_arrival_time: stop.plannedArrivalAt.toISOString(),
         planned_arrival_at: stop.plannedArrivalAt.toISOString(),
         status: "pending",
+        pinned_driver_id: stop.orderId ? pinMap.get(stop.orderId) ?? null : null,
         estimated_travel_time_to_next_stop_seconds:
           idx < route.stops.length - 1
             ? matrix[stop.matrixIndex][route.stops[idx + 1].matrixIndex]
@@ -329,6 +358,8 @@ serve(async (req: Request) => {
             delivery_route_sequence: i,
             delivery_status: "assigned_to_route",
             planned_arrival_at: stop.plannedArrivalAt.toISOString(),
+            is_unassignable: false,
+            unassignable_reason: null,
           })
           .eq("id", stop.orderId);
 
@@ -347,7 +378,20 @@ serve(async (req: Request) => {
         .eq("id", route.driverId);
     }
 
-    // 7c. Log the plan
+    // 7c. Mark unassigned orders visibly if nobody on shift can take them
+    for (const unassignedId of result.unassignedOrderIds) {
+      await supabase
+        .from("orders")
+        .update({
+          is_unassignable: true,
+          unassignable_reason:
+            "No available driver on shift can reach customer before cutoff or shift end",
+        })
+        .eq("id", unassignedId)
+        .neq("delivery_status", "out_for_delivery");
+    }
+
+    // 7d. Log the plan
     await supabase.from("plan_log").insert({
       brand_id: brandId,
       plan_version: result.planVersion,

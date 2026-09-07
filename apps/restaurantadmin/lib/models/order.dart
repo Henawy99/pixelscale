@@ -47,6 +47,7 @@ class Order {
   final String?
   deliveryRouteId; // ID of the DeliveryRoute this order belongs to
   final int? deliveryRouteSequence; // Sequence number within its route
+  final bool isDemo; // Flag for simulated/demo orders
   // Add other fields as needed, e.g., userId, tableNumber
 
   Order({
@@ -92,6 +93,7 @@ class Order {
     this.deliveryStatus,
     this.deliveryRouteId,
     this.deliveryRouteSequence,
+    this.isDemo = false,
   });
 
   Map<String, dynamic> toJson() {
@@ -136,6 +138,7 @@ class Order {
       'delivery_status': deliveryStatus,
       'delivery_route_id': deliveryRouteId,
       'delivery_route_sequence': deliveryRouteSequence,
+      'is_demo': isDemo,
     };
   }
 
@@ -193,8 +196,16 @@ class Order {
         (rawMap != null ? rawMap['public_reference']?.toString() : null) ??
         (json['platform_order_id'] as String?);
 
-    final String? parsedCustomerStreet = (json['customer_street'] as String?) ??
+    String? parsedCustomerStreet = (json['customer_street'] as String?) ??
         (deliveryLocation != null ? deliveryLocation['AddressText']?.toString() : null);
+
+    final rawStreetNumber = rawCustomer != null ? rawCustomer['street_number']?.toString() : null;
+    if (parsedCustomerStreet != null &&
+        rawStreetNumber != null &&
+        rawStreetNumber.isNotEmpty &&
+        !RegExp(r'\d').hasMatch(parsedCustomerStreet)) {
+      parsedCustomerStreet = '$parsedCustomerStreet $rawStreetNumber';
+    }
 
     final String? parsedCustomerCity = (json['customer_city'] as String?) ??
         (deliveryLocation != null ? deliveryLocation['city']?.toString() : null);
@@ -284,6 +295,7 @@ class Order {
       deliveryStatus: json['delivery_status'] as String?,
       deliveryRouteId: json['delivery_route_id'] as String?,
       deliveryRouteSequence: (json['delivery_route_sequence'] as num?)?.toInt(),
+      isDemo: json['is_demo'] as bool? ?? false,
     );
   }
 }

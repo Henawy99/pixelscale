@@ -13,6 +13,13 @@ class Driver {
   final double? heading; // GPS heading in degrees (0-360, 0=North)
   final double? speed; // Speed in m/s
 
+  final DateTime? projectedReturnAt;
+  final DateTime? availableAt;
+  final DateTime? shiftEndAt;
+  final String phoneNumber;
+
+  String? get currentRouteId => currentDeliveryRouteId;
+
   Driver({
     required this.id,
     this.userId,
@@ -25,6 +32,10 @@ class Driver {
     this.colorIndex = 0,
     this.heading,
     this.speed,
+    this.projectedReturnAt,
+    this.availableAt,
+    this.shiftEndAt,
+    this.phoneNumber = '',
   });
 
   Map<String, dynamic> toJson() {
@@ -40,6 +51,10 @@ class Driver {
       'current_delivery_route_id': currentDeliveryRouteId, // Added to toJson
       'current_heading': heading,
       'current_speed': speed,
+      'projected_return_at': projectedReturnAt?.toIso8601String(),
+      'available_at': availableAt?.toIso8601String(),
+      'shift_end_at': shiftEndAt?.toIso8601String(),
+      'phone_number': phoneNumber,
     };
   }
 
@@ -86,6 +101,10 @@ class Driver {
       colorIndex: colorIdx,
       heading: (json['current_heading'] as num?)?.toDouble(),
       speed: (json['current_speed'] as num?)?.toDouble(),
+      projectedReturnAt: _parseUtcTimestamp(json['projected_return_at'] as String?),
+      availableAt: _parseUtcTimestamp(json['available_at'] as String?),
+      shiftEndAt: _parseUtcTimestamp(json['shift_end_at'] as String?),
+      phoneNumber: json['phone_number'] as String? ?? json['phone'] as String? ?? '',
     );
   }
 }
