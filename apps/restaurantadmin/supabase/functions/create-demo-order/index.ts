@@ -72,7 +72,7 @@ serve(async (req: Request) => {
             "Content-Type": "application/json",
             Authorization: `Bearer ${supabaseServiceKey}`,
           },
-          body: JSON.stringify({ brand_id: brandId, trigger_reason: "demo_reset" }),
+          body: JSON.stringify({ brand_id: brandId, trigger_reason: "demo_reset", is_demo: true }),
         });
       } catch (e) {
         console.warn("Replanning call after reset warning:", e);
@@ -221,6 +221,7 @@ serve(async (req: Request) => {
         body: JSON.stringify({
           brand_id: newOrder.brand_id,
           trigger_reason: "demo_order_created",
+          is_demo: true,
         }),
       });
       planResult = await planRes.json();

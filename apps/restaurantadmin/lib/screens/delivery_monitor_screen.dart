@@ -883,13 +883,16 @@ class _DeliveryMonitorScreenState extends State<DeliveryMonitorScreen> with Tick
                             itemBuilder: (context, index) {
                               final driver = _allDrivers[index];
                               final Color driverColor = driverColors[driver.colorIndex % driverColors.length];
-                              final bool isStale = _isLocationStale(driver.lastSeenAt);
-                              final bool isActive = driver.isOnline && !isStale;
+                              final bool isStale = _isLocationStale(driver.lastSeenAt, isDemo: driver.isDemo);
+                              final bool isActive = (driver.isOnline || driver.isDemo) && !isStale;
                               
                               // Determine status color and text
                               Color statusColor;
                               String statusText;
-                              if (!driver.isOnline) {
+                              if (driver.isDemo) {
+                                statusColor = Colors.amber[800]!;
+                                statusText = 'Demo • Always Available';
+                              } else if (!driver.isOnline) {
                                 statusColor = Colors.grey;
                                 statusText = 'Offline';
                               } else if (isStale) {
@@ -1057,13 +1060,13 @@ class _DeliveryMonitorScreenState extends State<DeliveryMonitorScreen> with Tick
                         ),
                         Container(width: 1, height: 30, color: Colors.grey[300]),
                         _buildSummaryItem(
-                          '${_onlineDrivers.where((d) => !_isLocationStale(d.lastSeenAt)).length}',
+                          '${_onlineDrivers.where((d) => !_isLocationStale(d.lastSeenAt, isDemo: d.isDemo)).length}',
                           'Active',
                           Colors.green[700]!,
                         ),
                         Container(width: 1, height: 30, color: Colors.grey[300]),
                         _buildSummaryItem(
-                          '${_onlineDrivers.where((d) => _isLocationStale(d.lastSeenAt)).length}',
+                          '${_onlineDrivers.where((d) => _isLocationStale(d.lastSeenAt, isDemo: d.isDemo)).length}',
                           'No Signal',
                           Colors.orange[700]!,
                         ),
@@ -2778,8 +2781,8 @@ class _DeliveryMonitorScreenState extends State<DeliveryMonitorScreen> with Tick
                           right: 16,
                           bottom: 16,
                           child: DeliveryTimelineWidget(
-                            drivers: _allDrivers.where((d) => d.isOnline).toList().isNotEmpty
-                                ? _allDrivers.where((d) => d.isOnline).toList()
+                            drivers: _allDrivers.where((d) => d.isOnline || d.isDemo).toList().isNotEmpty
+                                ? _allDrivers.where((d) => d.isOnline || d.isDemo).toList()
                                 : _allDrivers,
                             routes: _plannedRoutes,
                             stops: _planStops,
@@ -3086,7 +3089,8 @@ class _DeliveryMonitorScreenState extends State<DeliveryMonitorScreen> with Tick
 
   /// Check if driver location is stale (more than 2 minutes old).
   /// Uses a 2-minute window to account for network delays and timer intervals.
-  bool _isLocationStale(DateTime? lastSeenAt) {
+  bool _isLocationStale(DateTime? lastSeenAt, {bool isDemo = false}) {
+    if (isDemo) return false; // Demo drivers are ALWAYS fresh/available
     if (lastSeenAt == null) return true;
     
     // Ensure consistent UTC comparison
@@ -3149,8 +3153,8 @@ class _DeliveryMonitorScreenState extends State<DeliveryMonitorScreen> with Tick
     if (!mounted) return;
     
     final Color driverColor = driverColors[driver.colorIndex % driverColors.length];
-    final bool isStale = _isLocationStale(driver.lastSeenAt);
-    final String lastSeenText = _formatLastSeen(driver.lastSeenAt);
+    final bool isStale = _isLocationStale(driver.lastSeenAt, isDemo: driver.isDemo);
+    final String lastSeenText = driver.isDemo ? 'Always Active (Demo)' : _formatLastSeen(driver.lastSeenAt);
     
     // Format last seen timestamp
     String lastUpdateTime = 'Never';

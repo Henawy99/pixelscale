@@ -14,28 +14,28 @@ import 'package:restaurantadmin/services/demo_order_service.dart';
 // Design tokens
 // ─────────────────────────────────────────────────────────────────────
 class _DriverTheme {
-  static const Color bg = Color(0xFF0F1117);
-  static const Color surface = Color(0xFF1A1D27);
-  static const Color surfaceLight = Color(0xFF242837);
-  static const Color accent = Color(0xFF6C5CE7);
-  static const Color accentLight = Color(0xFF9B8FFF);
-  static const Color success = Color(0xFF00D68F);
-  static const Color successDark = Color(0xFF00B37A);
-  static const Color warning = Color(0xFFFFAA00);
-  static const Color danger = Color(0xFFFF6B6B);
-  static const Color textPrimary = Color(0xFFF8F9FA);
-  static const Color textSecondary = Color(0xFF8B8FA3);
-  static const Color textMuted = Color(0xFF5A5E72);
-  static const Color cash = Color(0xFF00D68F);
-  static const Color card = Color(0xFF6C5CE7);
-  static const Color divider = Color(0xFF2A2E3D);
+  static const Color bg = Color(0xFFF8F9FA);
+  static const Color surface = Colors.white;
+  static const Color surfaceLight = Color(0xFFF3F4F6);
+  static const Color accent = Color(0xFF4F46E5);
+  static const Color accentLight = Color(0xFFEEF2FF);
+  static const Color success = Color(0xFF10B981);
+  static const Color successDark = Color(0xFF059669);
+  static const Color warning = Color(0xFFF59E0B);
+  static const Color danger = Color(0xFFEF4444);
+  static const Color textPrimary = Color(0xFF111827);
+  static const Color textSecondary = Color(0xFF4B5563);
+  static const Color textMuted = Color(0xFF9CA3AF);
+  static const Color cash = Color(0xFF059669);
+  static const Color card = Color(0xFF4F46E5);
+  static const Color divider = Color(0xFFE5E7EB);
 
   static const borderRadius = 16.0;
   static const borderRadiusSmall = 10.0;
   static const borderRadiusTiny = 6.0;
 
-  static BoxShadow glow(Color color, {double blur = 20, double spread = -2}) =>
-      BoxShadow(color: color.withOpacity(0.25), blurRadius: blur, spreadRadius: spread);
+  static BoxShadow glow(Color color, {double blur = 12, double spread = 0}) =>
+      BoxShadow(color: color.withOpacity(0.12), blurRadius: blur, spreadRadius: spread);
 }
 
 class DriverHomeScreen extends StatefulWidget {
@@ -697,7 +697,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with TickerProvider
         if (!didPop) _showExitConfirmation();
       },
       child: AnnotatedRegion<SystemUiOverlayStyle>(
-        value: SystemUiOverlayStyle.light,
+        value: SystemUiOverlayStyle.dark,
         child: Scaffold(
           backgroundColor: _DriverTheme.bg,
           body: SafeArea(
@@ -717,7 +717,10 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with TickerProvider
                             isDemoDriver: _isDemoDriver,
                           )
                         : _currentTab == 1
-                            ? _buildStatusContent()
+                            ? _DriverTodaysRoutesTab(
+                                key: const ValueKey('todays_routes'),
+                                driverRecordId: _driverRecordId,
+                              )
                             : _DriverShiftsTab(
                                 key: const ValueKey('shifts'),
                                 employeeId: _employeeId,
@@ -738,6 +741,10 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with TickerProvider
   Widget _buildHeader() {
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 8, 12, 8),
+      decoration: const BoxDecoration(
+        color: _DriverTheme.surface,
+        border: Border(bottom: BorderSide(color: _DriverTheme.divider, width: 1)),
+      ),
       child: Row(
         children: [
           // Driver avatar
@@ -748,7 +755,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with TickerProvider
               gradient: LinearGradient(
                 colors: _isDriverOnline
                     ? [_DriverTheme.success, _DriverTheme.successDark]
-                    : [_DriverTheme.textMuted, const Color(0xFF3A3E52)],
+                    : [_DriverTheme.textMuted, const Color(0xFFCBD5E1)],
               ),
               borderRadius: BorderRadius.circular(12),
             ),
@@ -872,7 +879,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with TickerProvider
             const SizedBox(width: 6),
             IconButton(
               icon: const Icon(Icons.cleaning_services_outlined, size: 18),
-              color: Colors.white70,
+              color: _DriverTheme.textSecondary,
               onPressed: _handleResetDemo,
               tooltip: 'Reset Demo',
             ),
@@ -1021,13 +1028,13 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with TickerProvider
       padding: const EdgeInsets.fromLTRB(24, 8, 24, 8),
       decoration: const BoxDecoration(
         color: _DriverTheme.surface,
-        border: Border(top: BorderSide(color: _DriverTheme.divider, width: 0.5)),
+        border: Border(top: BorderSide(color: _DriverTheme.divider, width: 1)),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
           _buildNavItem(0, Icons.route_rounded, 'Route'),
-          _buildNavItem(1, Icons.gps_fixed_rounded, 'Status'),
+          _buildNavItem(1, Icons.alt_route_rounded, "Today's Routes"),
           _buildNavItem(2, Icons.calendar_today_rounded, 'Shifts'),
         ],
       ),
@@ -1103,219 +1110,612 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with TickerProvider
     );
   }
 
-  // ─── STATUS TAB ──────────────────────────────────────────────────
-  Widget _buildStatusContent() {
-    if (_driverRecordId == null) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  color: _DriverTheme.warning.withOpacity(0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.warning_amber_rounded, size: 56, color: _DriverTheme.warning),
-              ),
-              const SizedBox(height: 24),
-              const Text(
-                'Driver Not Set Up',
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: _DriverTheme.textPrimary),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Your account is not linked to a driver record.\nPlease contact your manager.',
-                style: TextStyle(fontSize: 14, color: _DriverTheme.textSecondary),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 24),
-              ElevatedButton.icon(
-                onPressed: () {
-                  setState(() => _isLoading = true);
-                  _initializeDriver();
-                },
-                icon: const Icon(Icons.refresh, size: 18),
-                label: const Text('Retry'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _DriverTheme.accent,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 12),
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
+}
+
+// ╔══════════════════════════════════════════════════════════════════╗
+// ║  DRIVER TODAY'S ROUTES TAB                                    ║
+// ╚══════════════════════════════════════════════════════════════════╝
+
+class _DriverTodaysRoutesTab extends StatefulWidget {
+  final String? driverRecordId;
+
+  const _DriverTodaysRoutesTab({super.key, required this.driverRecordId});
+
+  @override
+  State<_DriverTodaysRoutesTab> createState() => _DriverTodaysRoutesTabState();
+}
+
+class _DriverTodaysRoutesTabState extends State<_DriverTodaysRoutesTab> {
+  final SupabaseClient _supabase = Supabase.instance.client;
+  List<Map<String, dynamic>> _routes = [];
+  bool _isLoading = true;
+  RealtimeChannel? _realtimeChannel;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRoutes();
+    _setupRealtime();
+  }
+
+  @override
+  void didUpdateWidget(covariant _DriverTodaysRoutesTab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.driverRecordId != widget.driverRecordId) {
+      _loadRoutes();
+    }
+  }
+
+  @override
+  void dispose() {
+    _realtimeChannel?.unsubscribe();
+    super.dispose();
+  }
+
+  void _setupRealtime() {
+    _realtimeChannel = _supabase
+        .channel('driver-todays-routes-rt')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'delivery_routes',
+          callback: (_) {
+            if (mounted) _loadRoutes();
+          },
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'route_stops',
+          callback: (_) {
+            if (mounted) _loadRoutes();
+          },
+        )
+        .subscribe();
+  }
+
+  Future<void> _loadRoutes() async {
+    if (widget.driverRecordId == null) {
+      if (mounted) setState(() => _isLoading = false);
+      return;
     }
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        children: [
-          const SizedBox(height: 20),
-          // Big status orb
-          AnimatedBuilder(
-            animation: _pulseAnimation,
-            builder: (context, child) {
-              final scale = _isDriverOnline ? _pulseAnimation.value : 1.0;
-              return Transform.scale(
-                scale: 0.9 + (scale * 0.1),
-                child: Container(
-                  width: 160,
-                  height: 160,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: RadialGradient(
-                      colors: _isDriverOnline
-                          ? [_DriverTheme.success.withOpacity(0.3), _DriverTheme.success.withOpacity(0.05)]
-                          : [_DriverTheme.surfaceLight, _DriverTheme.bg],
-                    ),
-                    border: Border.all(
-                      color: _isDriverOnline ? _DriverTheme.success.withOpacity(0.5) : _DriverTheme.divider,
-                      width: 2,
-                    ),
-                    boxShadow: _isDriverOnline
-                        ? [BoxShadow(color: _DriverTheme.success.withOpacity(0.2), blurRadius: 30, spreadRadius: 5)]
-                        : [],
-                  ),
-                  child: Icon(
-                    _isDriverOnline ? Icons.delivery_dining : Icons.delivery_dining_outlined,
-                    size: 64,
-                    color: _isDriverOnline ? _DriverTheme.success : _DriverTheme.textMuted,
-                  ),
-                ),
-              );
-            },
-          ),
-          const SizedBox(height: 32),
-          Text(
-            _isDriverOnline ? 'You are ONLINE' : 'You are OFFLINE',
-            style: TextStyle(
-              fontSize: 26,
-              fontWeight: FontWeight.w800,
-              color: _isDriverOnline ? _DriverTheme.success : _DriverTheme.textSecondary,
-              letterSpacing: 0.5,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            _isDriverOnline
-                ? 'Your location is being shared in real-time'
-                : 'Toggle online to start your shift',
-            style: const TextStyle(fontSize: 14, color: _DriverTheme.textMuted),
-            textAlign: TextAlign.center,
-          ),
+    try {
+      final now = DateTime.now();
+      final startOfDay = DateTime(now.year, now.month, now.day).toUtc().toIso8601String();
+      final endOfDay = DateTime(now.year, now.month, now.day, 23, 59, 59).toUtc().toIso8601String();
 
-          // Tracking info
-          if (_isDriverOnline) ...[
-            const SizedBox(height: 32),
-            Container(
+      final response = await _supabase
+          .from('delivery_routes')
+          .select('''
+            *,
+            route_stops(
+              id, sequence_number, status, type, actual_arrival_time,
+              orders(id, customer_name, customer_street, customer_city, total_price, payment_method, order_type_name, public_reference)
+            )
+          ''')
+          .eq('assigned_driver_id', widget.driverRecordId!)
+          .gte('created_at', startOfDay)
+          .lte('created_at', endOfDay)
+          .order('created_at', ascending: false);
+
+      final allRoutes = List<Map<String, dynamic>>.from(response as List);
+      // Only show valid routes with customer stops (exclude cancelled ghost routes)
+      final validRoutes = allRoutes.where((r) {
+        final stops = (r['route_stops'] as List?) ?? [];
+        return stops.any((s) => s['type'] == 'customer_delivery');
+      }).toList();
+
+      if (mounted) {
+        setState(() {
+          _routes = validRoutes;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('[DriverTodaysRoutesTab] Error loading routes: $e');
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  String _formatTime(DateTime? dt) {
+    if (dt == null) return '--:--';
+    final local = dt.isUtc ? dt.toLocal() : dt;
+    return '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator(color: _DriverTheme.accent));
+    }
+
+    // Analytics summary
+    int totalDeliveredStops = 0;
+    int totalActualMinutes = 0;
+
+    for (final r in _routes) {
+      final stops = (r['route_stops'] as List?) ?? [];
+      totalDeliveredStops += stops.where((s) => s['status'] == 'completed' || s['status'] == 'delivered').length;
+
+      final startedAt = DateTime.tryParse(r['started_at'] as String? ?? '');
+      final completedAt = DateTime.tryParse(r['completed_at'] as String? ?? '') ??
+          DateTime.tryParse(r['actual_return_at'] as String? ?? '');
+      if (startedAt != null && completedAt != null) {
+        totalActualMinutes += completedAt.difference(startedAt).inMinutes;
+      }
+    }
+
+    return RefreshIndicator(
+      onRefresh: _loadRoutes,
+      color: _DriverTheme.accent,
+      child: CustomScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: [
+          // Header Stats
+          SliverToBoxAdapter(
+            child: Container(
+              margin: const EdgeInsets.fromLTRB(16, 12, 16, 8),
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: _DriverTheme.surface,
+                color: Colors.white,
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(color: _DriverTheme.divider),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.04),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
               ),
-              child: Column(
+              child: Row(
                 children: [
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: _DriverTheme.success.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: const Icon(Icons.gps_fixed, color: _DriverTheme.success, size: 18),
-                      ),
-                      const SizedBox(width: 12),
-                      const Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('Live Tracking Active', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: _DriverTheme.textPrimary)),
-                            Text('Updates every 5 seconds', style: TextStyle(color: _DriverTheme.textMuted, fontSize: 12)),
-                          ],
-                        ),
-                      ),
-                      Container(
-                        width: 10,
-                        height: 10,
-                        decoration: BoxDecoration(
-                          color: _DriverTheme.success,
-                          shape: BoxShape.circle,
-                          boxShadow: [BoxShadow(color: _DriverTheme.success.withOpacity(0.5), blurRadius: 6)],
-                        ),
-                      ),
-                    ],
+                  _buildSummaryItem(
+                    icon: Icons.alt_route_rounded,
+                    label: 'Tours Today',
+                    value: '${_routes.length}',
+                    color: _DriverTheme.accent,
                   ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      _buildStatusInfoChip('Updates', '$_updateCount', _DriverTheme.accent),
-                      const SizedBox(width: 12),
-                      if (_lastUpdateTime != null)
-                        _buildStatusInfoChip('Last', _formatLocalTime(_lastUpdateTime!), _DriverTheme.success),
-                    ],
+                  Container(width: 1, height: 36, color: _DriverTheme.divider),
+                  _buildSummaryItem(
+                    icon: Icons.check_circle_outline_rounded,
+                    label: 'Delivered',
+                    value: '$totalDeliveredStops',
+                    color: _DriverTheme.success,
                   ),
-                  if (_lastPosition != null) ...[
-                    const SizedBox(height: 12),
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: _DriverTheme.bg,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        '📍 ${_lastPosition!.latitude.toStringAsFixed(5)}, ${_lastPosition!.longitude.toStringAsFixed(5)}',
-                        style: const TextStyle(
-                          color: _DriverTheme.textMuted,
-                          fontSize: 12,
-                          fontFamily: 'monospace',
-                        ),
-                      ),
-                    ),
-                  ],
+                  Container(width: 1, height: 36, color: _DriverTheme.divider),
+                  _buildSummaryItem(
+                    icon: Icons.timer_outlined,
+                    label: 'Time on Road',
+                    value: totalActualMinutes >= 60
+                        ? '${totalActualMinutes ~/ 60}h ${totalActualMinutes % 60}m'
+                        : '${totalActualMinutes}m',
+                    color: const Color(0xFF8B5CF6),
+                  ),
                 ],
               ),
             ),
-          ],
+          ),
+
+          if (_routes.isEmpty)
+            SliverFillRemaining(
+              hasScrollBody: false,
+              child: Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(32),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: const BoxDecoration(
+                          color: Color(0xFFF3F4F6),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.alt_route_rounded, size: 48, color: _DriverTheme.textMuted),
+                      ),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'No Tours Yet Today',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: _DriverTheme.textPrimary),
+                      ),
+                      const SizedBox(height: 6),
+                      const Text(
+                        'Routes you complete today will appear here\nwith planned vs. actual time analytics.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 13, color: _DriverTheme.textMuted),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            )
+          else
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 40),
+              sliver: SliverList(
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) {
+                    final route = _routes[index];
+                    return _buildRouteSummaryCard(route, _routes.length - index);
+                  },
+                  childCount: _routes.length,
+                ),
+              ),
+            ),
         ],
       ),
     );
   }
 
-  Widget _buildStatusInfoChip(String label, String value, Color color) {
+  Widget _buildSummaryItem({
+    required IconData icon,
+    required String label,
+    required String value,
+    required Color color,
+  }) {
     return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: color.withOpacity(0.08),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: color.withOpacity(0.15)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(label, style: TextStyle(color: color.withOpacity(0.7), fontSize: 11, fontWeight: FontWeight.w500)),
-            const SizedBox(height: 2),
-            Text(value, style: TextStyle(color: color, fontSize: 14, fontWeight: FontWeight.bold, fontFamily: 'monospace')),
-          ],
-        ),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 16, color: color),
+              const SizedBox(width: 4),
+              Text(
+                value,
+                style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: _DriverTheme.textPrimary),
+              ),
+            ],
+          ),
+          const SizedBox(height: 2),
+          Text(label, style: const TextStyle(fontSize: 11, color: _DriverTheme.textMuted, fontWeight: FontWeight.w500)),
+        ],
       ),
     );
   }
 
-  String _formatLocalTime(DateTime dt) {
-    final local = dt.isUtc ? dt.toLocal() : dt;
-    return '${local.hour.toString().padLeft(2, '0')}:'
-        '${local.minute.toString().padLeft(2, '0')}:'
-        '${local.second.toString().padLeft(2, '0')}';
+  Widget _buildRouteSummaryCard(Map<String, dynamic> route, int tourNumber) {
+    final status = route['status'] as String? ?? 'assigned';
+    final isCompleted = status == 'completed';
+    final isInProgress = status == 'in_progress';
+
+    final distMeters = (route['total_estimated_distance_meters'] as num?)?.toDouble() ?? 0.0;
+    final durSecs = (route['total_estimated_duration_seconds'] as num?)?.toDouble() ?? 0.0;
+    final estMinutes = (durSecs / 60).round();
+    final distKmStr = (distMeters / 1000).toStringAsFixed(1);
+
+    final startedAt = DateTime.tryParse(route['started_at'] as String? ?? '');
+    final completedAt = DateTime.tryParse(route['completed_at'] as String? ?? '') ??
+        DateTime.tryParse(route['actual_return_at'] as String? ?? '');
+
+    int? actualMinutes;
+    String actualTimeDisplay = 'Not started';
+    Color actualTimeColor = _DriverTheme.textMuted;
+    String? diffText;
+    Color? diffColor;
+
+    if (startedAt != null) {
+      if (completedAt != null) {
+        actualMinutes = completedAt.difference(startedAt).inMinutes;
+        actualTimeDisplay = '$actualMinutes Min';
+        actualTimeColor = _DriverTheme.textPrimary;
+
+        if (estMinutes > 0) {
+          final diff = actualMinutes - estMinutes;
+          if (diff <= 0) {
+            diffText = '${-diff}m faster';
+            diffColor = _DriverTheme.success;
+          } else {
+            diffText = '+$diff m slower';
+            diffColor = _DriverTheme.danger;
+          }
+        }
+      } else if (isInProgress) {
+        final elapsed = DateTime.now().difference(startedAt).inMinutes;
+        actualTimeDisplay = '$elapsed Min (active)';
+        actualTimeColor = _DriverTheme.accent;
+      }
+    }
+
+    final stops = (route['route_stops'] as List?)
+            ?.map((s) => Map<String, dynamic>.from(s as Map))
+            .where((s) => s['type'] == 'customer_delivery')
+            .toList() ??
+        [];
+
+    final deliveredStopsCount = stops.where((s) => s['status'] == 'completed' || s['status'] == 'delivered').length;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isInProgress ? _DriverTheme.accent.withOpacity(0.5) : _DriverTheme.divider,
+          width: isInProgress ? 1.5 : 1.0,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          initiallyExpanded: isInProgress,
+          tilePadding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+          childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF3F4F6),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  'Tour #$tourNumber',
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: _DriverTheme.textPrimary),
+                ),
+              ),
+              if (startedAt != null) ...[
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text(
+                    '${_formatTime(startedAt)} – ${_formatTime(completedAt)}',
+                    style: const TextStyle(fontSize: 11, color: _DriverTheme.textMuted),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+              const Spacer(),
+              // Status Badge
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                decoration: BoxDecoration(
+                  color: isCompleted
+                      ? const Color(0xFFECFDF5)
+                      : isInProgress
+                          ? const Color(0xFFEEF2FF)
+                          : const Color(0xFFFEF3C7),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: isCompleted
+                        ? const Color(0xFFA7F3D0)
+                        : isInProgress
+                            ? const Color(0xFFC7D2FE)
+                            : const Color(0xFFFDE68A),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      isCompleted
+                          ? Icons.check_circle_rounded
+                          : isInProgress
+                              ? Icons.navigation_rounded
+                              : Icons.schedule_rounded,
+                      size: 12,
+                      color: isCompleted
+                          ? const Color(0xFF059669)
+                          : isInProgress
+                              ? const Color(0xFF4F46E5)
+                              : const Color(0xFFD97706),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      isCompleted
+                          ? 'Completed'
+                          : isInProgress
+                              ? 'In Progress'
+                              : 'Assigned',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: isCompleted
+                            ? const Color(0xFF059669)
+                            : isInProgress
+                                ? const Color(0xFF4F46E5)
+                                : const Color(0xFFD97706),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          subtitle: Padding(
+            padding: const EdgeInsets.only(top: 10),
+            child: Column(
+              children: [
+                // Prominent Time vs Actual Needed Comparison
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF9FAFB),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: _DriverTheme.divider),
+                  ),
+                  child: Row(
+                    children: [
+                      // Estimated Time
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Row(
+                              children: [
+                                Icon(Icons.schedule_rounded, size: 14, color: _DriverTheme.textMuted),
+                                SizedBox(width: 4),
+                                Text(
+                                  'ESTIMATED',
+                                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: _DriverTheme.textMuted, letterSpacing: 0.5),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              estMinutes > 0 ? '$estMinutes Min' : '-- Min',
+                              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: _DriverTheme.textPrimary),
+                            ),
+                            if (distMeters > 0)
+                              Text('$distKmStr km round trip', style: const TextStyle(fontSize: 11, color: _DriverTheme.textMuted)),
+                          ],
+                        ),
+                      ),
+                      Container(width: 1, height: 42, color: _DriverTheme.divider),
+                      const SizedBox(width: 12),
+                      // Actual Time Needed
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Row(
+                              children: [
+                                Icon(Icons.timer_rounded, size: 14, color: Color(0xFF4F46E5)),
+                                SizedBox(width: 4),
+                                Text(
+                                  'ACTUAL NEEDED',
+                                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Color(0xFF4F46E5), letterSpacing: 0.5),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            Wrap(
+                              spacing: 6,
+                              runSpacing: 4,
+                              crossAxisAlignment: WrapCrossAlignment.center,
+                              children: [
+                                Text(
+                                  actualTimeDisplay,
+                                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: actualTimeColor),
+                                ),
+                                if (diffText != null)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: diffColor!.withOpacity(0.12),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Text(
+                                      diffText,
+                                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: diffColor),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                            Text(
+                              '$deliveredStopsCount of ${stops.length} orders delivered',
+                              style: const TextStyle(fontSize: 11, color: _DriverTheme.textMuted),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          children: [
+            const Divider(height: 16, color: _DriverTheme.divider),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Orders in this tour (${stops.length})',
+                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _DriverTheme.textSecondary),
+              ),
+            ),
+            const SizedBox(height: 8),
+            ...stops.map((stop) {
+              final o = stop['orders'] as Map<String, dynamic>?;
+              final name = o?['customer_name'] as String? ?? 'Customer';
+              final street = o?['customer_street'] as String? ?? '';
+              final city = o?['customer_city'] as String? ?? '';
+              final price = (o?['total_price'] as num?)?.toDouble();
+              final payMethod = (o?['payment_method'] as String?)?.toLowerCase() ?? '';
+              final isCash = payMethod.contains('cash');
+              final isStopDelivered = stop['status'] == 'completed' || stop['status'] == 'delivered';
+
+              return Container(
+                margin: const EdgeInsets.only(bottom: 6),
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: isStopDelivered ? const Color(0xFFF9FAFB) : Colors.white,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFE5E7EB)),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 22,
+                      height: 22,
+                      decoration: BoxDecoration(
+                        color: isStopDelivered ? const Color(0xFFECFDF5) : const Color(0xFFF3F4F6),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Center(
+                        child: isStopDelivered
+                            ? const Icon(Icons.check, size: 14, color: Color(0xFF059669))
+                            : Text('${stop['sequence_number'] ?? ''}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: _DriverTheme.textSecondary)),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            name,
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: isStopDelivered ? Colors.grey[500] : _DriverTheme.textPrimary,
+                              decoration: isStopDelivered ? TextDecoration.lineThrough : null,
+                            ),
+                          ),
+                          if (street.isNotEmpty)
+                            Text(
+                              '$street${city.isNotEmpty ? ', $city' : ''}',
+                              style: const TextStyle(fontSize: 11, color: _DriverTheme.textMuted),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                        ],
+                      ),
+                    ),
+                    if (price != null) ...[
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: isCash ? const Color(0xFFECFDF5) : const Color(0xFFF3F4F6),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          '${isCash ? 'Cash ' : ''}€${price.toStringAsFixed(2)}',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: isCash ? const Color(0xFF059669) : _DriverTheme.textSecondary,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              );
+            }),
+          ],
+        ),
+      ),
+    );
   }
 }
 
@@ -1346,13 +1746,11 @@ class _DriverRouteTabState extends State<_DriverRouteTab> with TickerProviderSta
   bool _isLoading = true;
   bool _isMarkingDelivered = false;
   bool _isStartingRoute = false;
+  bool _isCompletingRoute = false;
   RealtimeChannel? _routeChannel;
 
   // Order items cache: orderId -> list of items
   Map<String, List<Map<String, dynamic>>> _orderItems = {};
-
-  // Expanded stop index (for accordion-style detail view)
-  int? _expandedStopIndex;
 
   @override
   void initState() {
@@ -1429,10 +1827,10 @@ class _DriverRouteTabState extends State<_DriverRouteTab> with TickerProviderSta
       final route = Map<String, dynamic>.from(routeList.first as Map);
       final routeId = route['id'] as String;
 
-      // Fetch stops with full order data including items
+      // Fetch stops with full order data
       final stopsResponse = await _supabase
           .from('route_stops')
-          .select('*, orders!inner(id, customer_name, customer_address, customer_street, customer_postcode, customer_city, customer_phone, delivery_notes, estimated_delivery_time, delivery_latitude, delivery_longitude, order_type_name, payment_method, total_price, public_reference, verification_code, note)')
+          .select('*, orders(id, created_at, customer_name, customer_street, customer_postcode, customer_city, customer_phone, delivery_notes, estimated_delivery_time, requested_delivery_time, planned_arrival_at, delivery_latitude, delivery_longitude, order_type_name, payment_method, total_price, public_reference, verification_code, note)')
           .eq('delivery_route_id', routeId)
           .order('sequence_number', ascending: true);
 
@@ -1529,9 +1927,33 @@ class _DriverRouteTabState extends State<_DriverRouteTab> with TickerProviderSta
           })
           .eq('id', _activeRoute!['id'] as String);
 
+      // Update customer orders in this route to out_for_delivery & delivering
+      final orderIds = _stops
+          .map((s) => s['order_id'] as String?)
+          .where((id) => id != null && id.isNotEmpty)
+          .cast<String>()
+          .toList();
+
+      if (orderIds.isNotEmpty) {
+        await _supabase
+            .from('orders')
+            .update({
+              'delivery_status': 'out_for_delivery',
+              'status': 'delivering',
+            })
+            .inFilter('id', orderIds);
+      }
+
       HapticFeedback.heavyImpact();
 
       if (mounted) {
+        setState(() {
+          if (_activeRoute != null) {
+            _activeRoute!['status'] = 'in_progress';
+          }
+          _isStartingRoute = false;
+        });
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: const Row(children: [
@@ -1649,12 +2071,28 @@ class _DriverRouteTabState extends State<_DriverRouteTab> with TickerProviderSta
       if (confirmed != true) return;
     }
 
-    setState(() => _isMarkingDelivered = true);
+    final stopId = stop['id'] as String;
+    final orderId = stop['order_id'] as String?;
+
+    // Optimistically update local UI immediately so the user sees instant feedback
+    setState(() {
+      _isMarkingDelivered = true;
+      final idx = _stops.indexWhere((s) => s['id'] == stopId);
+      if (idx != -1) {
+        _stops[idx] = Map<String, dynamic>.from(_stops[idx])
+          ..['status'] = 'completed';
+      }
+      if (_activeRoute != null && _activeRoute!['status'] == 'assigned') {
+        _activeRoute!['status'] = 'in_progress';
+      }
+    });
     HapticFeedback.heavyImpact();
 
     try {
-      final stopId = stop['id'] as String;
-      final orderId = stop['order_id'] as String?;
+      Position? currentPos;
+      try {
+        currentPos = await Geolocator.getLastKnownPosition();
+      } catch (_) {}
 
       try {
         await _supabase.functions.invoke(
@@ -1662,6 +2100,10 @@ class _DriverRouteTabState extends State<_DriverRouteTab> with TickerProviderSta
           body: {
             'route_stop_id': stopId,
             'order_id': orderId,
+            if (currentPos != null) ...{
+              'driver_latitude': currentPos.latitude,
+              'driver_longitude': currentPos.longitude,
+            },
           },
         );
       } catch (edgeFnError) {
@@ -1696,29 +2138,30 @@ class _DriverRouteTabState extends State<_DriverRouteTab> with TickerProviderSta
           await _supabase
               .from('delivery_routes')
               .update({
-                'status': 'completed',
                 'actual_return_at': DateTime.now().toUtc().toIso8601String(),
               })
               .eq('id', _activeRoute!['id'] as String);
         }
       }
 
-      // Get remaining stops after marking
+      // Calculate remaining stops after marking this one delivered
       final remaining = _stops.where((s) =>
           s['type'] == 'customer_delivery' &&
           s['status'] != 'delivered' &&
           s['status'] != 'completed' &&
-          s['id'] != stop['id']).toList();
+          s['id'] != stopId).toList();
 
       if (mounted) {
         if (remaining.isEmpty) {
-          // All done! Show celebration
+          // All done! Show celebration and automatically route back to restaurant
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: const Row(children: [
                 Text('🎉', style: TextStyle(fontSize: 20)),
                 SizedBox(width: 8),
-                Text('All deliveries complete! Head back to the restaurant.'),
+                Expanded(
+                  child: Text('All deliveries complete! Navigating back to restaurant...'),
+                ),
               ]),
               backgroundColor: _DriverTheme.success,
               duration: const Duration(seconds: 4),
@@ -1726,6 +2169,26 @@ class _DriverRouteTabState extends State<_DriverRouteTab> with TickerProviderSta
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
           );
+
+          // Find store / restaurant depot coordinates
+          double? storeLat = (_activeRoute?['store_latitude'] as num?)?.toDouble();
+          double? storeLng = (_activeRoute?['store_longitude'] as num?)?.toDouble();
+
+          if (storeLat == null || storeLng == null) {
+            final storeStop = _stops.firstWhere(
+              (s) => s['type'] == 'store',
+              orElse: () => <String, dynamic>{},
+            );
+            storeLat = (storeStop['latitude'] as num?)?.toDouble();
+            storeLng = (storeStop['longitude'] as num?)?.toDouble();
+          }
+
+          // Fallback to default restaurant coordinates if not specified
+          storeLat ??= 47.81328;
+          storeLng ??= 13.06882;
+
+          await Future.delayed(const Duration(seconds: 1));
+          _openNavigation(storeLat, storeLng);
         } else {
           // Navigate to next stop
           ScaffoldMessenger.of(context).showSnackBar(
@@ -1769,46 +2232,13 @@ class _DriverRouteTabState extends State<_DriverRouteTab> with TickerProviderSta
   }
 
   Future<void> _markBackAtRestaurant() async {
-    if (_activeRoute == null) return;
-
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: _DriverTheme.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Row(
-          children: [
-            Icon(Icons.store, color: _DriverTheme.accent, size: 24),
-            SizedBox(width: 10),
-            Text('Back at Restaurant?', style: TextStyle(color: _DriverTheme.textPrimary, fontSize: 18)),
-          ],
-        ),
-        content: const Text(
-          'Confirm you\'ve returned to the restaurant. This will complete your current route.',
-          style: TextStyle(color: _DriverTheme.textSecondary, fontSize: 14),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel', style: TextStyle(color: _DriverTheme.textMuted)),
-          ),
-          ElevatedButton.icon(
-            onPressed: () => Navigator.pop(ctx, true),
-            icon: const Icon(Icons.check, size: 18),
-            label: const Text('I\'m Back'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: _DriverTheme.accent,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            ),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed != true) return;
+    if (_activeRoute == null || _isCompletingRoute) return;
+    setState(() => _isCompletingRoute = true);
 
     try {
+      final routeId = _activeRoute!['id'] as String;
+
+      // 1. Mark delivery route as completed
       await _supabase
           .from('delivery_routes')
           .update({
@@ -1816,9 +2246,19 @@ class _DriverRouteTabState extends State<_DriverRouteTab> with TickerProviderSta
             'completed_at': DateTime.now().toUtc().toIso8601String(),
             'actual_return_at': DateTime.now().toUtc().toIso8601String(),
           })
-          .eq('id', _activeRoute!['id'] as String);
+          .eq('id', routeId);
 
-      // Free up the driver
+      // 2. Mark any store stops in this route as completed
+      await _supabase
+          .from('route_stops')
+          .update({
+            'status': 'completed',
+            'actual_arrival_time': DateTime.now().toUtc().toIso8601String(),
+          })
+          .eq('delivery_route_id', routeId)
+          .eq('type', 'store');
+
+      // 3. Free up driver record
       if (widget.driverRecordId != null) {
         await _supabase
             .from('drivers')
@@ -1831,13 +2271,20 @@ class _DriverRouteTabState extends State<_DriverRouteTab> with TickerProviderSta
 
       HapticFeedback.heavyImpact();
 
+      // 4. Immediately clear local active route state so driver sees instant transition
       if (mounted) {
+        setState(() {
+          _activeRoute = null;
+          _stops = [];
+          _isCompletingRoute = false;
+        });
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: const Row(children: [
               Text('🏠', style: TextStyle(fontSize: 20)),
               SizedBox(width: 8),
-              Text('Welcome back! Route completed.'),
+              Text('Welcome back! Route completed. 🎉'),
             ]),
             backgroundColor: _DriverTheme.success,
             behavior: SnackBarBehavior.floating,
@@ -1846,10 +2293,21 @@ class _DriverRouteTabState extends State<_DriverRouteTab> with TickerProviderSta
         );
       }
 
+      // 5. Trigger plan-routes so waiting orders can be assigned immediately
+      try {
+        await _supabase.functions.invoke('plan-routes', body: {
+          'trigger_reason': 'driver_back_at_restaurant',
+        });
+      } catch (e) {
+        debugPrint('[DriverRouteTab] Error invoking plan-routes on return: $e');
+      }
+
+      // 6. Reload route in case a new tour was auto-planned
       await _loadRoute();
     } catch (e) {
       debugPrint('[DriverRouteTab] Error marking back: $e');
       if (mounted) {
+        setState(() => _isCompletingRoute = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error: $e'), backgroundColor: _DriverTheme.danger, behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
         );
@@ -1858,23 +2316,26 @@ class _DriverRouteTabState extends State<_DriverRouteTab> with TickerProviderSta
   }
 
   void _openNavigation(double lat, double lng) async {
-    final googleUrl = Uri.parse('google.navigation:q=$lat,$lng&mode=d');
-    final appleMapsUrl = Uri.parse('https://maps.apple.com/?daddr=$lat,$lng&dirflg=d');
-    final fallbackUrl = Uri.parse('https://www.google.com/maps/dir/?api=1&destination=$lat,$lng&travelmode=driving');
+    final googleMapsAppUrl = Uri.parse('comgooglemaps://?daddr=$lat,$lng&directionsmode=driving');
+    final googleNavUrl = Uri.parse('google.navigation:q=$lat,$lng&mode=d');
+    final googleWebUrl = Uri.parse('https://www.google.com/maps/dir/?api=1&destination=$lat,$lng&travelmode=driving');
 
     try {
-      if (Platform.isAndroid) {
-        if (await canLaunchUrl(googleUrl)) {
-          await launchUrl(googleUrl);
+      if (Platform.isIOS) {
+        // Try opening native Google Maps iOS app first
+        if (await canLaunchUrl(googleMapsAppUrl)) {
+          await launchUrl(googleMapsAppUrl, mode: LaunchMode.externalApplication);
           return;
         }
-      } else if (Platform.isIOS) {
-        if (await canLaunchUrl(appleMapsUrl)) {
-          await launchUrl(appleMapsUrl);
+      } else if (Platform.isAndroid) {
+        if (await canLaunchUrl(googleNavUrl)) {
+          await launchUrl(googleNavUrl, mode: LaunchMode.externalApplication);
           return;
         }
       }
-      await launchUrl(fallbackUrl, mode: LaunchMode.externalApplication);
+
+      // Always open Google Maps (opens Google Maps App or browser fallback)
+      await launchUrl(googleWebUrl, mode: LaunchMode.externalApplication);
     } catch (e) {
       debugPrint('[DriverRouteTab] Error opening navigation: $e');
       if (mounted) {
@@ -1929,7 +2390,7 @@ class _DriverRouteTabState extends State<_DriverRouteTab> with TickerProviderSta
               delegate: SliverChildBuilderDelegate(
                 (context, index) {
                   final stop = customerStops[index];
-                  return _buildStopCard(stop, index, customerStops);
+                  return _buildTimelineStopRow(stop, index, customerStops);
                 },
                 childCount: customerStops.length,
               ),
@@ -1940,148 +2401,142 @@ class _DriverRouteTabState extends State<_DriverRouteTab> with TickerProviderSta
     );
   }
 
+  (double distanceMeters, double durationSecs) _getRouteDistanceAndDuration() {
+    double dist = (_activeRoute?['total_estimated_distance_meters'] as num?)?.toDouble() ?? 0.0;
+    double dur = (_activeRoute?['total_estimated_duration_seconds'] as num?)?.toDouble() ?? 0.0;
+
+    final customerStops = _stops.where((s) => s['type'] == 'customer_delivery').toList();
+    if (dist <= 0 && customerStops.isNotEmpty) {
+      final storeLat = (_activeRoute?['store_latitude'] as num?)?.toDouble() ?? 47.81328;
+      final storeLng = (_activeRoute?['store_longitude'] as num?)?.toDouble() ?? 13.06882;
+      double calcDist = 0.0;
+      double prevLat = storeLat;
+      double prevLng = storeLng;
+
+      for (final s in customerStops) {
+        final o = s['orders'] as Map<String, dynamic>?;
+        final sLat = (s['latitude'] as num?)?.toDouble() ?? (o?['delivery_latitude'] as num?)?.toDouble();
+        final sLng = (s['longitude'] as num?)?.toDouble() ?? (o?['delivery_longitude'] as num?)?.toDouble();
+        if (sLat != null && sLng != null) {
+          calcDist += _haversineDistanceMeters(prevLat, prevLng, sLat, sLng);
+          prevLat = sLat;
+          prevLng = sLng;
+        }
+      }
+      // Return leg back to restaurant depot
+      calcDist += _haversineDistanceMeters(prevLat, prevLng, storeLat, storeLng);
+      dist = calcDist * 1.35; // City driving factor
+      if (dur <= 0) {
+        dur = (dist / 1000 / 25 * 3600) + (customerStops.length * 300);
+      }
+    }
+
+    return (dist, dur);
+  }
+
+  double _haversineDistanceMeters(double lat1, double lon1, double lat2, double lon2) {
+    const r = 6371000.0;
+    final dLat = (lat2 - lat1) * (math.pi / 180.0);
+    final dLon = (lon2 - lon1) * (math.pi / 180.0);
+    final a = math.sin(dLat / 2) * math.sin(dLat / 2) +
+        math.cos(lat1 * (math.pi / 180.0)) * math.cos(lat2 * (math.pi / 180.0)) *
+        math.sin(dLon / 2) * math.sin(dLon / 2);
+    final c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+    return r * c;
+  }
+
   Widget _buildRouteHeader(String status, int delivered, int total, bool allDone) {
     final progress = total > 0 ? delivered / total : 0.0;
+    final (distMeters, durSecs) = _getRouteDistanceAndDuration();
+    final distKmStr = (distMeters / 1000).toStringAsFixed(1);
+    final durMin = (durSecs / 60).round();
 
     return Container(
-      margin: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-      padding: const EdgeInsets.all(20),
+      margin: const EdgeInsets.fromLTRB(16, 12, 16, 6),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: allDone
-              ? [_DriverTheme.success.withOpacity(0.15), _DriverTheme.success.withOpacity(0.05)]
-              : status == 'in_progress'
-                  ? [_DriverTheme.accent.withOpacity(0.15), _DriverTheme.accent.withOpacity(0.05)]
-                  : [_DriverTheme.warning.withOpacity(0.15), _DriverTheme.warning.withOpacity(0.05)],
-        ),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: allDone
-              ? _DriverTheme.success.withOpacity(0.2)
-              : status == 'in_progress'
-                  ? _DriverTheme.accent.withOpacity(0.2)
-                  : _DriverTheme.warning.withOpacity(0.2),
-        ),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: _DriverTheme.divider),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 4,
+            offset: const Offset(0, 1),
+          ),
+        ],
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              // Circular progress
-              SizedBox(
-                width: 56,
-                height: 56,
-                child: Stack(
-                  children: [
-                    SizedBox(
-                      width: 56,
-                      height: 56,
-                      child: CircularProgressIndicator(
-                        value: progress,
-                        strokeWidth: 5,
-                        backgroundColor: _DriverTheme.divider,
-                        valueColor: AlwaysStoppedAnimation(
-                          allDone ? _DriverTheme.success : _DriverTheme.accent,
-                        ),
-                        strokeCap: StrokeCap.round,
-                      ),
-                    ),
-                    Center(
-                      child: Text(
-                        '$delivered/$total',
-                        style: const TextStyle(
-                          color: _DriverTheme.textPrimary,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 16),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      allDone
-                          ? 'All Delivered! 🎉'
-                          : status == 'in_progress'
-                              ? 'Route In Progress'
-                              : 'Route Ready',
-                      style: const TextStyle(
-                        color: _DriverTheme.textPrimary,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      allDone
-                          ? 'Head back to the restaurant'
-                          : '$delivered of $total deliveries completed',
-                      style: const TextStyle(color: _DriverTheme.textSecondary, fontSize: 13),
-                    ),
-                  ],
+                child: Text(
+                  allDone
+                      ? 'All Delivered! 🎉'
+                      : status == 'in_progress'
+                          ? 'Active Tour • $delivered of $total'
+                          : 'Tour Ready • $total Orders',
+                  style: const TextStyle(
+                    color: _DriverTheme.textPrimary,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
-              if (_activeRoute!['plan_version'] != null)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: _DriverTheme.surfaceLight,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    'v${_activeRoute!['plan_version']}',
-                    style: const TextStyle(color: _DriverTheme.textMuted, fontSize: 11),
-                  ),
+              Text(
+                '$distKmStr km • ca. $durMin Min',
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: _DriverTheme.textMuted,
                 ),
+              ),
             ],
           ),
-          const SizedBox(height: 12),
-          // Progress bar
-          ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: LinearProgressIndicator(
-              value: progress,
-              minHeight: 6,
-              backgroundColor: _DriverTheme.divider,
-              valueColor: AlwaysStoppedAnimation(allDone ? _DriverTheme.success : _DriverTheme.accent),
+          if (status == 'in_progress' || allDone) ...[
+            const SizedBox(height: 8),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(3),
+              child: LinearProgressIndicator(
+                value: progress,
+                minHeight: 4,
+                backgroundColor: const Color(0xFFF3F4F6),
+                valueColor: AlwaysStoppedAnimation(allDone ? _DriverTheme.success : _DriverTheme.accent),
+              ),
             ),
-          ),
+          ],
         ],
       ),
     );
   }
 
   Widget _buildStartRouteButton() {
+    final (distMeters, durSecs) = _getRouteDistanceAndDuration();
+    final distKmStr = (distMeters / 1000).toStringAsFixed(1);
+    final durMin = (durSecs / 60).round();
+
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
       child: SizedBox(
         width: double.infinity,
-        height: 56,
-        child: ElevatedButton(
+        height: 46,
+        child: ElevatedButton.icon(
           onPressed: _isStartingRoute ? null : _startRoute,
+          icon: _isStartingRoute
+              ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+              : const Icon(Icons.navigation_rounded, size: 20),
+          label: Text(
+            distMeters > 0 ? 'Start Tour • $distKmStr km (ca. $durMin Min)' : 'Start Tour',
+            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+          ),
           style: ElevatedButton.styleFrom(
-            backgroundColor: _DriverTheme.success,
+            backgroundColor: _DriverTheme.accent,
             foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             elevation: 0,
           ),
-          child: _isStartingRoute
-              ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white))
-              : const Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.rocket_launch, size: 22),
-                    SizedBox(width: 10),
-                    Text('Start Route', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
-                  ],
-                ),
         ),
       ),
     );
@@ -2089,32 +2544,150 @@ class _DriverRouteTabState extends State<_DriverRouteTab> with TickerProviderSta
 
   Widget _buildBackAtRestaurantButton() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
       child: SizedBox(
         width: double.infinity,
-        height: 56,
-        child: ElevatedButton(
-          onPressed: _markBackAtRestaurant,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: _DriverTheme.accent,
-            foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            elevation: 0,
+        height: 50,
+        child: ElevatedButton.icon(
+          onPressed: _isCompletingRoute ? null : _markBackAtRestaurant,
+          icon: _isCompletingRoute
+              ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+              : const Icon(Icons.storefront_rounded, size: 20),
+          label: Text(
+            _isCompletingRoute ? 'Completing Tour...' : 'Back at Restaurant (Complete Tour)',
+            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
           ),
-          child: const Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.store, size: 22),
-              SizedBox(width: 10),
-              Text('Back at Restaurant', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
-            ],
+          style: ElevatedButton.styleFrom(
+            backgroundColor: _DriverTheme.success,
+            foregroundColor: Colors.white,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            elevation: 0,
           ),
         ),
       ),
     );
   }
 
-  Widget _buildStopCard(Map<String, dynamic> stop, int index, List<Map<String, dynamic>> allStops) {
+  (DateTime, int, DateTime) _getStopTimeline(
+    Map<String, dynamic> stop,
+    int index,
+    List<Map<String, dynamic>> allCustomerStops,
+  ) {
+    final routeDepStr = _activeRoute?['actual_departure_at'] as String? ??
+        _activeRoute?['planned_departure_at'] as String?;
+    final routeDepTime = DateTime.tryParse(routeDepStr ?? '')?.toLocal() ?? DateTime.now();
+
+    final arrivalStr = stop['planned_arrival_at'] as String? ??
+        stop['estimated_arrival_time'] as String?;
+    DateTime arrival = DateTime.tryParse(arrivalStr ?? '')?.toLocal() ??
+        routeDepTime.add(Duration(minutes: (index + 1) * 12));
+
+    DateTime start;
+    if (index == 0) {
+      start = routeDepTime;
+    } else {
+      final prevStop = allCustomerStops[index - 1];
+      final prevArrivalStr = prevStop['planned_arrival_at'] as String? ??
+          prevStop['estimated_arrival_time'] as String?;
+      final prevArrival = DateTime.tryParse(prevArrivalStr ?? '')?.toLocal() ??
+          routeDepTime.add(Duration(minutes: index * 12));
+      start = prevArrival.add(const Duration(minutes: 5));
+    }
+
+    if (arrival.isBefore(start) || arrival.isAtSameMomentAs(start)) {
+      arrival = start.add(const Duration(minutes: 10));
+    }
+
+    int durationMin = arrival.difference(start).inMinutes;
+    if (durationMin <= 0) durationMin = 5;
+
+    return (start, durationMin, arrival);
+  }
+
+  Widget _buildTimelineStopRow(
+    Map<String, dynamic> stop,
+    int index,
+    List<Map<String, dynamic>> allCustomerStops,
+  ) {
+    final (startTime, durationMin, arrivalTime) = _getStopTimeline(stop, index, allCustomerStops);
+    final isDelivered = stop['status'] == 'delivered' || stop['status'] == 'completed';
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Left Timeline: Start time, Duration of trip, Estimated arrival time
+          SizedBox(
+            width: 52,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                const SizedBox(height: 12),
+                Text(
+                  _formatTime(startTime),
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: isDelivered ? const Color(0xFF9CA3AF) : const Color(0xFF4B5563),
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Container(
+                  width: 1.5,
+                  height: 12,
+                  color: isDelivered ? const Color(0xFFE5E7EB) : const Color(0xFFD1D5DB),
+                ),
+                Container(
+                  margin: const EdgeInsets.symmetric(vertical: 2),
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1.5),
+                  decoration: BoxDecoration(
+                    color: isDelivered ? const Color(0xFFF3F4F6) : const Color(0xFFEEF2FF),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    '$durationMin min',
+                    style: TextStyle(
+                      fontSize: 9,
+                      fontWeight: FontWeight.w700,
+                      color: isDelivered ? const Color(0xFF9CA3AF) : const Color(0xFF4F46E5),
+                    ),
+                  ),
+                ),
+                Container(
+                  width: 1.5,
+                  height: 12,
+                  color: isDelivered ? const Color(0xFFE5E7EB) : const Color(0xFFD1D5DB),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  _formatTime(arrivalTime),
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: isDelivered ? const Color(0xFF9CA3AF) : const Color(0xFF1E3A8A),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          // The Order Card
+          Expanded(
+            child: _buildStopCard(stop, index, allCustomerStops, arrivalTime),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStopCard(
+    Map<String, dynamic> stop,
+    int index,
+    List<Map<String, dynamic>> allStops,
+    DateTime calculatedArrival,
+  ) {
     final isDelivered = stop['status'] == 'delivered' || stop['status'] == 'completed';
     final order = stop['orders'] as Map<String, dynamic>?;
     final customerName = order?['customer_name'] as String? ??
@@ -2122,695 +2695,266 @@ class _DriverRouteTabState extends State<_DriverRouteTab> with TickerProviderSta
     final customerAddress = order?['customer_address'] as String? ??
         order?['customer_street'] as String? ??
         stop['customer_address'] as String? ?? '';
+    final customerCity = order?['customer_city'] as String? ?? '';
     final customerPhone = order?['customer_phone'] as String?;
-    final deliveryNotes = order?['delivery_notes'] as String?;
-    final orderNote = order?['note'] as String?;
     final orderType = order?['order_type_name'] as String?;
-    final paymentMethod = order?['payment_method'] as String?;
-    final totalPrice = (order?['total_price'] as num?)?.toDouble();
-    final publicRef = order?['public_reference'] as String?;
-    final verificationCode = order?['verification_code'] as String?;
-    final isCash = paymentMethod?.toLowerCase().contains('cash') ?? false;
 
     final lat = (stop['latitude'] as num?)?.toDouble() ??
         (order?['delivery_latitude'] as num?)?.toDouble();
     final lng = (stop['longitude'] as num?)?.toDouble() ??
         (order?['delivery_longitude'] as num?)?.toDouble();
 
-    final plannedArrival = DateTime.tryParse(stop['planned_arrival_at'] as String? ?? '');
-    final promisedDelivery = DateTime.tryParse(order?['estimated_delivery_time'] as String? ?? '');
-    final estimatedArrival = DateTime.tryParse(stop['estimated_arrival_time'] as String? ?? '');
+    // 1. When order was received time
+    final orderCreatedAt = DateTime.tryParse(order?['created_at'] as String? ?? '');
+    final receivedStr = orderCreatedAt != null ? _formatTime(orderCreatedAt.toLocal()) : '--:--';
 
-    final eta = plannedArrival ?? estimatedArrival;
-    int? latenessMin;
-    bool isLate = false;
-    if (eta != null && promisedDelivery != null) {
-      latenessMin = eta.difference(promisedDelivery).inMinutes;
-      isLate = latenessMin > 0;
-    }
+    // 2. Estimated delivery time given by us (customer promise)
+    final promisedDelivery = DateTime.tryParse(order?['estimated_delivery_time'] as String? ??
+        order?['requested_delivery_time'] as String? ?? '');
+    final promisedStr = promisedDelivery != null ? _formatTime(promisedDelivery.toLocal()) : '--:--';
 
-    // Determine current stop
+    // 3. Target time by delivery route manager
+    final routeTarget = DateTime.tryParse(stop['planned_arrival_at'] as String? ??
+        stop['estimated_arrival_time'] as String? ??
+        order?['planned_arrival_at'] as String? ?? '')?.toLocal() ?? calculatedArrival;
+    final routeTargetStr = _formatTime(routeTarget);
+
     final firstUndeliveredIdx = allStops.indexWhere((s) =>
         s['status'] != 'delivered' && s['status'] != 'completed');
     final isCurrentStop = index == firstUndeliveredIdx;
-    final isExpanded = _expandedStopIndex == index;
 
-    // Order items
-    final orderId = stop['order_id'] as String?;
-    final items = orderId != null ? _orderItems[orderId] ?? [] : <Map<String, dynamic>>[];
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: GestureDetector(
-        onTap: isDelivered ? null : () {
-          HapticFeedback.selectionClick();
-          setState(() {
-            _expandedStopIndex = isExpanded ? null : index;
-          });
-        },
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeInOut,
-          decoration: BoxDecoration(
-            color: isDelivered
-                ? _DriverTheme.surface.withOpacity(0.5)
-                : isCurrentStop
-                    ? _DriverTheme.surface
-                    : _DriverTheme.surface,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: isDelivered
-                  ? _DriverTheme.success.withOpacity(0.2)
-                  : isCurrentStop
-                      ? isLate
-                          ? _DriverTheme.danger.withOpacity(0.4)
-                          : _DriverTheme.accent.withOpacity(0.4)
-                      : _DriverTheme.divider,
-              width: isCurrentStop ? 1.5 : 1,
-            ),
-            boxShadow: isCurrentStop && !isDelivered
-                ? [_DriverTheme.glow(isLate ? _DriverTheme.danger : _DriverTheme.accent, blur: 16)]
-                : null,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Main card header
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Row 1: Index + Customer name + badges
-                    Row(
-                      children: [
-                        // Stop number
-                        Container(
-                          width: 32,
-                          height: 32,
-                          decoration: BoxDecoration(
-                            color: isDelivered
-                                ? _DriverTheme.success.withOpacity(0.15)
-                                : isCurrentStop
-                                    ? _DriverTheme.accent.withOpacity(0.15)
-                                    : _DriverTheme.surfaceLight,
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Center(
-                            child: isDelivered
-                                ? const Icon(Icons.check, color: _DriverTheme.success, size: 18)
-                                : Text(
-                                    '${index + 1}',
-                                    style: TextStyle(
-                                      color: isCurrentStop ? _DriverTheme.accent : _DriverTheme.textSecondary,
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 14,
-                                    ),
-                                  ),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                customerName,
-                                style: TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w700,
-                                  color: isDelivered ? _DriverTheme.textMuted : _DriverTheme.textPrimary,
-                                  decoration: isDelivered ? TextDecoration.lineThrough : null,
-                                ),
-                              ),
-                              if (publicRef != null)
-                                Text(
-                                  publicRef,
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    color: isDelivered ? _DriverTheme.textMuted.withOpacity(0.5) : _DriverTheme.textMuted,
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ),
-                        // Payment badge
-                        if (isCash && !isDelivered)
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: _DriverTheme.cash.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: _DriverTheme.cash.withOpacity(0.3)),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(Icons.payments, size: 13, color: _DriverTheme.cash),
-                                const SizedBox(width: 4),
-                                Text(
-                                  '€${totalPrice?.toStringAsFixed(2) ?? '0.00'}',
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w700,
-                                    color: _DriverTheme.cash,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          )
-                        else if (!isDelivered && totalPrice != null)
-                          Text(
-                            '€${totalPrice.toStringAsFixed(2)}',
-                            style: const TextStyle(fontSize: 12, color: _DriverTheme.textMuted),
-                          ),
-                        if (orderType != null && !isDelivered) ...[
-                          const SizedBox(width: 6),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                            decoration: BoxDecoration(
-                              color: _platformColor(orderType).withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Text(
-                              orderType,
-                              style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: _platformColor(orderType)),
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                    // Row 2: Address
-                    if (customerAddress.isNotEmpty && !isDelivered)
-                      Padding(
-                        padding: const EdgeInsets.only(left: 44, top: 4),
-                        child: Text(
-                          customerAddress,
-                          style: const TextStyle(fontSize: 13, color: _DriverTheme.textSecondary),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    // Row 3: ETA + Lateness
-                    if (!isDelivered)
-                      Padding(
-                        padding: const EdgeInsets.only(left: 44, top: 6),
-                        child: Row(
-                          children: [
-                            if (promisedDelivery != null)
-                              _buildTimeChip(
-                                icon: Icons.flag_rounded,
-                                label: 'Target ${_formatTime(promisedDelivery)}',
-                                color: _DriverTheme.textMuted,
-                              ),
-                            if (eta != null) ...[
-                              const SizedBox(width: 8),
-                              _buildTimeChip(
-                                icon: isLate ? Icons.warning_amber_rounded : Icons.schedule_rounded,
-                                label: 'ETA ${_formatTime(eta)}',
-                                color: isLate ? _DriverTheme.danger : _DriverTheme.success,
-                              ),
-                            ],
-                            if (latenessMin != null) ...[
-                              const Spacer(),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: isLate
-                                      ? _DriverTheme.danger.withOpacity(0.1)
-                                      : _DriverTheme.success.withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: Text(
-                                  isLate
-                                      ? '+${latenessMin}m late'
-                                      : latenessMin == 0
-                                          ? 'On time'
-                                          : '${-latenessMin}m early',
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w700,
-                                    color: isLate ? _DriverTheme.danger : _DriverTheme.success,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-
-              // Expanded detail section
-              if (isExpanded && !isDelivered) ...[
-                const Divider(height: 1, color: _DriverTheme.divider),
-                _buildExpandedDetails(
-                  customerPhone: customerPhone,
-                  deliveryNotes: deliveryNotes,
-                  orderNote: orderNote,
-                  items: items,
-                  paymentMethod: paymentMethod,
-                  totalPrice: totalPrice,
-                  verificationCode: verificationCode,
-                  isCash: isCash,
-                  lat: lat,
-                  lng: lng,
-                  isCurrentStop: isCurrentStop,
-                  stop: stop,
-                ),
-              ],
-
-              // Quick action buttons for current stop (always visible)
-              if (isCurrentStop && !isDelivered && !isExpanded)
-                _buildQuickActions(
-                  lat: lat,
-                  lng: lng,
-                  customerPhone: customerPhone,
-                  stop: stop,
-                ),
-            ],
-          ),
+    return Container(
+      decoration: BoxDecoration(
+        color: isDelivered ? const Color(0xFFF9FAFB) : Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: isDelivered
+              ? const Color(0xFFE5E7EB)
+              : (isCurrentStop ? _DriverTheme.accent : const Color(0xFFE5E7EB)),
+          width: isCurrentStop && !isDelivered ? 1.5 : 1.0,
         ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 4,
+            offset: const Offset(0, 1),
+          ),
+        ],
       ),
-    );
-  }
-
-  Widget _buildExpandedDetails({
-    required String? customerPhone,
-    required String? deliveryNotes,
-    required String? orderNote,
-    required List<Map<String, dynamic>> items,
-    required String? paymentMethod,
-    required double? totalPrice,
-    required String? verificationCode,
-    required bool isCash,
-    required double? lat,
-    required double? lng,
-    required bool isCurrentStop,
-    required Map<String, dynamic> stop,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Customer info row
-          if (customerPhone != null && customerPhone.isNotEmpty)
-            _buildInfoRow(
-              icon: Icons.phone_rounded,
-              iconColor: _DriverTheme.success,
-              label: 'Phone',
-              value: customerPhone,
-              onTap: () => launchUrl(Uri.parse('tel:$customerPhone')),
-              actionIcon: Icons.call,
-            ),
-
-          if (verificationCode != null && verificationCode.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            _buildInfoRow(
-              icon: Icons.verified_rounded,
-              iconColor: _DriverTheme.warning,
-              label: 'Verification Code',
-              value: verificationCode,
-            ),
-          ],
-
-          // Delivery notes
-          if (deliveryNotes != null && deliveryNotes.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: _DriverTheme.warning.withOpacity(0.06),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: _DriverTheme.warning.withOpacity(0.15)),
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Icon(Icons.speaker_notes_rounded, size: 16, color: _DriverTheme.warning),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text('Delivery Notes', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: _DriverTheme.warning)),
-                        const SizedBox(height: 2),
-                        Text(deliveryNotes, style: const TextStyle(fontSize: 13, color: _DriverTheme.textPrimary)),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-
-          // Order note
-          if (orderNote != null && orderNote.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: _DriverTheme.accent.withOpacity(0.06),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: _DriverTheme.accent.withOpacity(0.15)),
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Icon(Icons.note_rounded, size: 16, color: _DriverTheme.accentLight),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text('Order Remarks', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: _DriverTheme.accentLight)),
-                        const SizedBox(height: 2),
-                        Text(orderNote, style: const TextStyle(fontSize: 13, color: _DriverTheme.textPrimary)),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-
-          // Order items
-          if (items.isNotEmpty) ...[
-            const SizedBox(height: 14),
-            const Text('Order Items', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _DriverTheme.textSecondary)),
-            const SizedBox(height: 8),
-            Container(
-              decoration: BoxDecoration(
-                color: _DriverTheme.bg,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Column(
-                children: items.asMap().entries.map((entry) {
-                  final i = entry.key;
-                  final item = entry.value;
-                  final qty = (item['quantity'] as num?)?.toInt() ?? 1;
-                  final name = item['menu_item_name'] as String? ?? 'Unknown';
-                  final price = (item['price_at_purchase'] as num?)?.toDouble() ?? 0;
-                  final specs = item['specifications'];
-                  final itemRemarks = item['item_remarks'] as String?;
-
-                  return Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                    decoration: BoxDecoration(
-                      border: i < items.length - 1
-                          ? const Border(bottom: BorderSide(color: _DriverTheme.divider, width: 0.5))
-                          : null,
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Container(
-                              width: 24,
-                              height: 24,
-                              decoration: BoxDecoration(
-                                color: _DriverTheme.accent.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Center(
-                                child: Text(
-                                  '${qty}x',
-                                  style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: _DriverTheme.accent),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Text(
-                                name,
-                                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: _DriverTheme.textPrimary),
-                              ),
-                            ),
-                            Text(
-                              '€${(price * qty).toStringAsFixed(2)}',
-                              style: const TextStyle(fontSize: 12, color: _DriverTheme.textMuted),
-                            ),
-                          ],
-                        ),
-                        // Specifications / extras
-                        if (specs != null) ...[
-                          const SizedBox(height: 4),
-                          Padding(
-                            padding: const EdgeInsets.only(left: 34),
-                            child: Text(
-                              _formatSpecs(specs),
-                              style: TextStyle(fontSize: 11, color: _DriverTheme.textMuted.withOpacity(0.8)),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                        if (itemRemarks != null && itemRemarks.isNotEmpty) ...[
-                          const SizedBox(height: 3),
-                          Padding(
-                            padding: const EdgeInsets.only(left: 34),
-                            child: Text(
-                              '⚡ $itemRemarks',
-                              style: const TextStyle(fontSize: 11, color: _DriverTheme.warning),
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  );
-                }).toList(),
-              ),
-            ),
-          ],
-
-          // Payment summary
-          if (totalPrice != null) ...[
-            const SizedBox(height: 12),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: isCash ? _DriverTheme.cash.withOpacity(0.06) : _DriverTheme.surfaceLight,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: isCash ? _DriverTheme.cash.withOpacity(0.2) : _DriverTheme.divider),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    isCash ? Icons.payments_rounded : Icons.credit_card_rounded,
-                    size: 20,
-                    color: isCash ? _DriverTheme.cash : _DriverTheme.card,
-                  ),
-                  const SizedBox(width: 10),
-                  Text(
-                    isCash ? 'CASH' : 'PAID ONLINE',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: isCash ? _DriverTheme.cash : _DriverTheme.textMuted,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                  const Spacer(),
-                  Text(
-                    '€${totalPrice.toStringAsFixed(2)}',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800,
-                      color: isCash ? _DriverTheme.cash : _DriverTheme.textPrimary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-
-          // Action buttons
-          const SizedBox(height: 16),
+          // Top Row: Stop Number, Customer Name, Platform Tag, Delivered status
           Row(
             children: [
-              if (lat != null && lng != null)
+              Container(
+                width: 22,
+                height: 22,
+                decoration: BoxDecoration(
+                  color: isDelivered
+                      ? const Color(0xFFECFDF5)
+                      : (isCurrentStop ? _DriverTheme.accent : const Color(0xFFF3F4F6)),
+                  shape: BoxShape.circle,
+                ),
+                child: Center(
+                  child: isDelivered
+                      ? const Icon(Icons.check, size: 13, color: Color(0xFF059669))
+                      : Text(
+                          '${index + 1}',
+                          style: TextStyle(
+                            color: isCurrentStop ? Colors.white : _DriverTheme.textPrimary,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 11,
+                          ),
+                        ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  customerName,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                    color: isDelivered ? Colors.grey[400] : const Color(0xFF111827),
+                    decoration: isDelivered ? TextDecoration.lineThrough : null,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              if (orderType != null) ...[
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: _platformColor(orderType).withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    orderType,
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: _platformColor(orderType),
+                    ),
+                  ),
+                ),
+              ],
+              if (isDelivered) ...[
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFECFDF5),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Text(
+                    'Delivered',
+                    style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFF059669)),
+                  ),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 6),
+
+          // Address Row: Clean, readable, with one-tap copy
+          InkWell(
+            onTap: () {
+              Clipboard.setData(ClipboardData(text: '$customerAddress${customerCity.isNotEmpty ? ', $customerCity' : ''}'));
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Address copied!'), duration: Duration(seconds: 1)),
+              );
+            },
+            borderRadius: BorderRadius.circular(6),
+            child: Row(
+              children: [
+                const Icon(Icons.location_on_outlined, size: 15, color: _DriverTheme.textMuted),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    '$customerAddress${customerCity.isNotEmpty ? ', $customerCity' : ''}',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: isDelivered ? Colors.grey[400] : const Color(0xFF374151),
+                      decoration: isDelivered ? TextDecoration.lineThrough : null,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                const Icon(Icons.copy, size: 13, color: Colors.grey),
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
+
+          // 3 Key Times: Received, Target (Us), Route ETA
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF9FAFB),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xFFF3F4F6)),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _buildTimeItem('Received', receivedStr),
+                Container(width: 1, height: 22, color: const Color(0xFFE5E7EB)),
+                _buildTimeItem('Target (Us)', promisedStr),
+                Container(width: 1, height: 22, color: const Color(0xFFE5E7EB)),
+                _buildTimeItem('Route ETA', routeTargetStr),
+              ],
+            ),
+          ),
+
+          // Action buttons: Navigate, Call, Delivered
+          if (!isDelivered) ...[
+            const SizedBox(height: 10),
+            Row(
+              children: [
                 Expanded(
                   child: SizedBox(
-                    height: 48,
-                    child: OutlinedButton.icon(
-                      onPressed: () => _openNavigation(lat, lng),
-                      icon: const Icon(Icons.navigation_rounded, size: 18),
-                      label: const Text('Navigate', style: TextStyle(fontWeight: FontWeight.w600)),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: _DriverTheme.accent,
-                        side: BorderSide(color: _DriverTheme.accent.withOpacity(0.3)),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    height: 36,
+                    child: ElevatedButton.icon(
+                      onPressed: (lat != null && lng != null) ? () => _openNavigation(lat, lng) : null,
+                      icon: const Icon(Icons.navigation_rounded, size: 14),
+                      label: const Text('Navigate', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF4F46E5),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        elevation: 0,
                       ),
                     ),
                   ),
                 ),
-              if (lat != null && lng != null) const SizedBox(width: 8),
-              if (customerPhone != null && customerPhone.isNotEmpty)
-                SizedBox(
-                  width: 48,
-                  height: 48,
-                  child: OutlinedButton(
-                    onPressed: () => launchUrl(Uri.parse('tel:$customerPhone')),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: _DriverTheme.success,
-                      side: BorderSide(color: _DriverTheme.success.withOpacity(0.3)),
-                      padding: EdgeInsets.zero,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                if (customerPhone != null && customerPhone.isNotEmpty) ...[
+                  const SizedBox(width: 6),
+                  SizedBox(
+                    height: 36,
+                    child: OutlinedButton.icon(
+                      onPressed: () => launchUrl(Uri.parse('tel:$customerPhone')),
+                      icon: const Icon(Icons.phone, size: 14),
+                      label: const Text('Call', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFF059669),
+                        side: const BorderSide(color: Color(0xFFA7F3D0)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
                     ),
-                    child: const Icon(Icons.phone, size: 20),
                   ),
-                ),
-              if (customerPhone != null && customerPhone.isNotEmpty) const SizedBox(width: 8),
-              Expanded(
-                child: SizedBox(
-                  height: 48,
+                ],
+                const SizedBox(width: 6),
+                SizedBox(
+                  height: 36,
                   child: ElevatedButton.icon(
                     onPressed: _isMarkingDelivered ? null : () => _markDelivered(stop),
                     icon: _isMarkingDelivered
-                        ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                        : const Icon(Icons.check_circle_rounded, size: 20),
-                    label: const Text('Delivered', style: TextStyle(fontWeight: FontWeight.w700)),
+                        ? const SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                        : const Icon(Icons.check_circle_rounded, size: 14),
+                    label: const Text('Delivered', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: _DriverTheme.success,
+                      backgroundColor: const Color(0xFF10B981),
                       foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                       elevation: 0,
                     ),
                   ),
                 ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildQuickActions({
-    required double? lat,
-    required double? lng,
-    required String? customerPhone,
-    required Map<String, dynamic> stop,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-      child: Row(
-        children: [
-          if (lat != null && lng != null)
-            Expanded(
-              child: SizedBox(
-                height: 44,
-                child: OutlinedButton.icon(
-                  onPressed: () => _openNavigation(lat, lng),
-                  icon: const Icon(Icons.navigation_rounded, size: 16),
-                  label: const Text('Navigate', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: _DriverTheme.accent,
-                    side: BorderSide(color: _DriverTheme.accent.withOpacity(0.3)),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
-                ),
-              ),
-            ),
-          if (lat != null && lng != null) const SizedBox(width: 8),
-          if (customerPhone != null && customerPhone.isNotEmpty)
-            SizedBox(
-              width: 44,
-              height: 44,
-              child: OutlinedButton(
-                onPressed: () => launchUrl(Uri.parse('tel:$customerPhone')),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: _DriverTheme.success,
-                  side: BorderSide(color: _DriverTheme.success.withOpacity(0.3)),
-                  padding: EdgeInsets.zero,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                ),
-                child: const Icon(Icons.phone, size: 18),
-              ),
-            ),
-          if (customerPhone != null && customerPhone.isNotEmpty) const SizedBox(width: 8),
-          Expanded(
-            child: SizedBox(
-              height: 44,
-              child: ElevatedButton.icon(
-                onPressed: _isMarkingDelivered ? null : () => _markDelivered(stop),
-                icon: _isMarkingDelivered
-                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                    : const Icon(Icons.check_circle_rounded, size: 18),
-                label: const Text('Delivered', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _DriverTheme.success,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  elevation: 0,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildInfoRow({
-    required IconData icon,
-    required Color iconColor,
-    required String label,
-    required String value,
-    VoidCallback? onTap,
-    IconData? actionIcon,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Row(
-        children: [
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              color: iconColor.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(icon, size: 16, color: iconColor),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(label, style: const TextStyle(fontSize: 10, color: _DriverTheme.textMuted, fontWeight: FontWeight.w500)),
-                Text(value, style: const TextStyle(fontSize: 14, color: _DriverTheme.textPrimary, fontWeight: FontWeight.w500)),
               ],
             ),
-          ),
-          if (actionIcon != null)
-            Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                color: iconColor.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(actionIcon, size: 18, color: iconColor),
-            ),
+          ],
         ],
       ),
     );
   }
 
-  Widget _buildTimeChip({required IconData icon, required String label, required Color color}) {
-    return Row(
+  Widget _buildTimeItem(String label, String time) {
+    return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 12, color: color),
-        const SizedBox(width: 3),
-        Text(label, style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w500)),
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 9.5,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFF6B7280),
+          ),
+        ),
+        const SizedBox(height: 1),
+        Text(
+          time,
+          style: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w800,
+            color: Color(0xFF1F2937),
+          ),
+        ),
       ],
     );
   }
@@ -2932,20 +3076,6 @@ class _DriverRouteTabState extends State<_DriverRouteTab> with TickerProviderSta
         ),
       ),
     );
-  }
-
-  String _formatSpecs(dynamic specs) {
-    if (specs == null) return '';
-    if (specs is List) {
-      return specs.map((s) {
-        if (s is Map) return s['name']?.toString() ?? s.toString();
-        return s.toString();
-      }).join(', ');
-    }
-    if (specs is Map) {
-      return specs.values.map((v) => v.toString()).join(', ');
-    }
-    return specs.toString();
   }
 
   Color _platformColor(String platform) {

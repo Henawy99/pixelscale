@@ -18,6 +18,55 @@ import type {
 
 console.log("Plan Routes Function Up!");
 
+// Geocode address using Google Maps API with Nominatim fallback
+async function geocodeAddress(
+  street?: string | null,
+  postcode?: string | null,
+  city?: string | null
+): Promise<{ lat: number; lng: number } | null> {
+  if (!street || !street.trim()) return null;
+
+  // 1. Try Google Geocoding API if key configured
+  const googleKey = Deno.env.get("GOOGLE_GEOCODING_API_KEY");
+  if (googleKey) {
+    try {
+      const parts = [street, postcode, city || "Salzburg", "Austria"].filter(Boolean).join(", ");
+      const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(parts)}&key=${googleKey}`;
+      const res = await fetch(url);
+      const data = await res.json();
+      if (data.status === "OK" && data.results && data.results.length > 0) {
+        const loc = data.results[0].geometry.location;
+        if (loc && typeof loc.lat === "number" && typeof loc.lng === "number") {
+          return { lat: loc.lat, lng: loc.lng };
+        }
+      }
+    } catch (err) {
+      console.warn("[geocodeAddress] Google Geocoding failed:", err);
+    }
+  }
+
+  // 2. Fallback to OpenStreetMap Nominatim
+  try {
+    const q = [street, postcode, city || "Salzburg", "Austria"].filter(Boolean).join(", ");
+    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=1`;
+    const res = await fetch(url, {
+      headers: { "User-Agent": "restaurantadmin-planner/1.0" },
+    });
+    if (res.ok) {
+      const arr = await res.json();
+      if (Array.isArray(arr) && arr.length > 0) {
+        const lat = Number(arr[0]?.lat);
+        const lng = Number(arr[0]?.lon);
+        if (!isNaN(lat) && !isNaN(lng)) return { lat, lng };
+      }
+    }
+  } catch (err) {
+    console.warn("[geocodeAddress] Nominatim failed:", err);
+  }
+
+  return null;
+}
+
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -31,12 +80,22 @@ serve(async (req: Request) => {
     // Parse trigger reason from body (optional)
     let triggerReason = "manual";
     let brandId: string | null = null;
+    let isDemoRun = false;
     try {
       const body = await req.json();
       triggerReason = body.trigger_reason ?? "manual";
       brandId = body.brand_id ?? null;
+      isDemoRun = body.is_demo === true || triggerReason === "demo_order_created" || triggerReason === "demo_reset";
     } catch {
       // No body or invalid JSON — that's fine
+    }
+
+    // Guard: ignore cancellation events to avoid feedback loops
+    if (triggerReason === "route_status_cancelled") {
+      return new Response(
+        JSON.stringify({ message: "Ignored route cancellation event." }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+      );
     }
 
     const now = new Date();
@@ -85,45 +144,60 @@ serve(async (req: Request) => {
       },
     };
 
-    // 2. Load eligible orders
-    const horizonCutoff = new Date(
-      now.getTime() + settings.planningHorizonSecs * 1000
-    );
-
-    const { data: ordersData, error: ordersErr } = await supabase
+    // 2. Load all eligible delivery orders
+    // Includes orders in preparing, ready_to_deliver, assigned_to_route, or unassigned (delivery_status null)
+    let candidateQuery = supabase
       .from("orders")
       .select(
-        "id, brand_id, delivery_latitude, delivery_longitude, customer_name, customer_street, customer_postcode, customer_city, customer_phone, delivery_notes, estimated_delivery_time, estimated_pickup_time, requested_delivery_time, delivery_status, delivery_route_id, assigned_driver_id, delivery_route_sequence, order_type_name, payment_method, total_price, fulfillment_type"
+        "id, brand_id, delivery_latitude, delivery_longitude, customer_name, customer_street, customer_postcode, customer_city, customer_phone, delivery_notes, estimated_delivery_time, estimated_pickup_time, requested_delivery_time, status, delivery_status, delivery_route_id, assigned_driver_id, delivery_route_sequence, order_type_name, payment_method, total_price, fulfillment_type, is_demo"
       )
-      .eq("brand_id", brandId)
       .eq("fulfillment_type", "delivery")
-      .in("delivery_status", [
-        "preparing",
-        "ready_to_deliver",
-        "assigned_to_route",
-        "out_for_delivery",
-      ])
-      .not("delivery_latitude", "is", null)
-      .not("delivery_longitude", "is", null);
+      .not("status", "in", '("cancelled","delivered","completed")');
 
-    if (ordersErr) throw ordersErr;
-
-    // Also fetch orders in prep that will be ready within the planning horizon
-    const { data: prepOrders, error: prepErr } = await supabase
-      .from("orders")
-      .select(
-        "id, brand_id, delivery_latitude, delivery_longitude, customer_name, customer_street, customer_postcode, customer_city, customer_phone, delivery_notes, estimated_delivery_time, estimated_pickup_time, requested_delivery_time, delivery_status, delivery_route_id, assigned_driver_id, delivery_route_sequence, order_type_name, payment_method, total_price, fulfillment_type"
-      )
-      .eq("brand_id", brandId)
-      .eq("fulfillment_type", "delivery")
-      .is("delivery_status", null)
-      .not("delivery_latitude", "is", null)
-      .not("delivery_longitude", "is", null)
-      .lte("estimated_pickup_time", horizonCutoff.toISOString());
-
-    if (!prepErr && prepOrders) {
-      ordersData?.push(...prepOrders);
+    if (brandId) {
+      candidateQuery = candidateQuery.eq("brand_id", brandId);
     }
+    if (isDemoRun) {
+      candidateQuery = candidateQuery.eq("is_demo", true);
+    } else {
+      candidateQuery = candidateQuery.eq("is_demo", false);
+      const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      candidateQuery = candidateQuery.gte("created_at", twentyFourHoursAgo);
+    }
+
+    const { data: rawOrders, error: rawOrdersErr } = await candidateQuery;
+    if (rawOrdersErr) throw rawOrdersErr;
+
+    // Filter out orders that are already delivered or currently out on the road
+    const activeOrders = (rawOrders || []).filter((o: any) => {
+      const ds = (o.delivery_status || "").toLowerCase();
+      const s = (o.status || "").toLowerCase();
+      if (ds === "out_for_delivery" || ds === "delivered" || s === "delivered" || s === "completed") {
+        return false;
+      }
+      return true;
+    });
+
+    // Automatically geocode orders that have a street address but missing coordinates
+    for (const o of activeOrders) {
+      if ((o.delivery_latitude == null || o.delivery_longitude == null) && o.customer_street) {
+        console.log(`[plan-routes] Auto-geocoding address for order ${o.id}: ${o.customer_street}, ${o.customer_postcode} ${o.customer_city}`);
+        const geo = await geocodeAddress(o.customer_street, o.customer_postcode, o.customer_city);
+        if (geo) {
+          o.delivery_latitude = geo.lat;
+          o.delivery_longitude = geo.lng;
+          await supabase
+            .from("orders")
+            .update({ delivery_latitude: geo.lat, delivery_longitude: geo.lng })
+            .eq("id", o.id);
+        }
+      }
+    }
+
+    // Retain only orders with valid coordinates
+    const ordersData = activeOrders.filter(
+      (o: any) => o.delivery_latitude != null && o.delivery_longitude != null
+    );
 
     if (!ordersData || ordersData.length === 0) {
       console.log("No eligible orders to plan.");
@@ -180,12 +254,29 @@ serve(async (req: Request) => {
       pinnedDriverId: pinMap.get(o.id) ?? null,
     }));
 
-    // 3. Load available drivers (on-shift employees)
-    const { data: driversData, error: driversErr } = await supabase
-      .from("available_drivers")
-      .select(
-        "id, employee_id, name, is_online, current_latitude, current_longitude, current_route_id, projected_return_at, available_at, shift_end_at"
-      );
+    // 3. Load available drivers (on-shift employees, or demo drivers if isDemoRun)
+    let driversData: any[] | null = null;
+    let driversErr: any = null;
+
+    if (isDemoRun) {
+      const res = await supabase
+        .from("drivers")
+        .select(
+          "id, employee_id, name, is_online, current_latitude, current_longitude, current_route_id, projected_return_at, available_at"
+        )
+        .eq("is_demo", true)
+        .eq("is_online", true);
+      driversData = res.data;
+      driversErr = res.error;
+    } else {
+      const res = await supabase
+        .from("available_drivers")
+        .select(
+          "id, employee_id, name, is_online, current_latitude, current_longitude, current_route_id, projected_return_at, available_at, shift_end_at"
+        );
+      driversData = res.data;
+      driversErr = res.error;
+    }
 
     if (driversErr) throw driversErr;
     if (!driversData || driversData.length === 0) {
@@ -255,17 +346,25 @@ serve(async (req: Request) => {
     // 7. Write results atomically
 
     // 7a. Cancel existing assigned (not in_progress) routes for this brand
-    const { data: existingRoutes } = await supabase
+    let existingRoutesQuery = supabase
       .from("delivery_routes")
       .select("id")
       .eq("brand_id", brandId)
       .eq("status", "assigned");
 
+    if (isDemoRun) {
+      existingRoutesQuery = existingRoutesQuery.eq("is_demo", true);
+    } else {
+      existingRoutesQuery = existingRoutesQuery.eq("is_demo", false);
+    }
+
+    const { data: existingRoutes } = await existingRoutesQuery;
+
     if (existingRoutes && existingRoutes.length > 0) {
       const routeIds = existingRoutes.map((r: any) => r.id);
       await supabase
         .from("delivery_routes")
-        .update({ status: "replaced" })
+        .update({ status: "cancelled" })
         .in("id", routeIds);
 
       // Clear old route_stops
@@ -297,6 +396,7 @@ serve(async (req: Request) => {
           assigned_driver_id: route.driverId,
           brand_id: brandId,
           status: "assigned",
+          is_demo: isDemoRun,
           total_estimated_duration_seconds:
             (route.plannedReturnAt.getTime() - route.plannedDepartureAt.getTime()) / 1000,
           total_estimated_distance_meters: route.totalDistanceMeters,
@@ -368,12 +468,13 @@ serve(async (req: Request) => {
         }
       }
 
-      // Update driver's projected return
+      // An 'assigned' route has not started yet. The driver is still at the restaurant,
+      // so projected_return_at should NOT be set into the future. That only happens when the tour starts.
       await supabase
         .from("drivers")
         .update({
-          current_route_id: routeId,
-          projected_return_at: route.plannedReturnAt.toISOString(),
+          projected_return_at: null,
+          available_at: new Date().toISOString(),
         })
         .eq("id", route.driverId);
     }

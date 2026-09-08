@@ -245,18 +245,20 @@ class _DeliverySessionsScreenState extends State<DeliverySessionsScreen>
               child: const Icon(Icons.cloud_sync_outlined, color: Colors.white, size: 20),
             ),
             const SizedBox(width: 12),
-            const Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Delivery Platforms',
-                  style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w700),
-                ),
-                Text(
-                  'Multi-Platform Session Manager',
-                  style: TextStyle(color: Color(0xFF64748B), fontSize: 11),
-                ),
-              ],
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Delivery Platforms',
+                    style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w700),
+                  ),
+                  Text(
+                    'Multi-Platform Session Manager',
+                    style: TextStyle(color: Color(0xFF64748B), fontSize: 11),
+                  ),
+                ],
+              ),
             ),
           ],
         ),

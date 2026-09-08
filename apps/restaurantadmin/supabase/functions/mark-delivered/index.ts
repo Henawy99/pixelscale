@@ -71,6 +71,16 @@ serve(async (req: Request) => {
       }
     }
 
+    // If route was still 'assigned', advance it to 'in_progress'
+    await supabase
+      .from("delivery_routes")
+      .update({
+        status: "in_progress",
+        started_at: now,
+      })
+      .eq("id", routeStop.delivery_route_id)
+      .eq("status", "assigned");
+
     // 3. Update driver location if provided
     if (driver_latitude && driver_longitude) {
       const { data: route } = await supabase
@@ -99,46 +109,23 @@ serve(async (req: Request) => {
       .eq("type", "customer_delivery")
       .in("status", ["pending", "in_progress"]);
 
-    if (!remainingStops || remainingStops.length === 0) {
-      // All deliveries done — complete the route
-      const { data: routeData } = await supabase
-        .from("delivery_routes")
-        .update({
-          status: "completed",
-          completed_at: now,
-          actual_return_at: now,
-        })
-        .eq("id", routeStop.delivery_route_id)
-        .select("assigned_driver_id")
-        .single();
+    const allCustomerStopsDone = !remainingStops || remainingStops.length === 0;
 
-      // Free up the driver
-      if (routeData?.assigned_driver_id) {
-        await supabase
-          .from("drivers")
-          .update({
-            current_route_id: null,
-            projected_return_at: null,
-          })
-          .eq("id", routeData.assigned_driver_id);
-      }
-
-      console.log(`Route ${routeStop.delivery_route_id} completed — all stops delivered.`);
+    if (allCustomerStopsDone) {
+      console.log(`Route ${routeStop.delivery_route_id}: All customer deliveries completed. Driver heading back to restaurant.`);
     } else {
       console.log(
         `Route ${routeStop.delivery_route_id} has ${remainingStops.length} remaining stops.`
       );
 
       // 5. Trigger replanning for remaining orders
-      // Get brand_id from the route
       const { data: routeInfo } = await supabase
         .from("delivery_routes")
-        .select("brand_id")
+        .select("brand_id, is_demo")
         .eq("id", routeStop.delivery_route_id)
         .single();
 
       if (routeInfo?.brand_id) {
-        // Fire-and-forget call to plan-routes
         try {
           const planUrl = `${supabaseUrl}/functions/v1/plan-routes`;
           fetch(planUrl, {
@@ -150,6 +137,7 @@ serve(async (req: Request) => {
             body: JSON.stringify({
               brand_id: routeInfo.brand_id,
               trigger_reason: "mark_delivered",
+              is_demo: routeInfo.is_demo ?? false,
             }),
           }).catch((e) => console.error("Replan trigger failed:", e));
         } catch (e) {
@@ -157,6 +145,7 @@ serve(async (req: Request) => {
         }
       }
     }
+
 
     return new Response(
       JSON.stringify({

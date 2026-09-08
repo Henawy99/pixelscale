@@ -21,6 +21,7 @@ class OrderDetailScreen extends StatefulWidget {
 class _OrderDetailScreenState extends State<OrderDetailScreen>
     with TickerProviderStateMixin {
   late Future<List<OrderItem>> _orderItemsFuture;
+  late Future<Map<String, dynamic>?> _deliveryTrackingFuture;
   late OrderService _orderService;
   bool _saving = false;
 
@@ -48,8 +49,10 @@ class _OrderDetailScreenState extends State<OrderDetailScreen>
     if (widget.order.id != null) {
       _orderService = OrderService();
       _orderItemsFuture = _fetchOrderItems(widget.order.id!);
+      _deliveryTrackingFuture = _fetchDeliveryTracking(widget.order.id!);
     } else {
       _orderItemsFuture = Future.value([]);
+      _deliveryTrackingFuture = Future.value(null);
     }
 
     _animationController.forward();
@@ -109,6 +112,35 @@ class _OrderDetailScreenState extends State<OrderDetailScreen>
     }
 
     return [];
+  }
+
+  Future<Map<String, dynamic>?> _fetchDeliveryTracking(String orderId) async {
+    try {
+      final response = await _supabase
+          .from('route_stops')
+          .select('*, delivery_routes(id, status, started_at, planned_departure_at, actual_departure_at, drivers!delivery_routes_assigned_driver_id_fkey(id, name, phone_number))')
+          .eq('order_id', orderId)
+          .maybeSingle();
+
+      if (response != null) {
+        return Map<String, dynamic>.from(response);
+      }
+    } catch (e) {
+      debugPrint('[OrderDetailScreen] Error fetching delivery tracking with FK: $e');
+      try {
+        final fallback = await _supabase
+            .from('route_stops')
+            .select('*, delivery_routes(id, status, started_at, planned_departure_at, actual_departure_at)')
+            .eq('order_id', orderId)
+            .maybeSingle();
+        if (fallback != null) {
+          return Map<String, dynamic>.from(fallback);
+        }
+      } catch (e2) {
+        debugPrint('[OrderDetailScreen] Fallback delivery tracking failed: $e2');
+      }
+    }
+    return null;
   }
 
   Future<void> _printStickers() async {
@@ -390,6 +422,641 @@ class _OrderDetailScreenState extends State<OrderDetailScreen>
           ),
         ],
       ),
+    );
+  }
+
+  String _formatTime(DateTime? dt) {
+    if (dt == null) return '--:--';
+    final local = dt.toLocal();
+    final h = local.hour.toString().padLeft(2, '0');
+    final m = local.minute.toString().padLeft(2, '0');
+    return '$h:$m';
+  }
+
+  Widget _buildTimelineCard() {
+    return FadeTransition(
+      opacity: _fadeAnimation,
+      child: SlideTransition(
+        position: _slideAnimation,
+        child: FutureBuilder<Map<String, dynamic>?>(
+          future: _deliveryTrackingFuture,
+          builder: (context, snapshot) {
+            final tracking = snapshot.data;
+            return _buildTimelineContent(tracking);
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTimelineContent(Map<String, dynamic>? tracking) {
+    final isPickup = (widget.order.fulfillmentType ?? '').toLowerCase() == 'pickup';
+
+    final orderedTime = widget.order.createdAt.toLocal();
+
+    // Preparation start time
+    DateTime? prepTime;
+    final raw = widget.order.platformRawData;
+    if (raw is Map) {
+      final rawConfirmed = raw['confirmedAt'] ?? raw['acceptedAt'] ?? raw['preparation_started_at'];
+      if (rawConfirmed != null) {
+        prepTime = DateTime.tryParse(rawConfirmed.toString())?.toLocal();
+      }
+    }
+    prepTime ??= orderedTime.add(const Duration(minutes: 2));
+
+    // In Delivery (dispatched) time
+    DateTime? inDeliveryTime;
+    final routeData = tracking?['delivery_routes'] as Map<String, dynamic>?;
+    final routeStarted = routeData?['started_at'] ??
+        routeData?['actual_departure_at'] ??
+        routeData?['planned_departure_at'];
+    if (routeStarted != null) {
+      inDeliveryTime = DateTime.tryParse(routeStarted.toString())?.toLocal();
+    }
+    if (inDeliveryTime == null &&
+        (widget.order.deliveryStatus == 'out_for_delivery' ||
+         widget.order.deliveryStatus == 'delivered' ||
+         widget.order.status == 'delivering' ||
+         widget.order.status == 'delivered')) {
+      inDeliveryTime = prepTime.add(Duration(minutes: widget.order.foodPrepDuration ?? 15));
+    }
+
+    // Estimated arrival / Target
+    DateTime? estimatedArrivalTime;
+    final plannedArrival = tracking?['planned_arrival_at'] ?? tracking?['estimated_arrival_time'];
+    if (plannedArrival != null) {
+      estimatedArrivalTime = DateTime.tryParse(plannedArrival.toString())?.toLocal();
+    }
+    estimatedArrivalTime ??= widget.order.estimatedDeliveryTime?.toLocal() ??
+        widget.order.requestedDeliveryTime?.toLocal();
+
+    final targetDeliveryTime = widget.order.estimatedDeliveryTime?.toLocal() ??
+        widget.order.requestedDeliveryTime?.toLocal();
+
+    // Actual delivered time
+    DateTime? deliveredTime = widget.order.actualDeliveryTime?.toLocal();
+    if (deliveredTime == null && tracking?['actual_arrival_time'] != null) {
+      deliveredTime = DateTime.tryParse(tracking!['actual_arrival_time'].toString())?.toLocal();
+    }
+
+    // Status checks
+    final isDelivered = deliveredTime != null ||
+        widget.order.deliveryStatus == 'delivered' ||
+        widget.order.status == 'delivered' ||
+        widget.order.status == 'completed' ||
+        tracking?['status'] == 'completed';
+
+    final isInDelivery = !isDelivered &&
+        (widget.order.deliveryStatus == 'out_for_delivery' ||
+         widget.order.status == 'delivering' ||
+         routeData?['status'] == 'in_progress');
+
+    final isPreparing = !isDelivered && !isInDelivery &&
+        (widget.order.status == 'preparing' ||
+         widget.order.deliveryStatus == 'ready_to_deliver' ||
+         widget.order.deliveryStatus == 'assigned_to_route');
+
+    // Driver information
+    final driverData = routeData?['drivers'] as Map<String, dynamic>?;
+    final driverName = driverData?['name'] as String? ?? widget.order.assignedDriverId;
+    final stopSequence = tracking?['sequence_number'] as int?;
+
+    // Lateness calculation
+    int? latenessMinutes;
+    bool isLate = false;
+
+    if (deliveredTime != null && targetDeliveryTime != null) {
+      latenessMinutes = deliveredTime.difference(targetDeliveryTime).inMinutes;
+      isLate = latenessMinutes > 0;
+    } else if (estimatedArrivalTime != null && targetDeliveryTime != null) {
+      final projectedDiff = estimatedArrivalTime.difference(targetDeliveryTime).inMinutes;
+      latenessMinutes = projectedDiff;
+      isLate = projectedDiff > 0;
+    }
+
+    // Durations
+    String prepDurationStr = '${widget.order.foodPrepDuration ?? 15}m';
+    if (inDeliveryTime != null) {
+      final m = inDeliveryTime.difference(prepTime).inMinutes;
+      if (m > 0) prepDurationStr = '${m}m';
+    }
+
+    String transitDurationStr = '--';
+    if (deliveredTime != null && inDeliveryTime != null) {
+      final m = deliveredTime.difference(inDeliveryTime).inMinutes;
+      if (m > 0) transitDurationStr = '${m}m';
+    } else if (isInDelivery && inDeliveryTime != null) {
+      final m = DateTime.now().difference(inDeliveryTime).inMinutes;
+      transitDurationStr = '${m}m';
+    }
+
+    // Build timeline steps
+    final List<_TimelineStep> steps;
+    if (!isPickup) {
+      steps = [
+        _TimelineStep(
+          title: 'Ordered',
+          time: _formatTime(orderedTime),
+          isDone: true,
+          isActive: false,
+          icon: Icons.receipt_long_rounded,
+          color: const Color(0xFF2563EB),
+        ),
+        _TimelineStep(
+          title: 'Preparing',
+          time: _formatTime(prepTime),
+          isDone: isInDelivery || isDelivered,
+          isActive: isPreparing,
+          icon: Icons.outdoor_grill_rounded,
+          color: const Color(0xFFF59E0B),
+        ),
+        _TimelineStep(
+          title: 'In Delivery',
+          time: inDeliveryTime != null ? _formatTime(inDeliveryTime) : '--:--',
+          isDone: isDelivered,
+          isActive: isInDelivery,
+          icon: Icons.two_wheeler_rounded,
+          color: const Color(0xFF3B82F6),
+        ),
+        _TimelineStep(
+          title: 'Est. Arrival',
+          time: estimatedArrivalTime != null ? _formatTime(estimatedArrivalTime) : '--:--',
+          isDone: isDelivered,
+          isActive: false,
+          isTarget: true,
+          icon: Icons.flag_rounded,
+          color: const Color(0xFF8B5CF6),
+        ),
+        _TimelineStep(
+          title: 'Delivered',
+          time: deliveredTime != null ? _formatTime(deliveredTime) : (isDelivered ? 'Done' : 'Pending'),
+          isDone: isDelivered,
+          isActive: false,
+          isLate: isDelivered && isLate,
+          latenessMinutes: isDelivered ? latenessMinutes : null,
+          icon: isDelivered && isLate ? Icons.timer_off_rounded : Icons.task_alt_rounded,
+          color: isDelivered
+              ? (isLate ? const Color(0xFFDC2626) : const Color(0xFF16A34A))
+              : const Color(0xFF94A3B8),
+        ),
+      ];
+    } else {
+      steps = [
+        _TimelineStep(
+          title: 'Ordered',
+          time: _formatTime(orderedTime),
+          isDone: true,
+          isActive: false,
+          icon: Icons.receipt_long_rounded,
+          color: const Color(0xFF2563EB),
+        ),
+        _TimelineStep(
+          title: 'Preparing',
+          time: _formatTime(prepTime),
+          isDone: isDelivered,
+          isActive: isPreparing,
+          icon: Icons.outdoor_grill_rounded,
+          color: const Color(0xFFF59E0B),
+        ),
+        _TimelineStep(
+          title: 'Ready',
+          time: _formatTime(widget.order.estimatedPickupTime),
+          isDone: isDelivered,
+          isActive: !isDelivered && !isPreparing,
+          icon: Icons.shopping_bag_rounded,
+          color: const Color(0xFF3B82F6),
+        ),
+        _TimelineStep(
+          title: 'Picked Up',
+          time: deliveredTime != null ? _formatTime(deliveredTime) : (isDelivered ? 'Done' : 'Pending'),
+          isDone: isDelivered,
+          isActive: false,
+          isLate: isDelivered && isLate,
+          latenessMinutes: isDelivered ? latenessMinutes : null,
+          icon: Icons.check_circle_rounded,
+          color: isDelivered
+              ? (isLate ? const Color(0xFFDC2626) : const Color(0xFF16A34A))
+              : const Color(0xFF94A3B8),
+        ),
+      ];
+    }
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade200),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Row 1: Header + Punctuality Badge
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEFF6FF),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(
+                    Icons.access_time_filled_rounded,
+                    color: Color(0xFF2563EB),
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                const Text(
+                  'Order & Delivery Timeline',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                  ),
+                ),
+                const Spacer(),
+                // Punctuality Badge
+                if (isDelivered) ...[
+                  if (isLate && latenessMinutes != null)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFEF2F2),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFFFCA5A5)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.timer_off_rounded, size: 14, color: Color(0xFFDC2626)),
+                          const SizedBox(width: 5),
+                          Text(
+                            '$latenessMinutes min late',
+                            style: const TextStyle(
+                              color: Color(0xFFDC2626),
+                              fontWeight: FontWeight.w800,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  else
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF0FDF4),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFF86EFAC)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.check_circle_rounded, size: 14, color: Color(0xFF16A34A)),
+                          const SizedBox(width: 5),
+                          Text(
+                            latenessMinutes != null && latenessMinutes < 0
+                                ? '${-latenessMinutes}m early'
+                                : 'On time',
+                            style: const TextStyle(
+                              color: Color(0xFF16A34A),
+                              fontWeight: FontWeight.w800,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                ] else if (isInDelivery) ...[
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEFF6FF),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFF93C5FD)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.two_wheeler_rounded, size: 14, color: Color(0xFF2563EB)),
+                        const SizedBox(width: 5),
+                        Text(
+                          isLate && latenessMinutes != null
+                              ? 'Delay +${latenessMinutes}m'
+                              : 'In Delivery',
+                          style: TextStyle(
+                            color: isLate ? const Color(0xFFDC2626) : const Color(0xFF2563EB),
+                            fontWeight: FontWeight.w800,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ] else if (isPreparing) ...[
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFFBEB),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFFFCD34D)),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.outdoor_grill_rounded, size: 14, color: Color(0xFFD97706)),
+                        SizedBox(width: 5),
+                        Text(
+                          'Preparing',
+                          style: TextStyle(
+                            color: Color(0xFFD97706),
+                            fontWeight: FontWeight.w800,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ],
+            ),
+            const SizedBox(height: 20),
+
+            // Stepper Track
+            LayoutBuilder(
+              builder: (context, constraints) {
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: List.generate(steps.length * 2 - 1, (index) {
+                    if (index.isOdd) {
+                      // Connector line between node (index ~/ 2) and (index ~/ 2 + 1)
+                      final prevStepIdx = index ~/ 2;
+                      final isLineDone = steps[prevStepIdx].isDone;
+                      return Expanded(
+                        child: Container(
+                          height: 3,
+                          margin: const EdgeInsets.only(top: 17),
+                          decoration: BoxDecoration(
+                            color: isLineDone
+                                ? const Color(0xFF16A34A)
+                                : const Color(0xFFE2E8F0),
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
+                      );
+                    }
+                    final step = steps[index ~/ 2];
+                    return _buildTimelineNode(step);
+                  }),
+                );
+              },
+            ),
+
+            const SizedBox(height: 18),
+
+            // Metrics Summary Row
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: Row(
+                children: [
+                  _buildMetricColumn('Ordered', _formatTime(orderedTime), Icons.receipt_rounded, const Color(0xFF2563EB)),
+                  _buildMetricDivider(),
+                  _buildMetricColumn('Kitchen Prep', prepDurationStr, Icons.outdoor_grill_rounded, const Color(0xFFD97706)),
+                  _buildMetricDivider(),
+                  _buildMetricColumn('In Transit', transitDurationStr, Icons.two_wheeler_rounded, const Color(0xFF4F46E5)),
+                  _buildMetricDivider(),
+                  _buildMetricColumn(
+                    isDelivered ? 'Punctuality' : 'Target ETA',
+                    isDelivered
+                        ? (isLate && latenessMinutes != null ? '+$latenessMinutes min late' : 'On time')
+                        : _formatTime(targetDeliveryTime),
+                    isDelivered
+                        ? (isLate ? Icons.timer_off_rounded : Icons.check_circle_rounded)
+                        : Icons.flag_rounded,
+                    isDelivered
+                        ? (isLate ? const Color(0xFFDC2626) : const Color(0xFF16A34A))
+                        : const Color(0xFF7C3AED),
+                    isHighlight: isDelivered && isLate,
+                  ),
+                ],
+              ),
+            ),
+
+            // Driver assignment bar (if any)
+            if (driverName != null && driverName.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEFF6FF),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFBFDBFE)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.delivery_dining_rounded, size: 18, color: Color(0xFF2563EB)),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Assigned Driver: $driverName',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                        color: Color(0xFF1E40AF),
+                      ),
+                    ),
+                    if (stopSequence != null && stopSequence > 0) ...[
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFDBEAFE),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          'Delivery Stop #$stopSequence',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 11,
+                            color: Color(0xFF1E40AF),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTimelineNode(_TimelineStep step) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Circle
+        Container(
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(
+            color: step.isDone
+                ? (step.isLate ? const Color(0xFFDC2626) : (step.isTarget ? const Color(0xFF7C3AED) : const Color(0xFF16A34A)))
+                : step.isActive
+                    ? step.color
+                    : const Color(0xFFF1F5F9),
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: step.isDone || step.isActive
+                  ? Colors.transparent
+                  : const Color(0xFFCBD5E1),
+              width: 1.5,
+            ),
+            boxShadow: step.isActive
+                ? [
+                    BoxShadow(
+                      color: step.color.withOpacity(0.35),
+                      blurRadius: 8,
+                      spreadRadius: 2,
+                    )
+                  ]
+                : null,
+          ),
+          child: Center(
+            child: Icon(
+              step.isDone && !step.isLate && !step.isTarget
+                  ? Icons.check_rounded
+                  : step.icon,
+              size: 18,
+              color: step.isDone || step.isActive ? Colors.white : const Color(0xFF94A3B8),
+            ),
+          ),
+        ),
+        const SizedBox(height: 6),
+        // Label
+        Text(
+          step.title,
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: step.isActive || step.isDone ? FontWeight.w700 : FontWeight.w500,
+            color: step.isActive
+                ? step.color
+                : (step.isDone ? const Color(0xFF1E293B) : const Color(0xFF94A3B8)),
+          ),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 3),
+        // Time pill
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+          decoration: BoxDecoration(
+            color: step.isLate
+                ? const Color(0xFFFEF2F2)
+                : (step.isDone ? const Color(0xFFF0FDF4) : const Color(0xFFF8FAFC)),
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(
+              color: step.isLate
+                  ? const Color(0xFFFCA5A5)
+                  : (step.isDone ? const Color(0xFFBBF7D0) : const Color(0xFFE2E8F0)),
+            ),
+          ),
+          child: Text(
+            step.time,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+              fontFamily: 'monospace',
+              color: step.isLate
+                  ? const Color(0xFFDC2626)
+                  : (step.isDone ? const Color(0xFF15803D) : const Color(0xFF64748B)),
+            ),
+          ),
+        ),
+        // Late badge under Delivered
+        if (step.isLate && step.latenessMinutes != null) ...[
+          const SizedBox(height: 3),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+            decoration: BoxDecoration(
+              color: const Color(0xFFDC2626),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Text(
+              '+${step.latenessMinutes}m late',
+              style: const TextStyle(
+                fontSize: 9,
+                fontWeight: FontWeight.w800,
+                color: Colors.white,
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildMetricColumn(String label, String value, IconData icon, Color color, {bool isHighlight = false}) {
+    return Expanded(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 12, color: color),
+              const SizedBox(width: 4),
+              Flexible(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey.shade600,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 3),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              color: isHighlight ? color : Colors.black87,
+              fontFamily: 'monospace',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMetricDivider() {
+    return Container(
+      width: 1,
+      height: 24,
+      color: const Color(0xFFE2E8F0),
+      margin: const EdgeInsets.symmetric(horizontal: 4),
     );
   }
 
@@ -1311,6 +1978,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen>
         child: Column(
           children: [
             _buildHeader(),
+            _buildTimelineCard(),
             _buildDetailCard(),
             _buildItemsCard(),
             const SizedBox(height: 20),
@@ -1319,4 +1987,28 @@ class _OrderDetailScreenState extends State<OrderDetailScreen>
       ),
     );
   }
+}
+
+class _TimelineStep {
+  final String title;
+  final String time;
+  final bool isDone;
+  final bool isActive;
+  final bool isTarget;
+  final bool isLate;
+  final int? latenessMinutes;
+  final IconData icon;
+  final Color color;
+
+  const _TimelineStep({
+    required this.title,
+    required this.time,
+    required this.isDone,
+    required this.isActive,
+    this.isTarget = false,
+    this.isLate = false,
+    this.latenessMinutes,
+    required this.icon,
+    required this.color,
+  });
 }

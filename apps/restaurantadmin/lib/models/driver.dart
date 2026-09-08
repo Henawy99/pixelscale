@@ -17,6 +17,7 @@ class Driver {
   final DateTime? availableAt;
   final DateTime? shiftEndAt;
   final String phoneNumber;
+  final bool isDemo;
 
   String? get currentRouteId => currentDeliveryRouteId;
 
@@ -36,6 +37,7 @@ class Driver {
     this.availableAt,
     this.shiftEndAt,
     this.phoneNumber = '',
+    this.isDemo = false,
   });
 
   Map<String, dynamic> toJson() {
@@ -55,6 +57,7 @@ class Driver {
       'available_at': availableAt?.toIso8601String(),
       'shift_end_at': shiftEndAt?.toIso8601String(),
       'phone_number': phoneNumber,
+      'is_demo': isDemo,
     };
   }
 
@@ -89,11 +92,14 @@ class Driver {
       colorIdx = (json['id'] as String).hashCode.abs() % 8;
     }
 
+    final rawName = json['name'] as String? ?? 'Unnamed Driver';
+    final isDemoDriver = json['is_demo'] as bool? ?? rawName.toLowerCase().contains('demo') || rawName.toLowerCase().contains('abunageb');
+
     return Driver(
       id: json['id'] as String,
       userId: json['user_id'] as String?,
-      name: json['name'] as String? ?? 'Unnamed Driver',
-      isOnline: json['is_online'] as bool? ?? false,
+      name: rawName,
+      isOnline: isDemoDriver ? true : (json['is_online'] as bool? ?? false),
       lastSeenAt: _parseUtcTimestamp(json['last_seen_at'] as String?),
       currentLocation: location, // Populate from parsed lat/lng
       currentDeliveryRouteId: json['current_route_id'] as String?, // Fetches current_route_id from DB
@@ -105,6 +111,7 @@ class Driver {
       availableAt: _parseUtcTimestamp(json['available_at'] as String?),
       shiftEndAt: _parseUtcTimestamp(json['shift_end_at'] as String?),
       phoneNumber: json['phone_number'] as String? ?? json['phone'] as String? ?? '',
+      isDemo: isDemoDriver,
     );
   }
 }

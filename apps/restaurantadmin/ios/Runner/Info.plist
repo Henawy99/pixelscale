@@ -26,6 +26,11 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>comgooglemaps</string>
+		<string>googlechromes</string>
+	</array>
 	<key>NSCameraUsageDescription</key>
 	<string>This app requires camera access to scan receipts and capture images of materials.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>

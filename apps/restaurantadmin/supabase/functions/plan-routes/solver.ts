@@ -178,25 +178,29 @@ export function computeRouteTimeline(
   let currentTime = departureMs;
   let prevIdx = 0; // depot
   let totalDrivingSecs = 0;
+  let totalDistanceMeters = 0;
 
   for (const matrixIdx of route.stopOrderIndices) {
     const travel = matrix[prevIdx][matrixIdx];
     totalDrivingSecs += travel.durationSeconds;
+    totalDistanceMeters += travel.distanceMeters ?? 0;
     currentTime += travel.durationSeconds * 1000;
     arrivalTimes.push(new Date(currentTime));
     currentTime += settings.handoverTimeSecs * 1000;
     prevIdx = matrixIdx;
   }
 
-  // Return to depot
+  // Return to depot (whole route is from restaurant to last stop and back to restaurant)
   const returnTravel = matrix[prevIdx][0];
   totalDrivingSecs += returnTravel.durationSeconds;
+  totalDistanceMeters += returnTravel.distanceMeters ?? 0;
   currentTime += returnTravel.durationSeconds * 1000;
 
   return {
     arrivalTimes,
     returnTime: new Date(currentTime),
     totalDrivingSecs,
+    totalDistanceMeters,
     departureTime: new Date(departureMs),
   };
 }
@@ -898,47 +902,40 @@ export function solve(
 
   // 1. Build initial routes from current state
   const initialRoutes: CandidateRoute[] = drivers.map((driver) => {
-    const driverOrders = orders.filter(
+    // Only pending assigned orders at the restaurant belong to this planned tour.
+    // (In-progress / out_for_delivery orders are already on the road in an active route).
+    const pendingOrders = orders.filter(
       (o) =>
         o.currentDriverId === driver.id &&
-        (o.deliveryStatus === "out_for_delivery" ||
-          o.deliveryStatus === "assigned_to_route")
-    );
-
-    // Separate frozen (already delivered or out) vs. pending
-    const frozenOrders = driverOrders.filter(
-      (o) => o.deliveryStatus === "out_for_delivery"
-    );
-    const assignedOrders = driverOrders.filter(
-      (o) =>
         o.deliveryStatus === "assigned_to_route" &&
         (!o.pinnedDriverId || o.pinnedDriverId === driver.id)
     );
 
-    // Sort by current sequence
-    frozenOrders.sort(
-      (a, b) => (a.currentSequence ?? 0) - (b.currentSequence ?? 0)
-    );
-    assignedOrders.sort(
+    pendingOrders.sort(
       (a, b) => (a.currentSequence ?? 0) - (b.currentSequence ?? 0)
     );
 
-    const allDriverOrders = [...frozenOrders, ...assignedOrders];
+    // Calculate when this driver is available at the restaurant depot:
+    // If driver is currently out on a route, they become available when they return to the restaurant
+    let driverAvailableAt = now;
+    if (
+      driver.currentRouteId &&
+      driver.projectedReturnAt &&
+      driver.projectedReturnAt.getTime() > now.getTime() &&
+      driver.projectedReturnAt.getTime() - now.getTime() < 3 * 60 * 60 * 1000 // Max 3 hours out
+    ) {
+      driverAvailableAt = driver.projectedReturnAt;
+    }
 
     return {
       driverId: driver.id,
-      stopOrderIndices: allDriverOrders.map(
+      stopOrderIndices: pendingOrders.map(
         (o) => orders.indexOf(o) + 1 // +1 for depot at index 0
       ),
-      stopOrderIds: allDriverOrders.map((o) => o.id),
+      stopOrderIds: pendingOrders.map((o) => o.id),
       isCurrentlyOut: driver.currentRouteId !== null,
-      availableAt:
-        driver.availableAt
-          ? driver.availableAt
-          : (driver.currentRouteId && driver.projectedReturnAt
-              ? driver.projectedReturnAt
-              : now),
-      frozenStopCount: frozenOrders.length,
+      availableAt: driverAvailableAt,
+      frozenStopCount: 0,
       shiftEndAt: driver.shiftEndAt ?? null,
     };
   });
@@ -1090,7 +1087,7 @@ export function solve(
         driverId: r.driverId,
         stops,
         totalDrivingSeconds: timeline.totalDrivingSecs,
-        totalDistanceMeters: 0, // Could compute from matrix
+        totalDistanceMeters: Math.round(timeline.totalDistanceMeters),
         plannedDepartureAt: timeline.departureTime,
         plannedReturnAt: timeline.returnTime,
       };

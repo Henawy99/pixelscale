@@ -351,7 +351,6 @@ class _OrdersScreenState extends State<OrdersScreen>
       final response = await _supabase
           .from('drivers')
           .select()
-          .eq('is_online', true)
           .order('name', ascending: true);
       if (!mounted) return;
       final List<Driver> loadedDrivers = (response as List)
@@ -360,7 +359,50 @@ class _OrdersScreenState extends State<OrdersScreen>
       setState(() => _activeDrivers = loadedDrivers);
     } catch (e) {
       print('Error fetching active drivers: $e');
-      if (mounted) _showErrorSnackBar('Error fetching active drivers: $e');
+    }
+  }
+
+  String? _getDriverName(String? driverId) {
+    if (driverId == null) return null;
+    final driver = _activeDrivers.where((d) => d.id == driverId).firstOrNull;
+    if (driver != null) return driver.name;
+    if (driverId == '4ece59ec-5d06-4b1f-adc4-c15090418eea') return 'Abunageb (Demo)';
+    return 'Driver';
+  }
+
+  String _formatDeliveryStatus(String status) {
+    switch (status.toLowerCase()) {
+      case 'preparing':
+        return 'In Kitchen';
+      case 'ready_to_deliver':
+        return 'Ready';
+      case 'assigned_to_route':
+        return 'Route Assigned';
+      case 'out_for_delivery':
+        return 'Out for Delivery';
+      case 'delivered':
+        return 'Delivered';
+      case 'failed':
+        return 'Failed';
+      default:
+        return status.replaceAll('_', ' ');
+    }
+  }
+
+  Color _getDeliveryStatusColor(String status) {
+    switch (status.toLowerCase()) {
+      case 'out_for_delivery':
+        return Colors.blue.shade700;
+      case 'assigned_to_route':
+        return Colors.indigo.shade700;
+      case 'ready_to_deliver':
+        return Colors.teal.shade700;
+      case 'delivered':
+        return Colors.green.shade700;
+      case 'failed':
+        return Colors.red.shade700;
+      default:
+        return Colors.orange.shade700;
     }
   }
 
@@ -1548,7 +1590,7 @@ class _OrdersScreenState extends State<OrdersScreen>
                     crossAxisCount: cols,
                     crossAxisSpacing: 12,
                     mainAxisSpacing: 12,
-                    childAspectRatio: w > 1600 ? 2.0 : (w > 1200 ? 1.6 : (w > 800 ? 1.4 : 1.2)),
+                    childAspectRatio: w > 1600 ? 1.75 : (w > 1200 ? 1.45 : (w > 800 ? 1.25 : 1.1)),
                   ),
                   delegate: SliverChildBuilderDelegate(
                     (context, index) => _buildOrderGridTile(currentTabOrders[index]),
@@ -1759,6 +1801,95 @@ class _OrdersScreenState extends State<OrdersScreen>
                             color: Colors.black87,
                           ),
                         ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+
+                    // ROW 3: Assigned Driver & Delivery Status
+                    Row(
+                      children: [
+                        if (order.fulfillmentType == 'delivery') ...[
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: order.assignedDriverId != null
+                                  ? Colors.indigo.shade50
+                                  : Colors.orange.shade50,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: order.assignedDriverId != null
+                                    ? Colors.indigo.shade200
+                                    : Colors.orange.shade300,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  order.assignedDriverId != null ? Icons.two_wheeler : Icons.hourglass_top,
+                                  size: 14,
+                                  color: order.assignedDriverId != null
+                                      ? Colors.indigo.shade700
+                                      : Colors.orange.shade800,
+                                ),
+                                const SizedBox(width: 5),
+                                Text(
+                                  order.assignedDriverId != null
+                                      ? (_getDriverName(order.assignedDriverId) ?? 'Assigned')
+                                      : 'Unassigned',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    color: order.assignedDriverId != null
+                                        ? Colors.indigo.shade900
+                                        : Colors.orange.shade900,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ] else ...[
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.grey.shade100,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.grey.shade300),
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.storefront, size: 14, color: Colors.grey),
+                                SizedBox(width: 4),
+                                Text(
+                                  'Pickup',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.black54,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                        const Spacer(),
+                        if (order.deliveryStatus != null && order.deliveryStatus!.isNotEmpty)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: _getDeliveryStatusColor(order.deliveryStatus!).withOpacity(0.12),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              _formatDeliveryStatus(order.deliveryStatus!),
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: _getDeliveryStatusColor(order.deliveryStatus!),
+                              ),
+                            ),
+                          ),
                       ],
                     ),
                   ],
@@ -2092,60 +2223,112 @@ class _OrdersScreenState extends State<OrdersScreen>
   }
 
   Widget _buildDemoSwitch() {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 200),
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+    return Container(
       decoration: BoxDecoration(
-        color: _showOnlyDemoOrders ? Colors.amber.withOpacity(0.18) : Colors.grey[200],
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: _showOnlyDemoOrders ? Colors.amber[700]! : Colors.grey[350]!,
-          width: 1.2,
-        ),
+        color: Colors.grey.shade200,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.grey.shade300),
       ),
+      padding: const EdgeInsets.all(2),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            _showOnlyDemoOrders ? Icons.flash_on : Icons.store_mall_directory_outlined,
-            size: 14,
-            color: _showOnlyDemoOrders ? Colors.amber[800] : Colors.grey[600],
-          ),
-          const SizedBox(width: 4),
-          Text(
-            _showOnlyDemoOrders ? 'DEMO' : 'LIVE',
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.bold,
-              color: _showOnlyDemoOrders ? Colors.amber[900] : Colors.grey[700],
-              letterSpacing: 0.5,
+          GestureDetector(
+            onTap: () {
+              if (_showOnlyDemoOrders) {
+                setState(() => _showOnlyDemoOrders = false);
+              }
+            },
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: !_showOnlyDemoOrders ? Colors.white : Colors.transparent,
+                borderRadius: BorderRadius.circular(18),
+                boxShadow: !_showOnlyDemoOrders
+                    ? [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.08),
+                          blurRadius: 4,
+                          offset: const Offset(0, 1),
+                        )
+                      ]
+                    : null,
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.storefront_outlined,
+                    size: 14,
+                    color: !_showOnlyDemoOrders ? Colors.green.shade700 : Colors.grey.shade600,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    'LIVE',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: !_showOnlyDemoOrders ? Colors.green.shade700 : Colors.grey.shade600,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
-          const SizedBox(width: 4),
-          SizedBox(
-            height: 20,
-            width: 34,
-            child: Switch(
-              value: _showOnlyDemoOrders,
-              activeColor: Colors.amber[700],
-              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              onChanged: (val) {
-                setState(() {
-                  _showOnlyDemoOrders = val;
-                });
-              },
+          GestureDetector(
+            onTap: () {
+              if (!_showOnlyDemoOrders) {
+                setState(() => _showOnlyDemoOrders = true);
+              }
+            },
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: _showOnlyDemoOrders ? Colors.amber.shade700 : Colors.transparent,
+                borderRadius: BorderRadius.circular(18),
+                boxShadow: _showOnlyDemoOrders
+                    ? [
+                        BoxShadow(
+                          color: Colors.amber.shade700.withOpacity(0.3),
+                          blurRadius: 4,
+                          offset: const Offset(0, 1),
+                        )
+                      ]
+                    : null,
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.bolt,
+                    size: 14,
+                    color: _showOnlyDemoOrders ? Colors.white : Colors.grey.shade600,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    'DEMO',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: _showOnlyDemoOrders ? Colors.white : Colors.grey.shade600,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
           if (_showOnlyDemoOrders) ...[
-            const SizedBox(width: 4),
+            const SizedBox(width: 6),
             InkWell(
               onTap: _isGeneratingDemoOrder ? null : _handleCreateDemoOrder,
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(12),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: Colors.amber[700],
-                  borderRadius: BorderRadius.circular(8),
+                  color: Colors.amber.shade800,
+                  borderRadius: BorderRadius.circular(12),
                 ),
                 child: _isGeneratingDemoOrder
                     ? const SizedBox(
@@ -2156,13 +2339,13 @@ class _OrdersScreenState extends State<OrdersScreen>
                     : const Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.add, size: 12, color: Colors.white),
+                          Icon(Icons.add, size: 13, color: Colors.white),
                           SizedBox(width: 2),
                           Text(
-                            'Order',
+                            '+ Order',
                             style: TextStyle(
+                              fontSize: 11,
                               color: Colors.white,
-                              fontSize: 10,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
@@ -2171,6 +2354,61 @@ class _OrdersScreenState extends State<OrdersScreen>
               ),
             ),
           ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDemoBanner() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.amber.shade50,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.amber.shade400),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.bolt, size: 18, color: Colors.amber.shade800),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Demo Mode Active: Showing test orders only (real orders hidden).',
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.amber.shade900,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          TextButton.icon(
+            onPressed: _isGeneratingDemoOrder ? null : _handleCreateDemoOrder,
+            icon: const Icon(Icons.add, size: 15),
+            label: const Text(
+              'Add Order',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+            ),
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.amber.shade900,
+              visualDensity: VisualDensity.compact,
+            ),
+          ),
+          const SizedBox(width: 4),
+          TextButton.icon(
+            onPressed: () async {
+              await DemoOrderService.resetDemoOrders();
+              _loadAllData();
+            },
+            icon: const Icon(Icons.delete_outline, size: 15, color: Colors.red),
+            label: const Text(
+              'Reset',
+              style: TextStyle(color: Colors.red, fontSize: 12, fontWeight: FontWeight.bold),
+            ),
+            style: TextButton.styleFrom(
+              visualDensity: VisualDensity.compact,
+            ),
+          ),
         ],
       ),
     );
@@ -2747,6 +2985,7 @@ class _OrdersScreenState extends State<OrdersScreen>
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       _buildActionButtonsRow(), // Added action buttons
+                      if (_showOnlyDemoOrders) _buildDemoBanner(),
                       _buildDateNavigator(), // Date navigation
 
                       Padding(
@@ -2881,35 +3120,7 @@ class _OrdersScreenState extends State<OrdersScreen>
                   ),
                 ),
 
-                if (_showOnlyDemoOrders)
-                  Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: Colors.amber.withOpacity(0.15),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.amber.withOpacity(0.5)),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.flash_on, size: 16, color: Colors.amber),
-                        const SizedBox(width: 8),
-                        const Expanded(
-                          child: Text(
-                            'Demo Mode Active: Showing test orders only (real orders hidden)',
-                            style: TextStyle(fontSize: 12, color: Colors.brown, fontWeight: FontWeight.w600),
-                          ),
-                        ),
-                        TextButton(
-                          onPressed: () async {
-                            await DemoOrderService.resetDemoOrders();
-                            _loadAllData();
-                          },
-                          child: const Text('Reset', style: TextStyle(color: Colors.red, fontSize: 11, fontWeight: FontWeight.bold)),
-                        ),
-                      ],
-                    ),
-                  ),
+                if (_showOnlyDemoOrders) _buildDemoBanner(),
 
                 // Dropdown brand row appears when + is pressed
                 AnimatedCrossFade(

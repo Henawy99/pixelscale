@@ -381,9 +381,9 @@ class _DeliveryTimelineWidgetState extends State<DeliveryTimelineWidget> {
                           overflow: TextOverflow.ellipsis,
                         ),
                         Text(
-                          driver.isOnline ? 'Active' : 'Standby',
+                          driver.isDemo ? 'Demo (Active)' : (driver.isOnline ? 'Active' : 'Standby'),
                           style: TextStyle(
-                            color: driver.isOnline ? Colors.greenAccent : Colors.grey[400],
+                            color: (driver.isOnline || driver.isDemo) ? Colors.greenAccent : Colors.grey[400],
                             fontSize: 10,
                           ),
                         ),
