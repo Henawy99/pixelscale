@@ -57,4 +57,6 @@ local.properties
 # Browser profiles and caches
 foodora-profile/
 **/foodora-profile/
+*.tar.gz
+
 
