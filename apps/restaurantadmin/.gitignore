@@ -53,3 +53,8 @@ local.properties
 
 # Vercel CLI link metadata (optional to commit)
 .vercel
+
+# Browser profiles and caches
+foodora-profile/
+**/foodora-profile/
+
