@@ -1808,6 +1808,7 @@ class _DriverRouteTabState extends State<_DriverRouteTab> with TickerProviderSta
           .select('*')
           .eq('assigned_driver_id', widget.driverRecordId!)
           .inFilter('status', ['assigned', 'in_progress'])
+          .order('status', ascending: false) // 'in_progress' comes before 'assigned'
           .order('created_at', ascending: false)
           .limit(1);
 
@@ -2238,40 +2239,9 @@ class _DriverRouteTabState extends State<_DriverRouteTab> with TickerProviderSta
     try {
       final routeId = _activeRoute!['id'] as String;
 
-      // 1. Mark delivery route as completed
-      await _supabase
-          .from('delivery_routes')
-          .update({
-            'status': 'completed',
-            'completed_at': DateTime.now().toUtc().toIso8601String(),
-            'actual_return_at': DateTime.now().toUtc().toIso8601String(),
-          })
-          .eq('id', routeId);
-
-      // 2. Mark any store stops in this route as completed
-      await _supabase
-          .from('route_stops')
-          .update({
-            'status': 'completed',
-            'actual_arrival_time': DateTime.now().toUtc().toIso8601String(),
-          })
-          .eq('delivery_route_id', routeId)
-          .eq('type', 'store');
-
-      // 3. Free up driver record
-      if (widget.driverRecordId != null) {
-        await _supabase
-            .from('drivers')
-            .update({
-              'current_route_id': null,
-              'projected_return_at': null,
-            })
-            .eq('id', widget.driverRecordId!);
-      }
-
       HapticFeedback.heavyImpact();
 
-      // 4. Immediately clear local active route state so driver sees instant transition
+      // Immediately clear local active route state so driver sees instant transition
       if (mounted) {
         setState(() {
           _activeRoute = null;
@@ -2293,16 +2263,19 @@ class _DriverRouteTabState extends State<_DriverRouteTab> with TickerProviderSta
         );
       }
 
-      // 5. Trigger plan-routes so waiting orders can be assigned immediately
+      // Trigger plan-routes and let the Edge Function handle the route completion
+      // to bypass RLS issues securely.
       try {
         await _supabase.functions.invoke('plan-routes', body: {
           'trigger_reason': 'driver_back_at_restaurant',
+          'complete_route_id': routeId,
+          'complete_driver_id': widget.driverRecordId,
         });
       } catch (e) {
         debugPrint('[DriverRouteTab] Error invoking plan-routes on return: $e');
       }
 
-      // 6. Reload route in case a new tour was auto-planned
+      // Reload route in case a new tour was auto-planned
       await _loadRoute();
     } catch (e) {
       debugPrint('[DriverRouteTab] Error marking back: $e');
@@ -2447,7 +2420,21 @@ class _DriverRouteTabState extends State<_DriverRouteTab> with TickerProviderSta
 
   Widget _buildRouteHeader(String status, int delivered, int total, bool allDone) {
     final progress = total > 0 ? delivered / total : 0.0;
-    final (distMeters, durSecs) = _getRouteDistanceAndDuration();
+    final (distMeters, totalDurSecs) = _getRouteDistanceAndDuration();
+    
+    double durSecs = totalDurSecs;
+    if (status == 'in_progress' || allDone) {
+      durSecs = 0;
+      for (final s in _stops) {
+        if (s['status'] == 'pending') {
+          durSecs += (s['estimated_travel_time_to_next_stop_seconds'] as num?)?.toDouble() ?? 0.0;
+          if (s['type'] == 'customer_delivery') {
+            durSecs += (s['estimated_service_time_seconds'] as num?)?.toDouble() ?? 0.0;
+          }
+        }
+      }
+    }
+    
     final distKmStr = (distMeters / 1000).toStringAsFixed(1);
     final durMin = (durSecs / 60).round();
 
@@ -2486,7 +2473,9 @@ class _DriverRouteTabState extends State<_DriverRouteTab> with TickerProviderSta
                 ),
               ),
               Text(
-                '$distKmStr km • ca. $durMin Min',
+                status == 'in_progress' || allDone
+                    ? 'ca. $durMin Min left'
+                    : '$distKmStr km • ca. $durMin Min',
                 style: const TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,

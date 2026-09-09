@@ -81,11 +81,16 @@ serve(async (req: Request) => {
     let triggerReason = "manual";
     let brandId: string | null = null;
     let isDemoRun = false;
+    let completeRouteId: string | null = null;
+    let completeDriverId: string | null = null;
+
     try {
       const body = await req.json();
       triggerReason = body.trigger_reason ?? "manual";
       brandId = body.brand_id ?? null;
       isDemoRun = body.is_demo === true || triggerReason === "demo_order_created" || triggerReason === "demo_reset";
+      completeRouteId = body.complete_route_id ?? null;
+      completeDriverId = body.complete_driver_id ?? null;
     } catch {
       // No body or invalid JSON — that's fine
     }
@@ -99,6 +104,38 @@ serve(async (req: Request) => {
     }
 
     const now = new Date();
+
+    // 0. Handle explicit route completion (bypass RLS from driver app)
+    if (completeRouteId) {
+      console.log(`[plan-routes] Explicitly completing route ${completeRouteId}`);
+      await supabase
+        .from("delivery_routes")
+        .update({
+          status: "completed",
+          completed_at: now.toISOString(),
+          actual_return_at: now.toISOString(),
+        })
+        .eq("id", completeRouteId);
+
+      await supabase
+        .from("route_stops")
+        .update({
+          status: "completed",
+          actual_arrival_time: now.toISOString(),
+        })
+        .eq("delivery_route_id", completeRouteId);
+    }
+
+    if (completeDriverId) {
+      console.log(`[plan-routes] Freeing up driver ${completeDriverId}`);
+      await supabase
+        .from("drivers")
+        .update({
+          current_route_id: null,
+          projected_return_at: null,
+        })
+        .eq("id", completeDriverId);
+    }
 
     // 1. Load delivery_settings
     let settingsQuery = supabase.from("delivery_settings").select("*");

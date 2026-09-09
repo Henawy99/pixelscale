@@ -11,6 +11,7 @@ import 'package:restaurantadmin/services/order_service.dart';
 import 'package:restaurantadmin/services/daily_summary_service.dart';
 import 'package:restaurantadmin/utils/pdf_generator.dart';
 import 'package:restaurantadmin/models/driver.dart';
+import 'package:restaurantadmin/models/delivery_route.dart';
 import 'package:restaurantadmin/screens/delivery_monitor_screen.dart';
 import 'package:restaurantadmin/widgets/global_order_listener.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -66,6 +67,8 @@ class _OrdersScreenState extends State<OrdersScreen>
   bool _isGeneratingDemoOrder = false;
 
   List<Driver> _activeDrivers = [];
+  List<DeliveryRoute> _activeRoutes = [];
+  bool _isLoadingActiveRoutes = false;
   List<app_order.Order> _deliveryOrders = [];
 
   // Date navigation
@@ -334,6 +337,7 @@ class _OrdersScreenState extends State<OrdersScreen>
     _ordersFuture = _fetchOrders();
     await _fetchTodayStats();
     await _fetchActiveDrivers();
+    await _fetchActiveRoutes();
     _ordersFuture.then((allOrders) {
       if (mounted) {
         setState(() {
@@ -359,6 +363,34 @@ class _OrdersScreenState extends State<OrdersScreen>
       setState(() => _activeDrivers = loadedDrivers);
     } catch (e) {
       print('Error fetching active drivers: $e');
+    }
+  }
+
+  Future<void> _fetchActiveRoutes() async {
+    if (!mounted) return;
+    setState(() => _isLoadingActiveRoutes = true);
+    try {
+      final response = await _supabase
+          .from('delivery_routes')
+          .select('*, stops:route_stops(*)')
+          .inFilter('status', ['assigned', 'in_progress'])
+          .order('created_at', ascending: false);
+          
+      if (!mounted) return;
+      
+      final List<DeliveryRoute> routes = (response as List)
+          .map((data) => DeliveryRoute.fromJson(data as Map<String, dynamic>))
+          .toList();
+          
+      setState(() {
+        _activeRoutes = routes;
+        _isLoadingActiveRoutes = false;
+      });
+    } catch (e) {
+      print('Error fetching active routes: $e');
+      if (mounted) {
+        setState(() => _isLoadingActiveRoutes = false);
+      }
     }
   }
 
@@ -845,6 +877,7 @@ class _OrdersScreenState extends State<OrdersScreen>
 
           // Brand list
           Expanded(
+            flex: 1,
             child: ListView.separated(
               padding: const EdgeInsets.symmetric(vertical: 8),
               itemCount: _brandCardData.length,
@@ -919,8 +952,183 @@ class _OrdersScreenState extends State<OrdersScreen>
               },
             ),
           ),
+          
+          const Divider(height: 1, color: Color(0xFFE5E7EB)),
+          
+          // Active Drivers Header
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+            child: Text(
+              'ACTIVE DRIVERS',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.5,
+                color: Colors.grey[500],
+              ),
+            ),
+          ),
+          
+          // Active Drivers List
+          Expanded(
+            flex: 1,
+            child: _buildActiveDriversSection(),
+          ),
         ],
       ),
+    );
+  }
+
+  Widget _buildActiveDriversSection() {
+    if (_isLoadingActiveRoutes && _activeRoutes.isEmpty) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(16.0),
+          child: CircularProgressIndicator(strokeWidth: 2),
+        ),
+      );
+    }
+
+    final activeDrivers = _activeDrivers.where((d) => d.isOnline || d.isDemo).toList();
+    
+    if (activeDrivers.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.all(20.0),
+        child: Text(
+          'No active drivers',
+          style: TextStyle(color: Colors.grey, fontSize: 13),
+        ),
+      );
+    }
+
+    return ListView.separated(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      itemCount: activeDrivers.length,
+      separatorBuilder: (_, __) => const Divider(height: 1, indent: 20, endIndent: 20, color: Color(0xFFF3F4F6)),
+      itemBuilder: (context, index) {
+        final driver = activeDrivers[index];
+        final route = _activeRoutes.where((r) => r.assignedDriverId == driver.id).firstOrNull;
+        
+        String statusText = 'Idle';
+        Color statusColor = Colors.grey;
+        String deliveriesText = '';
+        String timeLeftText = '';
+
+        if (route != null) {
+          statusText = route.status == 'in_progress' ? 'On Tour' : 'Assigned';
+          statusColor = route.status == 'in_progress' ? const Color(0xFF10B981) : const Color(0xFFF59E0B);
+          
+          int totalStops = route.stops.where((s) => s.type.toString().contains('customerDelivery')).length;
+          int deliveredStops = route.stops.where((s) => 
+            s.type.toString().contains('customerDelivery') && 
+            (s.status == 'completed' || s.status == 'delivered')
+          ).length;
+          
+          deliveriesText = '$deliveredStops/$totalStops delivered';
+          
+          if (totalStops > 0 && deliveredStops == totalStops) {
+            final customerStops = route.stops.where((s) => s.type.toString().contains('customerDelivery')).toList();
+            customerStops.sort((a, b) => a.sequenceNumber.compareTo(b.sequenceNumber));
+            final lastStop = customerStops.last;
+            
+            final deliveryTime = lastStop.actualArrivalTime ?? lastStop.estimatedArrivalTime;
+            final eta = deliveryTime.add(Duration(seconds: lastStop.estimatedTravelTimeToNextStopSeconds.toInt()));
+            final diff = eta.difference(DateTime.now());
+            
+            if (diff.inMinutes > 0) {
+              timeLeftText = 'Returning in ${diff.inMinutes}m';
+            } else {
+              timeLeftText = 'Arriving now';
+            }
+          } else if (driver.projectedReturnAt != null) {
+            final diff = driver.projectedReturnAt!.difference(DateTime.now());
+            if (diff.inMinutes > 0) {
+              timeLeftText = '${diff.inMinutes}m left';
+            } else if (diff.inMinutes <= 0) {
+              timeLeftText = 'Arriving';
+            }
+          }
+        }
+
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF10B981),
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF10B981).withOpacity(0.3),
+                          blurRadius: 4,
+                          spreadRadius: 1,
+                        )
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      driver.name,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600, 
+                        fontSize: 13,
+                        color: Color(0xFF374151),
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: statusColor.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      statusText,
+                      style: TextStyle(
+                        fontSize: 10, 
+                        fontWeight: FontWeight.w600, 
+                        color: statusColor,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              if (route != null) ...[
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      deliveriesText,
+                      style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
+                    ),
+                    if (timeLeftText.isNotEmpty)
+                      Row(
+                        children: [
+                          const Icon(Icons.schedule, size: 12, color: Color(0xFF6B7280)),
+                          const SizedBox(width: 4),
+                          Text(
+                            timeLeftText,
+                            style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280), fontWeight: FontWeight.w500),
+                          ),
+                        ],
+                      ),
+                  ],
+                ),
+              ],
+            ],
+          ),
+        );
+      },
     );
   }
 
