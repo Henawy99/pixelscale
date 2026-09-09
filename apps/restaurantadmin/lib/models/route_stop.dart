@@ -67,8 +67,9 @@ class RouteStop {
         (json['longitude'] as num).toDouble(),
       ),
       customerName: json['customer_name'] as String?,
-      customerAddress: json['customer_address'] as String?,
-      estimatedArrivalTime: DateTime.parse(json['estimated_arrival_time'] as String),
+      estimatedArrivalTime: DateTime.tryParse(
+              (json['planned_arrival_at'] ?? json['estimated_arrival_time'] ?? '').toString()) ??
+          DateTime.now(),
       actualArrivalTime: json['actual_arrival_time'] == null
           ? null
           : DateTime.parse(json['actual_arrival_time'] as String),

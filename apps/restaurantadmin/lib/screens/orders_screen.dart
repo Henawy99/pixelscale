@@ -1798,7 +1798,7 @@ class _OrdersScreenState extends State<OrdersScreen>
                     crossAxisCount: cols,
                     crossAxisSpacing: 12,
                     mainAxisSpacing: 12,
-                    childAspectRatio: w > 1600 ? 1.75 : (w > 1200 ? 1.45 : (w > 800 ? 1.25 : 1.1)),
+                    childAspectRatio: w > 1600 ? 1.65 : (w > 1200 ? 1.38 : (w > 800 ? 1.18 : 1.05)),
                   ),
                   delegate: SliverChildBuilderDelegate(
                     (context, index) => _buildOrderGridTile(currentTabOrders[index]),
@@ -1827,6 +1827,21 @@ class _OrdersScreenState extends State<OrdersScreen>
       isOverdue = minutesLeft < 0;
       etaText = 'Est. ${DateFormat('HH:mm').format(targetTime.toLocal())}';
     }
+
+    // Driver arrival time calculation: matches driver app (Route ETA)
+    DateTime? driverArrival;
+    if (_activeRoutes.isNotEmpty && order.id != null) {
+      for (final route in _activeRoutes) {
+        for (final stop in route.stops) {
+          if (stop.orderId == order.id) {
+            driverArrival = (stop.actualArrivalTime ?? stop.estimatedArrivalTime).toLocal();
+            break;
+          }
+        }
+        if (driverArrival != null) break;
+      }
+    }
+    driverArrival ??= order.plannedArrivalAt?.toLocal();
 
     final bool isPickup = order.fulfillmentType == 'pickup';
     final bool isCash = (order.paymentMethod?.toLowerCase() ?? '') == 'cash';
@@ -1944,38 +1959,67 @@ class _OrdersScreenState extends State<OrdersScreen>
                             ],
                           ),
                         ),
-                        if (targetTime != null) ...[
+                        if (targetTime != null || driverArrival != null) ...[
                           const SizedBox(width: 8),
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.end,
                             children: [
-                              Text(
-                                etaText,
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.grey.shade700,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: isOverdue ? Colors.red.shade50 : Colors.green.shade50,
-                                  borderRadius: BorderRadius.circular(6),
-                                  border: Border.all(
-                                    color: isOverdue ? Colors.red.shade200 : Colors.green.shade200,
-                                  ),
-                                ),
-                                child: Text(
-                                  isOverdue ? '$minutesLeft min' : '$minutesLeft min left',
+                              if (targetTime != null)
+                                Text(
+                                  etaText,
                                   style: TextStyle(
-                                    fontSize: 11,
+                                    fontSize: 12,
                                     fontWeight: FontWeight.bold,
-                                    color: isOverdue ? Colors.red.shade700 : Colors.green.shade700,
+                                    color: Colors.grey.shade700,
                                   ),
                                 ),
-                              ),
+                              if (driverArrival != null) ...[
+                                const SizedBox(height: 3),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFEEF2FF),
+                                    borderRadius: BorderRadius.circular(6),
+                                    border: Border.all(color: const Color(0xFFC7D2FE)),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(Icons.two_wheeler, size: 11, color: Color(0xFF4F46E5)),
+                                      const SizedBox(width: 3),
+                                      Text(
+                                        'Route ETA ${DateFormat('HH:mm').format(driverArrival)}',
+                                        style: const TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.bold,
+                                          color: Color(0xFF4338CA),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                              if (minutesLeft != null) ...[
+                                const SizedBox(height: 4),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: isOverdue ? Colors.red.shade50 : Colors.green.shade50,
+                                    borderRadius: BorderRadius.circular(6),
+                                    border: Border.all(
+                                      color: isOverdue ? Colors.red.shade200 : Colors.green.shade200,
+                                    ),
+                                  ),
+                                  child: Text(
+                                    isOverdue ? '$minutesLeft min' : '$minutesLeft min left',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                      color: isOverdue ? Colors.red.shade700 : Colors.green.shade700,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ],
                           ),
                         ],
@@ -2043,7 +2087,7 @@ class _OrdersScreenState extends State<OrdersScreen>
                                 const SizedBox(width: 5),
                                 Text(
                                   order.assignedDriverId != null
-                                      ? (_getDriverName(order.assignedDriverId) ?? 'Assigned')
+                                      ? '${_getDriverName(order.assignedDriverId) ?? 'Assigned'}${order.deliveryRouteSequence != null ? ' · Stop ${order.deliveryRouteSequence! + 1}' : ''}'
                                       : 'Unassigned',
                                   style: TextStyle(
                                     fontSize: 12,

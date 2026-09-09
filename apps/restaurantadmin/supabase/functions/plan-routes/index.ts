@@ -261,6 +261,13 @@ serve(async (req: Request) => {
       }
     }
 
+    // Fetch all demo driver IDs to guarantee demo drivers are never mixed with real orders
+    const { data: demoDriversList } = await supabase
+      .from("drivers")
+      .select("id")
+      .eq("is_demo", true);
+    const demoDriverIds = new Set((demoDriversList || []).map((d: any) => d.id));
+
     // Convert to PlannerOrder
     const orders: PlannerOrder[] = ordersData.map((o: any) => ({
       id: o.id,
@@ -288,10 +295,13 @@ serve(async (req: Request) => {
       orderTypeName: o.order_type_name,
       paymentMethod: o.payment_method,
       totalPrice: o.total_price ?? 0,
-      pinnedDriverId: pinMap.get(o.id) ?? null,
+      // Ignore pin to demo driver if this is a real order run
+      pinnedDriverId: (!isDemoRun && pinMap.get(o.id) && demoDriverIds.has(pinMap.get(o.id)!))
+        ? null
+        : (pinMap.get(o.id) ?? null),
     }));
 
-    // 3. Load available drivers (on-shift employees, or demo drivers if isDemoRun)
+    // 3. Load available drivers (on-shift employees for real orders, or demo drivers if isDemoRun)
     let driversData: any[] | null = null;
     let driversErr: any = null;
 
@@ -311,15 +321,25 @@ serve(async (req: Request) => {
         .select(
           "id, employee_id, name, is_online, current_latitude, current_longitude, current_route_id, projected_return_at, available_at, shift_end_at"
         );
-      driversData = res.data;
+      
+      // STRICT FILTER: Real fetched orders must NEVER be assigned to demo drivers (Abu Nageb or any is_demo driver)
+      driversData = (res.data || []).filter((d: any) => {
+        if (demoDriverIds.has(d.id)) return false;
+        const name = (d.name || "").toLowerCase();
+        if (name.includes("demo") || name.includes("abunageb")) return false;
+        return true;
+      });
       driversErr = res.error;
     }
 
     if (driversErr) throw driversErr;
     if (!driversData || driversData.length === 0) {
-      console.log("No drivers on shift available.");
+      console.log(isDemoRun ? "No demo drivers available." : "No real drivers on shift available.");
       return new Response(
-        JSON.stringify({ message: "No drivers on shift available.", plan_version: 0 }),
+        JSON.stringify({
+          message: isDemoRun ? "No demo drivers available." : "No real drivers on shift available.",
+          plan_version: 0,
+        }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
       );
     }

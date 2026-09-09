@@ -51,6 +51,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with TickerProvider
 
   // Nav
   int _currentTab = 0; // 0=route, 1=status, 2=shifts
+  final GlobalKey<_DriverRouteTabState> _routeTabKey = GlobalKey<_DriverRouteTabState>();
 
   bool _isDriverOnline = false;
   String? _driverRecordId;
@@ -97,9 +98,12 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with TickerProvider
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
-    if (state == AppLifecycleState.resumed && _isDriverOnline && _driverRecordId != null) {
-      debugPrint('[DriverHomeScreen] App resumed, syncing location...');
-      _fetchAndSaveLocationNow();
+    if (state == AppLifecycleState.resumed) {
+      if (_isDriverOnline && _driverRecordId != null) {
+        debugPrint('[DriverHomeScreen] App resumed, syncing location...');
+        _fetchAndSaveLocationNow();
+      }
+      _routeTabKey.currentState?.reload();
     }
   }
 
@@ -711,7 +715,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with TickerProvider
                     duration: const Duration(milliseconds: 250),
                     child: _currentTab == 0
                         ? _DriverRouteTab(
-                            key: const ValueKey('route'),
+                            key: _routeTabKey,
                             driverRecordId: _driverRecordId,
                             isOnline: _isDriverOnline,
                             isDemoDriver: _isDemoDriver,
@@ -720,6 +724,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with TickerProvider
                             ? _DriverTodaysRoutesTab(
                                 key: const ValueKey('todays_routes'),
                                 driverRecordId: _driverRecordId,
+                                isDemoDriver: _isDemoDriver,
                               )
                             : _DriverShiftsTab(
                                 key: const ValueKey('shifts'),
@@ -959,6 +964,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with TickerProvider
           ),
         );
       }
+      await _routeTabKey.currentState?.reload();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1010,6 +1016,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with TickerProvider
           ),
         );
       }
+      await _routeTabKey.currentState?.reload();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1118,8 +1125,13 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with TickerProvider
 
 class _DriverTodaysRoutesTab extends StatefulWidget {
   final String? driverRecordId;
+  final bool isDemoDriver;
 
-  const _DriverTodaysRoutesTab({super.key, required this.driverRecordId});
+  const _DriverTodaysRoutesTab({
+    super.key,
+    required this.driverRecordId,
+    this.isDemoDriver = false,
+  });
 
   @override
   State<_DriverTodaysRoutesTab> createState() => _DriverTodaysRoutesTabState();
@@ -1141,7 +1153,8 @@ class _DriverTodaysRoutesTabState extends State<_DriverTodaysRoutesTab> {
   @override
   void didUpdateWidget(covariant _DriverTodaysRoutesTab oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.driverRecordId != widget.driverRecordId) {
+    if (oldWidget.driverRecordId != widget.driverRecordId ||
+        oldWidget.isDemoDriver != widget.isDemoDriver) {
       _loadRoutes();
     }
   }
@@ -1185,7 +1198,7 @@ class _DriverTodaysRoutesTabState extends State<_DriverTodaysRoutesTab> {
       final startOfDay = DateTime(now.year, now.month, now.day).toUtc().toIso8601String();
       final endOfDay = DateTime(now.year, now.month, now.day, 23, 59, 59).toUtc().toIso8601String();
 
-      final response = await _supabase
+      var routesQuery = _supabase
           .from('delivery_routes')
           .select('''
             *,
@@ -1196,8 +1209,15 @@ class _DriverTodaysRoutesTabState extends State<_DriverTodaysRoutesTab> {
           ''')
           .eq('assigned_driver_id', widget.driverRecordId!)
           .gte('created_at', startOfDay)
-          .lte('created_at', endOfDay)
-          .order('created_at', ascending: false);
+          .lte('created_at', endOfDay);
+
+      if (widget.isDemoDriver) {
+        routesQuery = routesQuery.eq('is_demo', true);
+      } else {
+        routesQuery = routesQuery.eq('is_demo', false);
+      }
+
+      final response = await routesQuery.order('created_at', ascending: false);
 
       final allRoutes = List<Map<String, dynamic>>.from(response as List);
       // Only show valid routes with customer stops (exclude cancelled ghost routes)
@@ -1748,15 +1768,37 @@ class _DriverRouteTabState extends State<_DriverRouteTab> with TickerProviderSta
   bool _isStartingRoute = false;
   bool _isCompletingRoute = false;
   RealtimeChannel? _routeChannel;
+  Timer? _pollTimer;
+  bool _isFetchingRoute = false;
 
   // Order items cache: orderId -> list of items
   Map<String, List<Map<String, dynamic>>> _orderItems = {};
+
+  Future<void> reload() => _loadRoute(silent: false);
 
   @override
   void initState() {
     super.initState();
     _loadRoute();
     _setupRealtime();
+    _startPolling();
+  }
+
+  void _startPolling() {
+    _pollTimer?.cancel();
+    _pollTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      // When no active route, actively check every 2 seconds for newly assigned route!
+      // When active route exists, check every 8 seconds to stay synchronized.
+      if (_activeRoute == null) {
+        _loadRoute(silent: true);
+      } else if (timer.tick % 4 == 0) {
+        _loadRoute(silent: true);
+      }
+    });
   }
 
   @override
@@ -1770,19 +1812,28 @@ class _DriverRouteTabState extends State<_DriverRouteTab> with TickerProviderSta
 
   @override
   void dispose() {
-    _routeChannel?.unsubscribe();
+    _pollTimer?.cancel();
+    _pollTimer = null;
+    if (_routeChannel != null) {
+      _supabase.removeChannel(_routeChannel!);
+      _routeChannel = null;
+    }
     super.dispose();
   }
 
   void _setupRealtime() {
+    if (_routeChannel != null) {
+      _supabase.removeChannel(_routeChannel!);
+    }
+    final channelName = 'driver-route-${widget.driverRecordId ?? "all"}-${DateTime.now().millisecondsSinceEpoch}';
     _routeChannel = _supabase
-        .channel('driver-route-updates')
+        .channel(channelName)
         .onPostgresChanges(
           event: PostgresChangeEvent.all,
           schema: 'public',
           table: 'delivery_routes',
           callback: (_) {
-            if (mounted) _loadRoute();
+            if (mounted) _loadRoute(silent: true);
           },
         )
         .onPostgresChanges(
@@ -1790,24 +1841,47 @@ class _DriverRouteTabState extends State<_DriverRouteTab> with TickerProviderSta
           schema: 'public',
           table: 'route_stops',
           callback: (_) {
-            if (mounted) _loadRoute();
+            if (mounted) _loadRoute(silent: true);
+          },
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'orders',
+          callback: (_) {
+            if (mounted) _loadRoute(silent: true);
           },
         )
         .subscribe();
   }
 
-  Future<void> _loadRoute() async {
+  Future<void> _loadRoute({bool silent = false}) async {
     if (widget.driverRecordId == null) {
       if (mounted) setState(() => _isLoading = false);
       return;
     }
 
+    if (_isFetchingRoute) return;
+    _isFetchingRoute = true;
+
+    if (!silent && mounted) {
+      setState(() => _isLoading = true);
+    }
+
     try {
-      final routeResponse = await _supabase
+      var routeQuery = _supabase
           .from('delivery_routes')
           .select('*')
           .eq('assigned_driver_id', widget.driverRecordId!)
-          .inFilter('status', ['assigned', 'in_progress'])
+          .inFilter('status', ['assigned', 'in_progress']);
+
+      if (widget.isDemoDriver) {
+        routeQuery = routeQuery.eq('is_demo', true);
+      } else {
+        routeQuery = routeQuery.eq('is_demo', false);
+      }
+
+      final routeResponse = await routeQuery
           .order('status', ascending: false) // 'in_progress' comes before 'assigned'
           .order('created_at', ascending: false)
           .limit(1);
@@ -1815,12 +1889,14 @@ class _DriverRouteTabState extends State<_DriverRouteTab> with TickerProviderSta
       final routeList = routeResponse as List;
       if (routeList.isEmpty) {
         if (mounted) {
-          setState(() {
-            _activeRoute = null;
-            _stops = [];
-            _orderItems = {};
-            _isLoading = false;
-          });
+          if (_activeRoute != null || !silent || _isLoading) {
+            setState(() {
+              _activeRoute = null;
+              _stops = [];
+              _orderItems = {};
+              _isLoading = false;
+            });
+          }
         }
         return;
       }
@@ -1912,6 +1988,8 @@ class _DriverRouteTabState extends State<_DriverRouteTab> with TickerProviderSta
         debugPrint('[DriverRouteTab] Fallback also failed: $e2');
         if (mounted) setState(() => _isLoading = false);
       }
+    } finally {
+      _isFetchingRoute = false;
     }
   }
 
@@ -3009,7 +3087,7 @@ class _DriverRouteTabState extends State<_DriverRouteTab> with TickerProviderSta
             ),
             const SizedBox(height: 24),
             OutlinedButton.icon(
-              onPressed: _loadRoute,
+              onPressed: () => _loadRoute(silent: false),
               icon: const Icon(Icons.refresh_rounded, size: 18),
               label: const Text('Refresh'),
               style: OutlinedButton.styleFrom(

@@ -488,7 +488,8 @@ class _OrderDetailScreenState extends State<OrderDetailScreen>
     if (plannedArrival != null) {
       estimatedArrivalTime = DateTime.tryParse(plannedArrival.toString())?.toLocal();
     }
-    estimatedArrivalTime ??= widget.order.estimatedDeliveryTime?.toLocal() ??
+    estimatedArrivalTime ??= widget.order.plannedArrivalAt?.toLocal() ??
+        widget.order.estimatedDeliveryTime?.toLocal() ??
         widget.order.requestedDeliveryTime?.toLocal();
 
     final targetDeliveryTime = widget.order.estimatedDeliveryTime?.toLocal() ??
