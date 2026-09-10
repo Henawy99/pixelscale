@@ -161,20 +161,67 @@ async function dispatchWebhook(payload) {
  */
 async function handleCaptchaIfPresent(page) {
   try {
-    const captchaEl = await page.$('#px-captcha');
+    const selectors = [
+      '#px-captcha',
+      '#px-captcha-wrapper',
+      '[aria-label*="Press & Hold"]',
+      '[aria-label*="Drücken und halten"]',
+      '[aria-label*="halten"]',
+      'div[id*="px-captcha"]',
+    ];
+
+    let captchaEl = null;
+
+    // 1. Check main document
+    for (const sel of selectors) {
+      try {
+        captchaEl = await page.$(sel);
+        if (captchaEl) break;
+      } catch (_) {}
+    }
+
+    // 2. Check all child frames (PerimeterX frequently embeds inside an iframe)
+    if (!captchaEl) {
+      for (const frame of page.frames()) {
+        for (const sel of selectors) {
+          try {
+            captchaEl = await frame.$(sel);
+            if (captchaEl) break;
+          } catch (_) {}
+        }
+        if (captchaEl) break;
+      }
+    }
+
     if (!captchaEl) return;
 
-    console.log('[Security] Human verification modal detected. Solving...');
+    console.log('[Security] Human verification modal detected! Solving automatically...');
     const box = await captchaEl.boundingBox();
     if (box) {
-      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+      const centerX = box.x + box.width / 2;
+      const centerY = box.y + box.height / 2;
+
+      // Move smoothly to the hold button
+      await page.mouse.move(centerX, centerY, { steps: 5 });
       await page.mouse.down();
-      await new Promise(r => setTimeout(r, 4500));
+
+      // Hold for 5.2 seconds with natural micro-movements (biometric pass)
+      const steps = 13;
+      for (let s = 0; s < steps; s++) {
+        await new Promise(r => setTimeout(r, 400));
+        await page.mouse.move(
+          centerX + (Math.random() * 4 - 2),
+          centerY + (Math.random() * 4 - 2)
+        );
+      }
+
       await page.mouse.up();
-      await new Promise(r => setTimeout(r, 2000));
-      console.log('[Security] Hold completed.');
+      console.log('[Security] Hold completed. Verifying release...');
+      await new Promise(r => setTimeout(r, 2500));
     }
-  } catch (_) {}
+  } catch (err) {
+    console.warn('[Security] Captcha handler notice:', err.message);
+  }
 }
 
 /**
@@ -221,6 +268,12 @@ async function run() {
 
   const pages = await browser.pages();
   const page = pages[0] || (await browser.newPage());
+
+  // Mask automated browser indicators
+  await page.evaluateOnNewDocument(() => {
+    Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+    window.chrome = window.chrome || { runtime: {} };
+  });
 
   console.log('Navigating to Foodora Orders...');
   await page.goto('https://partner.foodora.com/orders', {
