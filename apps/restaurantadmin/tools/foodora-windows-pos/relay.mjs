@@ -3,12 +3,14 @@
  * -------------------------------------------------------------------------
  * Runs locally on the restaurant's Windows POS PC on the local Austrian Wi-Fi.
  * 
- * Why this is 100% reliable:
- * 1. Uses your authentic Austrian ISP IP (A1, Magenta, Drei, etc.)
- * 2. Uses your genuine Windows OS hardware GPU (Intel/AMD/Nvidia)
- * 3. PerimeterX evaluates the browser as a 100% genuine human device
- * 4. Captchas do NOT loop, and login session persists indefinitely in ./foodora-profile
- * 5. Automatically pushes incoming orders to your Supabase mobile app backend
+ * Features:
+ * 1. Connects to Foodora Live Orders portal (https://partner.foodora.com/live-orders).
+ * 2. Captures Bearer JWT token and streams deliveries directly from Foodora's 
+ *    live deliveries endpoint (vendor-api-gdp.eu.restaurant-partners.com).
+ * 3. 100% complete customer extraction: Name, Phone, Street, House Number, Floor, 
+ *    Apartment, Postcode, City, Delivery Notes, and Line Items.
+ * 4. Automatic PerimeterX human verification bypass and login persistence.
+ * 5. Syncs in real time directly to Supabase Edge Function (receive-foodora-order).
  */
 
 import puppeteer from 'puppeteer-core';
@@ -30,11 +32,9 @@ const SEEN_ORDERS_FILE = path.join(__dirname, 'seen_orders.json');
 // Find Chrome or Edge executable on Windows
 function findBrowserExecutable() {
   const possiblePaths = [
-    // Google Chrome
     'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
     'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
     path.join(process.env.LOCALAPPDATA || '', 'Google\\Chrome\\Application\\chrome.exe'),
-    // Microsoft Edge (Pre-installed on every Windows 10/11)
     'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
     'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
     path.join(process.env.LOCALAPPDATA || '', 'Microsoft\\Edge\\Application\\msedge.exe'),
@@ -62,73 +62,7 @@ function saveSeenOrders() {
 }
 
 /**
- * Parse drawer text to extract line items, prices, delivery times, and fees
- */
-function parseDrawerText(text) {
-  if (!text) return { items: [], deliveryFee: 0, paymentMethod: 'online', estDelivery: null };
-  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
-
-  let status = lines[0] || 'ACCEPTED';
-
-  let estDelivery = null;
-  const estIdx = lines.findIndex(l => l.toLowerCase().includes('estimated delivery time'));
-  if (estIdx !== -1 && lines[estIdx + 1]) {
-    estDelivery = lines[estIdx + 1];
-  }
-
-  let paymentMethod = 'online';
-  const payIdx = lines.findIndex(l => l.toLowerCase() === 'payment method');
-  if (payIdx !== -1 && lines[payIdx + 1]) {
-    paymentMethod = lines[payIdx + 1].toLowerCase();
-  }
-
-  let deliveryFee = 0;
-  const feeIdx = lines.findIndex(l => l.toLowerCase() === 'delivery fee');
-  if (feeIdx !== -1 && lines[feeIdx + 1]) {
-    const m = lines[feeIdx + 1].replace('€', '').trim();
-    deliveryFee = parseFloat(m) || 0;
-  }
-
-  const startIdx = lines.findIndex(l => l.toLowerCase() === 'order details');
-  const endIdx = lines.findIndex(l => l.toLowerCase() === 'final subtotal');
-
-  const items = [];
-  if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
-    const itemLines = lines.slice(startIdx + 1, endIdx);
-    let i = 0;
-    while (i < itemLines.length) {
-      const qMatch = itemLines[i].match(/^(\d+)[×x]/i);
-      if (qMatch) {
-        const quantity = parseInt(qMatch[1], 10);
-        const name = itemLines[i + 1] || 'Item';
-        let price = 0;
-        let pIdx = i + 2;
-        while (pIdx < itemLines.length && !itemLines[pIdx].includes('€') && !itemLines[pIdx].match(/^\d+[×x]/i)) {
-          pIdx++;
-        }
-        if (pIdx < itemLines.length && itemLines[pIdx].includes('€')) {
-          price = parseFloat(itemLines[pIdx].replace('€', '').trim()) || 0;
-          i = pIdx + 1;
-        } else {
-          i = i + 2;
-        }
-        items.push({
-          name,
-          quantity,
-          unitPrice: items.length > 0 && quantity > 1 ? +(price / quantity).toFixed(2) : price,
-          lineItemTotal: price,
-        });
-      } else {
-        i++;
-      }
-    }
-  }
-
-  return { status, estDelivery, paymentMethod, deliveryFee, items };
-}
-
-/**
- * Dispatch an order to Supabase
+ * Dispatch an order payload to Supabase
  */
 async function dispatchWebhook(payload) {
   try {
@@ -146,13 +80,83 @@ async function dispatchWebhook(payload) {
     try { json = JSON.parse(text); } catch (_) { json = text; }
     if (!res.ok) {
       console.error(`[Supabase] ⚠️ HTTP ${res.status} for ${payload.orderId}:`, json);
-      return null;
+      return false;
     }
-    console.log(`[Supabase] ✅ Successfully synced ${payload.orderId} (${payload.vendorName})`);
-    return json;
+    console.log(`[Supabase] ✅ Successfully synced ${payload.orderId} (${payload.vendorName}) - ${payload.customerName || 'No Name'} | ${payload.customerPhone || 'No Phone'}`);
+    return true;
   } catch (err) {
     console.error(`[Supabase] ❌ Network error for ${payload.orderId}:`, err.message);
-    return null;
+    return false;
+  }
+}
+
+/**
+ * Process a delivery item from Foodora Deliveries API
+ */
+async function processDelivery(d) {
+  const orderId = d.externalId || d.id;
+  if (!orderId) return;
+
+  const state = d.state || 'UNKNOWN';
+  const customerName = (d.customer?.firstName || d.customer?.lastName)
+    ? `${d.customer.firstName || ''} ${d.customer.lastName || ''}`.trim()
+    : null;
+  const customerPhone = d.customer?.phone || null;
+
+  let street = d.address?.street || '';
+  if (d.address?.building) street += ` ${d.address.building}`;
+  street = street.trim() || null;
+
+  const postcode = d.address?.zip || null;
+  const city = d.address?.city || null;
+  const note = [
+    d.address?.info,
+    d.address?.apartment ? `Apt: ${d.address.apartment}` : '',
+    d.address?.floor ? `Floor: ${d.address.floor}` : ''
+  ].filter(Boolean).join(' | ') || null;
+
+  const dedupeKey = `${orderId}:${state.toLowerCase()}:${customerName || 'none'}`;
+  if (seenOrders.has(dedupeKey)) {
+    return; // Already processed
+  }
+
+  const items = (d.items || []).map(it => ({
+    name: it.name,
+    quantity: it.amount || 1,
+    unitPrice: it.price || 0,
+    lineItemTotal: it.total || it.price || 0
+  }));
+
+  const payload = {
+    orderId,
+    vendorId: d.externalRestaurantId || d.lpvId,
+    vendorName: d.vendorName,
+    status: state,
+    deliveryType: d.transport?.type || 'restaurant_delivery',
+    placedAt: d.timestamp,
+    estimatedDeliveryTime: d.deliverAt || d.promisedTime,
+    total: d.payment?.total || d.payment?.itemsTotalPrice || 0,
+    deliveryFee: d.fees?.find(f => f.name === 'DeliveryFee')?.value || 0,
+    paymentMethod: d.payment?.paymentMethod || d.payment?.paymentType || 'ONLINE',
+    customerName,
+    customerPhone,
+    customerStreet: street,
+    customerPostcode: postcode,
+    customerCity: city,
+    note,
+    deliveryNotes: note,
+    items,
+    raw: d
+  };
+
+  console.log(`\n🔔 Processing Order: ${orderId} (${d.vendorName}) [${state}]`);
+  console.log(`   👤 Customer: ${customerName || 'N/A'} | 📞 ${customerPhone || 'N/A'}`);
+  console.log(`   📍 Address: ${street || 'N/A'}, ${postcode || ''} ${city || ''}`);
+
+  const success = await dispatchWebhook(payload);
+  if (success) {
+    seenOrders.add(dedupeKey);
+    saveSeenOrders();
   }
 }
 
@@ -170,57 +174,46 @@ async function handleCaptchaIfPresent(page) {
       'div[id*="px-captcha"]',
     ];
 
-    let captchaEl = null;
+    let target = null;
 
-    // 1. Check main document
-    for (const sel of selectors) {
-      try {
-        captchaEl = await page.$(sel);
-        if (captchaEl) break;
-      } catch (_) {}
-    }
+    for (const frame of [page, ...page.frames()]) {
+      for (const sel of selectors) {
+        try {
+          const el = await frame.$(sel);
+          if (!el) continue;
 
-    // 2. Check all child frames (PerimeterX frequently embeds inside an iframe)
-    if (!captchaEl) {
-      for (const frame of page.frames()) {
-        for (const sel of selectors) {
-          try {
-            captchaEl = await frame.$(sel);
-            if (captchaEl) break;
-          } catch (_) {}
-        }
-        if (captchaEl) break;
+          const isVis = await el.evaluate(node => {
+            const rect = node.getBoundingClientRect();
+            const s = window.getComputedStyle(node);
+            return rect.width > 20 && rect.height > 20 && s.display !== 'none' && s.visibility !== 'hidden' && s.opacity !== '0';
+          }).catch(() => false);
+
+          if (isVis) {
+            target = { el, sel };
+            break;
+          }
+        } catch (_) {}
       }
+      if (target) break;
     }
 
-    if (!captchaEl) return;
+    if (!target) return;
 
-    console.log('[Security] Human verification modal detected! Solving automatically...');
-    const box = await captchaEl.boundingBox();
-    if (box) {
-      const centerX = box.x + box.width / 2;
-      const centerY = box.y + box.height / 2;
+    const box = await target.el.boundingBox();
+    if (!box || box.width < 15 || box.height < 15) return;
 
-      // Move smoothly to the hold button
-      await page.mouse.move(centerX, centerY, { steps: 5 });
-      await page.mouse.down();
+    console.log(`[Security] Human verification modal detected via "${target.sel}" (${Math.round(box.width)}x${Math.round(box.height)})! Solving automatically...`);
+    const centerX = box.x + box.width / 2;
+    const centerY = box.y + box.height / 2;
 
-      // Hold for 5.2 seconds with natural micro-movements (biometric pass)
-      const steps = 13;
-      for (let s = 0; s < steps; s++) {
-        await new Promise(r => setTimeout(r, 400));
-        await page.mouse.move(
-          centerX + (Math.random() * 4 - 2),
-          centerY + (Math.random() * 4 - 2)
-        );
-      }
-
-      await page.mouse.up();
-      console.log('[Security] Hold completed. Verifying release...');
-      await new Promise(r => setTimeout(r, 2500));
-    }
+    await page.mouse.move(centerX, centerY, { steps: 5 });
+    await page.mouse.down();
+    await new Promise(r => setTimeout(r, 6500));
+    await page.mouse.up();
+    console.log('[Security] Hold completed. Verifying release...');
+    await new Promise(r => setTimeout(r, 2500));
   } catch (err) {
-    console.warn('[Security] Captcha handler notice:', err.message);
+    console.warn('[Security] Captcha notice:', err.message);
   }
 }
 
@@ -230,7 +223,7 @@ async function handleCaptchaIfPresent(page) {
 async function dismissPopups(page) {
   try {
     await page.evaluate(() => {
-      const dismissTexts = ['got it', 'close', 'accept', 'dismiss', 'schließen', 'verstanden'];
+      const dismissTexts = ['got it', 'close', 'accept', 'dismiss', 'schließen', 'verstanden', 'ok'];
       const buttons = Array.from(document.querySelectorAll('button, [role="button"]'));
       for (const btn of buttons) {
         const t = (btn.innerText || '').toLowerCase().trim();
@@ -258,11 +251,12 @@ async function run() {
   const browser = await puppeteer.launch({
     executablePath: browserPath,
     userDataDir: PROFILE_DIR,
-    headless: false, // Visible so you can log in once; can be minimized
+    headless: false,
     defaultViewport: null,
     args: [
       '--start-maximized',
       '--disable-blink-features=AutomationControlled',
+      '--remote-debugging-port=9222',
     ],
   });
 
@@ -275,8 +269,45 @@ async function run() {
     window.chrome = window.chrome || { runtime: {} };
   });
 
-  console.log('Navigating to Foodora Orders...');
-  await page.goto('https://partner.foodora.com/orders', {
+  // Track latest Bearer token and headers
+  let currentAuthHeader = null;
+  let currentVendorId = 'TUpNX0FULXFwY2I';
+
+  page.on('request', (req) => {
+    const url = req.url();
+    if (url.includes('deliveries-web') || url.includes('restaurant-partners.com')) {
+      const auth = req.headers()['authorization'];
+      if (auth && auth.startsWith('Bearer ')) {
+        currentAuthHeader = auth;
+      }
+      const vid = req.headers()['x-vendor-id'];
+      if (vid) currentVendorId = vid;
+    }
+  });
+
+  // Intercept responses from Foodora Deliveries API
+  page.on('response', async (res) => {
+    try {
+      const url = res.url();
+      if (!url.includes('deliveries-web')) return;
+      const ct = res.headers()['content-type'] || '';
+      if (!ct.includes('application/json')) return;
+
+      const bodyText = await res.text().catch(() => null);
+      if (!bodyText) return;
+
+      let json = null;
+      try { json = JSON.parse(bodyText); } catch (_) {}
+      if (!json || !Array.isArray(json)) return;
+
+      for (const d of json) {
+        await processDelivery(d);
+      }
+    } catch (_) {}
+  });
+
+  console.log('Navigating to Foodora Live Orders...');
+  await page.goto('https://partner.foodora.com/live-orders', {
     waitUntil: 'domcontentloaded',
     timeout: 60000,
   }).catch(() => {});
@@ -291,127 +322,62 @@ async function run() {
       await new Promise(r => setTimeout(r, POLL_INTERVAL_MS));
       pollCount++;
 
-      // Check if page closed
       if (page.isClosed()) {
         console.warn('Browser page was closed. Re-opening...');
         break;
       }
 
-      // Handle any security challenges or popups
       await handleCaptchaIfPresent(page);
       await dismissPopups(page);
 
-      // Periodically (every 2 minutes) trigger a clean UI refresh to pull new orders
+      // Periodically (every 2 minutes) refresh live orders page to maintain websocket connection
       if (pollCount % 8 === 0) {
         await page.evaluate(() => {
-          const chip = Array.from(document.querySelectorAll('[data-testid="chip"], .MuiChip-root')).find(c => 
-            c.innerText && (c.innerText.includes('Today') || c.innerText.includes('Last 7 days') || c.innerText.includes('calendar_today'))
-          );
-          if (chip) chip.click();
+          if (window.location.pathname !== '/live-orders') {
+            window.location.href = '/live-orders';
+          }
         }).catch(() => {});
-        await new Promise(r => setTimeout(r, 1500));
-        await dismissPopups(page);
       }
 
-      // Extract all orders from the React table
-      const rows = await page.evaluate(() => {
-        const rEls = Array.from(document.querySelectorAll('.MuiDataGrid-row'));
-        return rEls.map(r => {
-          let fiber = null;
-          for (const k of Object.keys(r)) {
-            if (k.startsWith('__reactFiber')) { fiber = r[k]; break; }
-          }
-          let cur = fiber;
-          while (cur) {
-            if (cur.memoizedProps?.row) return cur.memoizedProps.row;
-            cur = cur.return;
-          }
-          return null;
-        }).filter(Boolean);
-      });
+      // Direct polling of deliveries-web endpoint using authentic captured Bearer token
+      if (currentAuthHeader) {
+        const from = new Date(Date.now() - 48 * 3600 * 1000).toISOString();
+        const apiUrl = `https://vendor-api-gdp.eu.restaurant-partners.com/api/2/deliveries-web?from=${from}`;
 
-      if (!rows || rows.length === 0) {
-        continue;
-      }
-
-      // Find new or updated orders
-      const newOrders = rows.filter(r => {
-        const key = `${r.orderId}:${(r.orderStatus || '').toLowerCase()}`;
-        return !seenOrders.has(key);
-      });
-
-      if (newOrders.length > 0) {
-        console.log(`\n🔔 Detected ${newOrders.length} new/updated order(s)! Processing...`);
-
-        for (const row of newOrders) {
-          const key = `${row.orderId}:${(row.orderStatus || '').toLowerCase()}`;
-          console.log(`-> Order ${row.orderId} (${row.vendorName}) - Total: €${row.subtotal}`);
-
-          // Click order to open drawer for line items
-          const clicked = await page.evaluate((id) => {
-            const rEls = Array.from(document.querySelectorAll('.MuiDataGrid-row'));
-            const r = rEls.find(el => el.innerText.includes(id));
-            if (r) {
-              const cell = r.querySelector('[data-field="orderId"]') || r;
-              cell.click();
-              return true;
+        try {
+          const apiRes = await fetch(apiUrl, {
+            headers: {
+              'authorization': currentAuthHeader,
+              'x-global-entity-id': 'MJM_AT',
+              'x-vendor-id': currentVendorId,
+              'x-app-name': 'oneweb',
+              'x-app-version': '5.1.11',
+              'x-rps-client-app-name': 'OneWeb',
+              'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+              'accept': 'application/json, text/plain, */*'
             }
-            return false;
-          }, row.orderId);
+          });
 
-          let parsedDrawer = { items: [], deliveryFee: 0, paymentMethod: 'online', estDelivery: null };
-
-          if (clicked) {
-            await new Promise(r => setTimeout(r, 1200));
-            const drawerText = await page.evaluate(() => {
-              const d = document.querySelector('.MuiDrawer-paper') || document.querySelector('.MuiDrawer-root');
-              if (!d) return '';
-              const t = d.innerText;
-              const closeBtn = d.querySelector('button');
-              if (closeBtn) closeBtn.click();
-              return t;
-            });
-            parsedDrawer = parseDrawerText(drawerText);
+          if (apiRes.ok) {
+            const deliveries = await apiRes.json();
+            if (pollCount % 4 === 1) {
+              console.log(`[Status #${pollCount}] Live API active: ${deliveries.length} orders tracked in past 48h.`);
+            }
+            for (const d of deliveries) {
+              await processDelivery(d);
+            }
+          } else if (apiRes.status === 401 || apiRes.status === 403) {
+            // Token expired, reload page to refresh token
+            console.log('[Auth] Token expired, refreshing live orders page...');
+            currentAuthHeader = null;
+            await page.reload({ waitUntil: 'domcontentloaded' }).catch(() => {});
           }
-
-          // Format estimated delivery time as valid ISO
-          let validEstDelivery = null;
-          if (parsedDrawer.estDelivery) {
-            try {
-              const timeStr = parsedDrawer.estDelivery.trim();
-              if (timeStr.includes('T') || timeStr.includes('-')) {
-                validEstDelivery = timeStr;
-              } else if (timeStr.includes(':')) {
-                const placed = new Date(row.placedTimestamp);
-                const parts = timeStr.split(':').map(p => parseInt(p, 10));
-                if (parts.length >= 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
-                  const estDate = new Date(placed);
-                  // Summer Vienna is UTC+2
-                  estDate.setUTCHours(parts[0] - 2, parts[1], 0, 0);
-                  validEstDelivery = estDate.toISOString();
-                }
-              }
-            } catch (_) {}
-          }
-
-          const payload = {
-            orderId: row.orderId,
-            vendorId: row.vendorId,
-            vendorName: row.vendorName,
-            status: row.orderStatus,
-            deliveryType: row.deliveryType || 'vendor_delivery',
-            placedAt: row.placedTimestamp,
-            estimatedDeliveryTime: validEstDelivery,
-            total: row.subtotal,
-            deliveryFee: parsedDrawer.deliveryFee,
-            paymentMethod: parsedDrawer.paymentMethod,
-            items: parsedDrawer.items,
-            raw: row,
-          };
-
-          await dispatchWebhook(payload);
-          seenOrders.add(key);
-          saveSeenOrders();
+        } catch (fetchErr) {
+          console.warn('[Poll] Fetch notice:', fetchErr.message);
+        }
+      } else {
+        if (pollCount % 2 === 1) {
+          console.log(`[Status #${pollCount}] Waiting for Bearer token from live-orders page...`);
         }
       }
     } catch (err) {
@@ -419,7 +385,6 @@ async function run() {
     }
   }
 
-  // Auto-restart if loop exits
   setTimeout(run, 5000);
 }
 
