@@ -1,0 +1,16 @@
+name: mycut_ui
+description: MyCut design system — Material 3 theme, color tokens, typography, and shared widgets.
+version: 0.1.0
+publish_to: 'none'
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  very_good_analysis: ^6.0.0

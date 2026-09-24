@@ -1,0 +1,20 @@
+name: mycut_core
+description: Shared models, repositories, Supabase client, and Result/Failure types for MyCut.
+version: 0.1.0
+publish_to: 'none'
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_riverpod: ^2.6.1
+  mycut_cutspec:
+    path: ../mycut_cutspec
+  supabase_flutter: ^2.8.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  very_good_analysis: ^6.0.0

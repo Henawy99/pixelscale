@@ -22,3 +22,16 @@ scripts:
     exec:
       concurrency: 4
     description: Run flutter clean on all apps.
+
+  analyze:
+    run: dart analyze --fatal-infos
+    exec:
+      concurrency: 4
+    description: Run dart analyze on all packages.
+
+  test:
+    run: dart test
+    exec:
+      concurrency: 4
+      failFast: true
+    description: Run tests on all packages.
