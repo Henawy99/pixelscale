@@ -14,7 +14,13 @@
     "ios": {
       "bundleIdentifier": "com.pixelscale.reviewapp",
       "buildNumber": "12",
-      "supportsTablet": false
+      "supportsTablet": false,
+      "config": {
+        "usesNonExemptEncryption": false
+      },
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "com.pixelscale.reviewapp",
