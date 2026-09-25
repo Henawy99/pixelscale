@@ -173,6 +173,26 @@ export function getBookingTicketDeduction(
     };
   }
 
+  // If review booking (< €30 or flagged as review), no tickets were purchased
+  const isReview = typeof booking.isReviewBooking === 'boolean'
+    ? booking.isReviewBooking
+    : (gross > 0 && gross < 30);
+
+  if (isReview) {
+    return {
+      hasDeduction: false,
+      matchedRule: null,
+      totalCost: 0,
+      passengerCount: 0,
+      costPerPassenger: 0,
+      fixedCost: 0,
+      breakdownText: 'Review Booking (No tickets)',
+      grossPrice: gross,
+      netGygPayout: netGyg,
+      netProfitAfterTickets: netGyg,
+    };
+  }
+
   const tourTitle = (booking.tourTitle || '').toLowerCase();
 
   // Find first matching enabled rule

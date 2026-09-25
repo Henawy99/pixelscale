@@ -332,10 +332,16 @@ export function SettingsScreen({
             </View>
           ) : (
             rules.map((rule) => {
-              // Count matching bookings
-              const matchCount = bookings.filter((b) =>
-                b.tourTitle?.toLowerCase().includes(rule.tourKeyword.toLowerCase())
-              ).length;
+              // Count matching real tours (excluding cancelled and review bookings)
+              const matchCount = bookings.filter((b) => {
+                if (b.status === 'cancelled') return false;
+                const price = typeof b.priceAmount === 'number' && !isNaN(b.priceAmount)
+                  ? b.priceAmount
+                  : parseFloat((b.price || '').replace(/[^0-9.,]/g, '').replace(',', '.'));
+                const isReview = typeof b.isReviewBooking === 'boolean' ? b.isReviewBooking : (price > 0 && price < 30);
+                if (isReview) return false;
+                return (b.tourTitle || '').toLowerCase().includes(rule.tourKeyword.toLowerCase());
+              }).length;
 
               return (
                 <View
