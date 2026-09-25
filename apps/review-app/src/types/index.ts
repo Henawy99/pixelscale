@@ -169,7 +169,17 @@ export interface ReviewerAssignment {
   notes?: string;
 }
 
-export type ActiveTab = 'bookings' | 'calendar' | 'drivers' | 'studio' | 'settings' | 'history';
+export interface OfferedTour {
+  id: string;
+  title: string;
+  gygUrl: string;
+  location?: string;
+  notes?: string;
+  ticketCostPerPassenger?: number;
+  createdAt: number;
+}
+
+export type ActiveTab = 'bookings' | 'tours' | 'calendar' | 'drivers' | 'studio' | 'settings' | 'history';
 export type FilterType = 'all' | 'normal' | 'review' | 'confirmed' | 'last-minute' | 'cancelled';
 
 

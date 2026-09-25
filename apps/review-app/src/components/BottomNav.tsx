@@ -7,6 +7,7 @@ import {
   Users,
   Sparkles,
   Settings2,
+  Compass,
 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { ActiveTab } from '../types';
@@ -53,6 +54,28 @@ export function BottomNav({ activeTab, onSelectTab, bookingsCount }: BottomNavPr
           ]}
         >
           Bookings
+        </Text>
+      </TouchableOpacity>
+
+      {/* 2. Tours Tab */}
+      <TouchableOpacity
+        style={styles.tabItem}
+        onPress={() => handlePress('tours')}
+        activeOpacity={0.7}
+      >
+        <View style={styles.iconWrapper}>
+          <Compass
+            size={20}
+            color={activeTab === 'tours' ? '#4f46e5' : '#94a3b8'}
+          />
+        </View>
+        <Text
+          style={[
+            styles.tabLabel,
+            activeTab === 'tours' && styles.tabLabelActive,
+          ]}
+        >
+          Tours
         </Text>
       </TouchableOpacity>
 

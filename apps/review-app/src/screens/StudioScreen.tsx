@@ -31,6 +31,7 @@ import {
   MessageCircle,
   CheckCircle2,
   ArrowRight,
+  Compass,
 } from 'lucide-react-native';
 import {
   ReviewTone,
@@ -39,6 +40,7 @@ import {
   Reviewer,
   ReviewerAssignment,
   BookingItem,
+  OfferedTour,
   isBookingReview,
 } from '../types';
 import { analyzeTourRequest } from '../api/client';
@@ -57,6 +59,7 @@ interface StudioScreenProps {
   reviewers?: Reviewer[];
   reviewerAssignments?: Record<string, ReviewerAssignment>;
   bookings?: BookingItem[];
+  offeredTours?: OfferedTour[];
   onReviewersUpdated?: () => Promise<void> | void;
   onAssignReviewer?: (
     bookingRef: string,
@@ -84,6 +87,7 @@ export function StudioScreen({
   reviewers = [],
   reviewerAssignments = {},
   bookings = [],
+  offeredTours = [],
   onReviewersUpdated,
   onAssignReviewer,
 }: StudioScreenProps) {
@@ -443,6 +447,53 @@ export function StudioScreen({
 
           {/* Input Card */}
           <View style={styles.card}>
+            {/* Quick Pick from Offered Tours */}
+            {offeredTours.length > 0 && (
+              <View style={styles.quickToursContainer}>
+                <Text style={styles.quickToursTitle}>⚡ Pick from Your Offered Tours:</Text>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.quickToursScroll}
+                >
+                  {offeredTours.map((t) => {
+                    const isSelected = url === t.gygUrl;
+                    return (
+                      <TouchableOpacity
+                        key={t.id}
+                        style={[
+                          styles.quickTourChip,
+                          isSelected && styles.quickTourChipActive,
+                        ]}
+                        onPress={() => {
+                          Haptics.selectionAsync();
+                          setUrl(t.gygUrl);
+                          if (!notes) {
+                            setNotes(t.title);
+                          }
+                        }}
+                        activeOpacity={0.7}
+                      >
+                        <Compass
+                          size={13}
+                          color={isSelected ? '#ffffff' : '#0284c7'}
+                        />
+                        <Text
+                          style={[
+                            styles.quickTourChipText,
+                            isSelected && styles.quickTourChipTextActive,
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {t.title}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+            )}
+
             <Text style={styles.inputLabel}>GetYourGuide Tour URL or Title</Text>
             <View style={styles.inputRow}>
               <Link size={16} color="#94a3b8" />
@@ -1341,5 +1392,46 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: '#64748b',
     marginTop: 2,
+  },
+  quickToursContainer: {
+    marginBottom: 14,
+    backgroundColor: '#f0f9ff',
+    padding: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#bae6fd',
+  },
+  quickToursTitle: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#0369a1',
+    marginBottom: 8,
+  },
+  quickToursScroll: {
+    gap: 8,
+  },
+  quickTourChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#ffffff',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#bae6fd',
+    maxWidth: 220,
+  },
+  quickTourChipActive: {
+    backgroundColor: '#0284c7',
+    borderColor: '#0284c7',
+  },
+  quickTourChipText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#0f172a',
+  },
+  quickTourChipTextActive: {
+    color: '#ffffff',
   },
 });

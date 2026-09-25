@@ -13,6 +13,7 @@ import {
   TourTicketRule,
   Reviewer,
   ReviewerAssignment,
+  OfferedTour,
 } from './src/types';
 import { fetchLiveBookings } from './src/api/client';
 import {
@@ -28,8 +29,10 @@ import {
   assignReviewerToBooking,
   unassignReviewerFromBooking,
 } from './src/lib/reviewerStorage';
+import { getStoredOfferedTours } from './src/lib/toursStorage';
 import { BottomNav } from './src/components/BottomNav';
 import { BookingsScreen } from './src/screens/BookingsScreen';
+import { ToursScreen } from './src/screens/ToursScreen';
 import { CalendarScreen } from './src/screens/CalendarScreen';
 import { DriversScreen } from './src/screens/DriversScreen';
 import { StudioScreen } from './src/screens/StudioScreen';
@@ -48,6 +51,7 @@ export default function App() {
   const [reviewerAssignments, setReviewerAssignments] = useState<
     Record<string, ReviewerAssignment>
   >({});
+  const [offeredTours, setOfferedTours] = useState<OfferedTour[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
   const [isZohoConnected, setIsZohoConnected] = useState(false);
@@ -99,6 +103,16 @@ export default function App() {
     }
   }, []);
 
+  // Load offered tours from AsyncStorage
+  const loadOfferedTours = useCallback(async () => {
+    try {
+      const t = await getStoredOfferedTours();
+      setOfferedTours(t);
+    } catch (err) {
+      console.warn('Failed to load offered tours:', err);
+    }
+  }, []);
+
   // Load history from AsyncStorage
   useEffect(() => {
     (async () => {
@@ -114,7 +128,14 @@ export default function App() {
     loadDriversData();
     loadTicketRules();
     loadReviewersData();
-  }, [loadDriversData, loadTicketRules, loadReviewersData]);
+    loadOfferedTours();
+  }, [loadDriversData, loadTicketRules, loadReviewersData, loadOfferedTours]);
+
+  const handleGenerateFromOfferedTour = (tour: OfferedTour) => {
+    setPrefilledUrl(tour.gygUrl);
+    setPrefilledNotes(tour.title);
+    setActiveTab('studio');
+  };
 
   // Handle assigning reviewer to booking
   const handleAssignReviewer = async (
@@ -259,6 +280,14 @@ export default function App() {
             />
           )}
 
+          {activeTab === 'tours' && (
+            <ToursScreen
+              tours={offeredTours}
+              onToursUpdated={loadOfferedTours}
+              onGenerateReviewForTour={handleGenerateFromOfferedTour}
+            />
+          )}
+
           {activeTab === 'calendar' && (
             <CalendarScreen
               bookings={bookings}
@@ -285,6 +314,7 @@ export default function App() {
               bookings={bookings}
               reviewers={reviewers}
               reviewerAssignments={reviewerAssignments}
+              offeredTours={offeredTours}
               onReviewersUpdated={loadReviewersData}
               onAssignReviewer={handleAssignReviewer}
               prefilledUrl={prefilledUrl}
