@@ -3,24 +3,12 @@ import { View, Text, StyleSheet, TouchableOpacity, Modal, FlatList } from 'react
 import { LinearGradient } from 'expo-linear-gradient';
 import { Wallet, ChevronDown, Check, TrendingUp, Briefcase, Star, Ticket } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
-import { BookingItem, TourTicketRule } from '../types';
+import { BookingItem, TourTicketRule, isBookingReview, getNumericPrice } from '../types';
 import { getBookingTicketDeduction } from '../lib/ticketRulesStorage';
 
 interface RevenueCardProps {
   bookings: BookingItem[];
   ticketRules?: TourTicketRule[];
-}
-
-function getNumericPrice(b: BookingItem): number {
-  if (typeof b.priceAmount === 'number' && !isNaN(b.priceAmount)) return b.priceAmount;
-  const num = parseFloat((b.price || '').replace(/[^0-9.,]/g, '').replace(',', '.'));
-  return isNaN(num) ? 0 : num;
-}
-
-function isBookingReview(b: BookingItem): boolean {
-  if (typeof b.isReviewBooking === 'boolean') return b.isReviewBooking;
-  const price = getNumericPrice(b);
-  return price > 0 && price < 30;
 }
 
 function getMonthYear(b: BookingItem): string {

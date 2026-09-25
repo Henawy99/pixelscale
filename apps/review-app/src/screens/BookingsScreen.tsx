@@ -17,6 +17,8 @@ import {
   TourTicketRule,
   Reviewer,
   ReviewerAssignment,
+  isBookingReview,
+  getNumericPrice,
 } from '../types';
 import { RevenueCard } from '../components/RevenueCard';
 import { FilterTabs } from '../components/FilterTabs';
@@ -46,18 +48,6 @@ interface BookingsScreenProps {
     notes?: string
   ) => void;
   onUnassignReviewer?: (bookingRef: string) => void;
-}
-
-function getNumericPrice(b: BookingItem): number {
-  if (typeof b.priceAmount === 'number' && !isNaN(b.priceAmount)) return b.priceAmount;
-  const num = parseFloat((b.price || '').replace(/[^0-9.,]/g, '').replace(',', '.'));
-  return isNaN(num) ? 0 : num;
-}
-
-function isBookingReview(b: BookingItem): boolean {
-  if (typeof b.isReviewBooking === 'boolean') return b.isReviewBooking;
-  const price = getNumericPrice(b);
-  return price > 0 && price < 30;
 }
 
 export function BookingsScreen({

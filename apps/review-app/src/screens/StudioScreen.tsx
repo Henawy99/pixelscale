@@ -39,6 +39,7 @@ import {
   Reviewer,
   ReviewerAssignment,
   BookingItem,
+  isBookingReview,
 } from '../types';
 import { analyzeTourRequest } from '../api/client';
 import {
@@ -110,12 +111,7 @@ export function StudioScreen({
   const [attachModalVisible, setAttachModalVisible] = useState(false);
 
   // Only review bookings (< €30) for assignment
-  const reviewBookings = bookings.filter((b) => {
-    if (b.status === 'cancelled') return false;
-    if (typeof b.isReviewBooking === 'boolean') return b.isReviewBooking;
-    const num = parseFloat((b.price || '').replace(/[^0-9.,]/g, '').replace(',', '.'));
-    return !isNaN(num) && num > 0 && num < 30;
-  });
+  const reviewBookings = bookings.filter((b) => b.status !== 'cancelled' && isBookingReview(b));
 
   const tones: { key: ReviewTone; label: string; desc: string }[] = [
     { key: 'balanced', label: 'Balanced', desc: 'Authentic & helpful' },

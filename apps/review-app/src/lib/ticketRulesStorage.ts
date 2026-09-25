@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { TourTicketRule, BookingItem } from '../types';
+import { TourTicketRule, BookingItem, isBookingReview } from '../types';
 
 const STORAGE_KEY_TICKET_RULES = '@pixelreview_ticket_rules';
 
@@ -174,9 +174,7 @@ export function getBookingTicketDeduction(
   }
 
   // If review booking (< €30 or flagged as review), no tickets were purchased
-  const isReview = typeof booking.isReviewBooking === 'boolean'
-    ? booking.isReviewBooking
-    : (gross > 0 && gross < 30);
+  const isReview = isBookingReview(booking);
 
   if (isReview) {
     return {

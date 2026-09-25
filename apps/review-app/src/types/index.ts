@@ -85,6 +85,22 @@ export interface BookingItem {
   status: 'confirmed' | 'last-minute' | 'cancelled' | 'pending';
 }
 
+export function getNumericPrice(b: BookingItem): number {
+  if (typeof b.priceAmount === 'number' && !isNaN(b.priceAmount)) return b.priceAmount;
+  const num = parseFloat((b.price || '').replace(/[^0-9.,]/g, '').replace(',', '.'));
+  return isNaN(num) ? 0 : num;
+}
+
+export function isBookingReview(b: BookingItem): boolean {
+  if (b.isReviewBooking === true) return true;
+  const price = getNumericPrice(b);
+  if (price > 0 && price < 30) return true;
+  const title = (b.tourTitle || '').toLowerCase();
+  const fare = (b.fareOption || '').toLowerCase();
+  if (title.includes('review') || fare.includes('review')) return true;
+  return false;
+}
+
 export interface ZohoConfig {
   email: string;
   password?: string;

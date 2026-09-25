@@ -22,7 +22,7 @@ import {
   ExternalLink,
   Ticket,
 } from 'lucide-react-native';
-import { BookingItem, Driver, DriverAssignment, TourTicketRule } from '../types';
+import { BookingItem, Driver, DriverAssignment, TourTicketRule, isBookingReview } from '../types';
 import { calculateDriverTourPayout } from '../lib/driverStorage';
 import { getBookingTicketDeduction } from '../lib/ticketRulesStorage';
 
@@ -96,14 +96,6 @@ function formatCurrency(val: number): string {
     currency: 'EUR',
     minimumFractionDigits: 2,
   }).format(val);
-}
-
-function isBookingReview(b: BookingItem): boolean {
-  if (typeof b.isReviewBooking === 'boolean') return b.isReviewBooking;
-  const num = typeof b.priceAmount === 'number' && !isNaN(b.priceAmount)
-    ? b.priceAmount
-    : parseFloat((b.price || '').replace(/[^0-9.,]/g, '').replace(',', '.'));
-  return !isNaN(num) && num > 0 && num < 30;
 }
 
 export function CalendarScreen({

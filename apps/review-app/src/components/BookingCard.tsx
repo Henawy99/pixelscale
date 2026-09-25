@@ -37,6 +37,8 @@ import {
   TourTicketRule,
   Reviewer,
   ReviewerAssignment,
+  isBookingReview,
+  getNumericPrice,
 } from '../types';
 import { calculateDriverTourPayout } from '../lib/driverStorage';
 import { getBookingTicketDeduction } from '../lib/ticketRulesStorage';
@@ -63,18 +65,6 @@ interface BookingCardProps {
     notes?: string
   ) => void;
   onUnassignReviewer?: (bookingRef: string) => void;
-}
-
-function getNumericPrice(b: BookingItem): number {
-  if (typeof b.priceAmount === 'number' && !isNaN(b.priceAmount)) return b.priceAmount;
-  const num = parseFloat((b.price || '').replace(/[^0-9.,]/g, '').replace(',', '.'));
-  return isNaN(num) ? 0 : num;
-}
-
-function isBookingReview(b: BookingItem): boolean {
-  if (typeof b.isReviewBooking === 'boolean') return b.isReviewBooking;
-  const price = getNumericPrice(b);
-  return price > 0 && price < 30;
 }
 
 export function BookingCard({
@@ -515,109 +505,112 @@ export function BookingCard({
         </TouchableOpacity>
       )}
 
-      {/* Assign Driver Modal */}
-      <Modal visible={driverModalVisible} transparent animationType="fade">
-        <TouchableOpacity
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={() => setDriverModalVisible(false)}
-        >
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Assign Driver to Tour</Text>
-              <TouchableOpacity onPress={() => setDriverModalVisible(false)}>
-                <X size={18} color="#64748b" />
-              </TouchableOpacity>
-            </View>
+      {/* Assign Driver Modal (Real Tours Only) */}
+      {!isReview && !isCancelled && (
+        <Modal visible={driverModalVisible} transparent animationType="fade">
+          <TouchableOpacity
+            style={styles.modalOverlay}
+            activeOpacity={1}
+            onPress={() => setDriverModalVisible(false)}
+          >
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Assign Driver to Tour</Text>
+                <TouchableOpacity onPress={() => setDriverModalVisible(false)}>
+                  <X size={18} color="#64748b" />
+                </TouchableOpacity>
+              </View>
 
-            <Text style={styles.modalSub}>
-              Booking {booking.referenceNumber} · {booking.tourTitle}
-            </Text>
-
-            {/* Custom payout override (optional) */}
-            <View style={styles.overrideSection}>
-              <Text style={styles.overrideLabel}>Custom Payout Override (Optional €):</Text>
-              <TextInput
-                style={styles.overrideInput}
-                placeholder="Leave blank to use driver rate"
-                placeholderTextColor="#94a3b8"
-                keyboardType="numeric"
-                value={customPayoutText}
-                onChangeText={setCustomPayoutText}
-              />
-            </View>
-
-            <Text style={styles.selectDriverHeading}>Select Driver:</Text>
-
-            {drivers.length === 0 ? (
-              <Text style={styles.noDriversNote}>
-                No drivers added yet. Please add a driver in the Drivers tab first!
+              <Text style={styles.modalSub}>
+                Booking {booking.referenceNumber} · {booking.tourTitle}
               </Text>
-            ) : (
-              <FlatList
-                data={drivers}
-                keyExtractor={(item) => item.id}
-                renderItem={({ item }) => {
-                  const isSelected = assignedDriver?.id === item.id;
-                  const estimatedCut = calculateDriverTourPayout(booking, item);
-                  return (
-                    <TouchableOpacity
-                      style={[
-                        styles.driverItem,
-                        isSelected && styles.driverItemSelected,
-                      ]}
-                      onPress={() => handleSelectDriver(item)}
-                    >
-                      <View style={styles.driverItemInfo}>
-                        <View
-                          style={[
-                            styles.driverItemAvatar,
-                            { backgroundColor: item.color || '#3b82f6' },
-                          ]}
-                        >
-                          <Text style={styles.driverItemInitial}>
-                            {item.name.charAt(0)}
-                          </Text>
-                        </View>
-                        <View>
-                          <Text style={styles.driverItemName}>{item.name}</Text>
-                          <Text style={styles.driverItemRate}>
-                            {item.payoutType === 'percentage'
-                              ? `${item.defaultPayoutRate}% Net GYG Cut`
-                              : `€${item.defaultPayoutRate} Fixed per tour`}
-                          </Text>
-                        </View>
-                      </View>
 
-                      <View style={styles.driverItemRight}>
-                        <Text style={styles.driverEstPayout}>
-                          €{estimatedCut.toFixed(2)}
-                        </Text>
-                        {isSelected && <Check size={16} color="#4f46e5" />}
-                      </View>
-                    </TouchableOpacity>
-                  );
-                }}
-              />
-            )}
+              {/* Custom payout override (optional) */}
+              <View style={styles.overrideSection}>
+                <Text style={styles.overrideLabel}>Custom Payout Override (Optional €):</Text>
+                <TextInput
+                  style={styles.overrideInput}
+                  placeholder="Leave blank to use driver rate"
+                  placeholderTextColor="#94a3b8"
+                  keyboardType="numeric"
+                  value={customPayoutText}
+                  onChangeText={setCustomPayoutText}
+                />
+              </View>
 
-            {assignedDriver && (
-              <TouchableOpacity
-                style={styles.removeAssignmentBtn}
-                onPress={handleRemoveAssignment}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.removeAssignmentBtnText}>
-                  Unassign Driver from this Booking
+              <Text style={styles.selectDriverHeading}>Select Driver:</Text>
+
+              {drivers.length === 0 ? (
+                <Text style={styles.noDriversNote}>
+                  No drivers added yet. Please add a driver in the Drivers tab first!
                 </Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        </TouchableOpacity>
-      </Modal>
+              ) : (
+                <FlatList
+                  data={drivers}
+                  keyExtractor={(item) => item.id}
+                  renderItem={({ item }) => {
+                    const isSelected = assignedDriver?.id === item.id;
+                    const estimatedCut = calculateDriverTourPayout(booking, item);
+                    return (
+                      <TouchableOpacity
+                        style={[
+                          styles.driverItem,
+                          isSelected && styles.driverItemSelected,
+                        ]}
+                        onPress={() => handleSelectDriver(item)}
+                      >
+                        <View style={styles.driverItemInfo}>
+                          <View
+                            style={[
+                              styles.driverItemAvatar,
+                              { backgroundColor: item.color || '#3b82f6' },
+                            ]}
+                          >
+                            <Text style={styles.driverItemInitial}>
+                              {item.name.charAt(0)}
+                            </Text>
+                          </View>
+                          <View>
+                            <Text style={styles.driverItemName}>{item.name}</Text>
+                            <Text style={styles.driverItemRate}>
+                              {item.payoutType === 'percentage'
+                                ? `${item.defaultPayoutRate}% Net GYG Cut`
+                                : `€${item.defaultPayoutRate} Fixed per tour`}
+                            </Text>
+                          </View>
+                        </View>
 
-      {/* Attach Reviewer Modal */}
-      <Modal visible={reviewerModalVisible} transparent animationType="fade">
+                        <View style={styles.driverItemRight}>
+                          <Text style={styles.driverEstPayout}>
+                            €{estimatedCut.toFixed(2)}
+                          </Text>
+                          {isSelected && <Check size={16} color="#4f46e5" />}
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  }}
+                />
+              )}
+
+              {assignedDriver && (
+                <TouchableOpacity
+                  style={styles.removeAssignmentBtn}
+                  onPress={handleRemoveAssignment}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.removeAssignmentBtnText}>
+                    Unassign Driver from this Booking
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </TouchableOpacity>
+        </Modal>
+      )}
+
+      {/* Attach Reviewer Modal (Review Bookings Only) */}
+      {isReview && !isCancelled && (
+        <Modal visible={reviewerModalVisible} transparent animationType="fade">
         <TouchableOpacity
           style={styles.modalOverlay}
           activeOpacity={1}
@@ -693,6 +686,7 @@ export function BookingCard({
           </View>
         </TouchableOpacity>
       </Modal>
+      )}
     </View>
   );
 }
