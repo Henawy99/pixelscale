@@ -98,6 +98,14 @@ function formatCurrency(val: number): string {
   }).format(val);
 }
 
+function isBookingReview(b: BookingItem): boolean {
+  if (typeof b.isReviewBooking === 'boolean') return b.isReviewBooking;
+  const num = typeof b.priceAmount === 'number' && !isNaN(b.priceAmount)
+    ? b.priceAmount
+    : parseFloat((b.price || '').replace(/[^0-9.,]/g, '').replace(',', '.'));
+  return !isNaN(num) && num > 0 && num < 30;
+}
+
 export function CalendarScreen({
   bookings,
   drivers,
@@ -451,6 +459,7 @@ export function CalendarScreen({
             ? calculateDriverTourPayout(item, assignedDriver, assignment?.customPayoutAmount)
             : 0;
           const ticketInfo = getBookingTicketDeduction(item, ticketRules);
+          const isReview = isBookingReview(item);
 
           return (
             <View style={[styles.tourCard, isCancelled && styles.tourCardCancelled]}>
@@ -591,7 +600,7 @@ export function CalendarScreen({
                   )}
                 </View>
 
-                {!isCancelled && (
+                {!isCancelled && isReview && (
                   <TouchableOpacity
                     style={styles.reviewStudioBtn}
                     onPress={() => onGenerateReview(item)}

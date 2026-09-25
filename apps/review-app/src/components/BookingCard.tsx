@@ -357,8 +357,8 @@ export function BookingCard({
         </TouchableOpacity>
       </View>
 
-      {/* Action Button: Generate Review & Visuals */}
-      {!isCancelled && (
+      {/* Action Button: Generate Review & Visuals (ONLY for Review Bookings, hidden for real tours) */}
+      {isReview && !isCancelled && (
         <TouchableOpacity
           style={styles.generateBtn}
           onPress={handleGenerate}
