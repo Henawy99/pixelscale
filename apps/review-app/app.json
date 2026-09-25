@@ -1,0 +1,28 @@
+{
+  "expo": {
+    "name": "PixelReview",
+    "slug": "pixelreview",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#f8fafc"
+    },
+    "ios": {
+      "bundleIdentifier": "com.pixelscale.reviewapp",
+      "buildNumber": "7",
+      "supportsTablet": false
+    },
+    "android": {
+      "package": "com.pixelscale.reviewapp",
+      "versionCode": 7,
+      "adaptiveIcon": {
+        "backgroundColor": "#4f46e5",
+        "foregroundImage": "./assets/icon.png"
+      }
+    }
+  }
+}

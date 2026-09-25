@@ -6,6 +6,8 @@ build/
 *.jks
 *.p8
 *.p12
+*.cer
+*.certSigningRequest
 *.key
 *.mobileprovision
 *.orig.*

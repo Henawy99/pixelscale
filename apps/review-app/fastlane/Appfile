@@ -1,0 +1,12 @@
+# ============================================
+# PixelReview - iOS Fastlane Configuration
+# ============================================
+#
+# Configured identically to restaurantadmin
+# Team ID: G67XQ5S4QU
+# ============================================
+
+app_identifier("com.pixelscale.reviewapp")  # iOS Bundle ID
+apple_id("")                               # Optional with API key auth
+team_id("G67XQ5S4QU")                      # Apple Developer Team ID
+itc_team_id("G67XQ5S4QU")                  # App Store Connect Team ID
