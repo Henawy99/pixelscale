@@ -133,6 +133,26 @@ export interface TourTicketRule {
   createdAt: number;
 }
 
+export interface Reviewer {
+  id: string;
+  name: string;
+  phone: string; // WhatsApp phone number, e.g. +43 664 1234567
+  whatsappPhone?: string; // alias for phone
+  color?: string;
+  notes?: string;
+  createdAt: number;
+}
+
+export interface ReviewerAssignment {
+  bookingRef: string;
+  reviewerId: string;
+  assignedAt: number;
+  reviewText?: string;
+  generatedReviewText?: string; // alias
+  photoUrls?: string[];
+  notes?: string;
+}
+
 export type ActiveTab = 'bookings' | 'calendar' | 'drivers' | 'studio' | 'settings' | 'history';
 export type FilterType = 'all' | 'normal' | 'review' | 'confirmed' | 'last-minute' | 'cancelled';
 

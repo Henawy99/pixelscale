@@ -13,12 +13,12 @@
     },
     "ios": {
       "bundleIdentifier": "com.pixelscale.reviewapp",
-      "buildNumber": "9",
+      "buildNumber": "10",
       "supportsTablet": false
     },
     "android": {
       "package": "com.pixelscale.reviewapp",
-      "versionCode": 9,
+      "versionCode": 10,
       "adaptiveIcon": {
         "backgroundColor": "#4f46e5",
         "foregroundImage": "./assets/icon.png"

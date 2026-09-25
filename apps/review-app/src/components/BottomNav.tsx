@@ -118,7 +118,7 @@ export function BottomNav({ activeTab, onSelectTab, bookingsCount }: BottomNavPr
             activeTab === 'studio' && styles.tabLabelActive,
           ]}
         >
-          Studio
+          Reviews
         </Text>
       </TouchableOpacity>
 

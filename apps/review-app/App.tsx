@@ -11,6 +11,8 @@ import {
   Driver,
   DriverAssignment,
   TourTicketRule,
+  Reviewer,
+  ReviewerAssignment,
 } from './src/types';
 import { fetchLiveBookings } from './src/api/client';
 import {
@@ -20,7 +22,12 @@ import {
   unassignDriverFromBooking,
 } from './src/lib/driverStorage';
 import { getStoredTicketRules } from './src/lib/ticketRulesStorage';
-import { Header } from './src/components/Header';
+import {
+  getStoredReviewers,
+  getStoredReviewerAssignments,
+  assignReviewerToBooking,
+  unassignReviewerFromBooking,
+} from './src/lib/reviewerStorage';
 import { BottomNav } from './src/components/BottomNav';
 import { BookingsScreen } from './src/screens/BookingsScreen';
 import { CalendarScreen } from './src/screens/CalendarScreen';
@@ -37,6 +44,10 @@ export default function App() {
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [assignments, setAssignments] = useState<Record<string, DriverAssignment>>({});
   const [ticketRules, setTicketRules] = useState<TourTicketRule[]>([]);
+  const [reviewers, setReviewers] = useState<Reviewer[]>([]);
+  const [reviewerAssignments, setReviewerAssignments] = useState<
+    Record<string, ReviewerAssignment>
+  >({});
   const [isLoading, setIsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
   const [isZohoConnected, setIsZohoConnected] = useState(false);
@@ -74,6 +85,20 @@ export default function App() {
     }
   }, []);
 
+  // Load reviewers and reviewer assignments from AsyncStorage
+  const loadReviewersData = useCallback(async () => {
+    try {
+      const [r, ra] = await Promise.all([
+        getStoredReviewers(),
+        getStoredReviewerAssignments(),
+      ]);
+      setReviewers(r);
+      setReviewerAssignments(ra);
+    } catch (err) {
+      console.warn('Failed to load reviewers:', err);
+    }
+  }, []);
+
   // Load history from AsyncStorage
   useEffect(() => {
     (async () => {
@@ -88,7 +113,32 @@ export default function App() {
     })();
     loadDriversData();
     loadTicketRules();
-  }, [loadDriversData, loadTicketRules]);
+    loadReviewersData();
+  }, [loadDriversData, loadTicketRules, loadReviewersData]);
+
+  // Handle assigning reviewer to booking
+  const handleAssignReviewer = async (
+    bookingRef: string,
+    reviewerId: string,
+    reviewText?: string,
+    photoUrls?: string[],
+    notes?: string
+  ) => {
+    const updated = await assignReviewerToBooking(
+      bookingRef,
+      reviewerId,
+      reviewText,
+      photoUrls,
+      notes
+    );
+    setReviewerAssignments(updated);
+  };
+
+  // Handle unassigning reviewer from booking
+  const handleUnassignReviewer = async (bookingRef: string) => {
+    const updated = await unassignReviewerFromBooking(bookingRef);
+    setReviewerAssignments(updated);
+  };
 
   // Handle assigning driver to booking
   const handleAssignDriver = async (
@@ -185,14 +235,6 @@ export default function App() {
       <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
         <StatusBar style="dark" />
 
-        {/* Global Header */}
-        <Header
-          isZohoConnected={isZohoConnected}
-          isSyncing={isSyncing}
-          onRefresh={() => loadBookings(false)}
-          onOpenSettings={() => setActiveTab('settings')}
-        />
-
         {/* Tab Body */}
         <View style={styles.body}>
           {activeTab === 'bookings' && (
@@ -201,6 +243,8 @@ export default function App() {
               drivers={drivers}
               assignments={assignments}
               ticketRules={ticketRules}
+              reviewers={reviewers}
+              reviewerAssignments={reviewerAssignments}
               isLoading={isLoading}
               isSyncing={isSyncing}
               isZohoConnected={isZohoConnected}
@@ -210,6 +254,8 @@ export default function App() {
               onGenerateReview={handleGenerateFromBooking}
               onAssignDriver={handleAssignDriver}
               onUnassignDriver={handleUnassignDriver}
+              onAssignReviewer={handleAssignReviewer}
+              onUnassignReviewer={handleUnassignReviewer}
             />
           )}
 
@@ -236,6 +282,11 @@ export default function App() {
 
           {activeTab === 'studio' && (
             <StudioScreen
+              bookings={bookings}
+              reviewers={reviewers}
+              reviewerAssignments={reviewerAssignments}
+              onReviewersUpdated={loadReviewersData}
+              onAssignReviewer={handleAssignReviewer}
               prefilledUrl={prefilledUrl}
               prefilledNotes={prefilledNotes}
               onClearPrefill={() => {

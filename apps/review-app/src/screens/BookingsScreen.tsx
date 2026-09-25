@@ -9,7 +9,15 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { Search, AlertCircle, CheckCircle2 } from 'lucide-react-native';
-import { BookingItem, FilterType, Driver, DriverAssignment, TourTicketRule } from '../types';
+import {
+  BookingItem,
+  FilterType,
+  Driver,
+  DriverAssignment,
+  TourTicketRule,
+  Reviewer,
+  ReviewerAssignment,
+} from '../types';
 import { RevenueCard } from '../components/RevenueCard';
 import { FilterTabs } from '../components/FilterTabs';
 import { BookingCard } from '../components/BookingCard';
@@ -19,6 +27,8 @@ interface BookingsScreenProps {
   drivers?: Driver[];
   assignments?: Record<string, DriverAssignment>;
   ticketRules?: TourTicketRule[];
+  reviewers?: Reviewer[];
+  reviewerAssignments?: Record<string, ReviewerAssignment>;
   isLoading: boolean;
   isSyncing: boolean;
   isZohoConnected: boolean;
@@ -28,6 +38,14 @@ interface BookingsScreenProps {
   onGenerateReview: (booking: BookingItem) => void;
   onAssignDriver?: (bookingRef: string, driverId: string, customPayout?: number) => void;
   onUnassignDriver?: (bookingRef: string) => void;
+  onAssignReviewer?: (
+    bookingRef: string,
+    reviewerId: string,
+    reviewText?: string,
+    photoUrls?: string[],
+    notes?: string
+  ) => void;
+  onUnassignReviewer?: (bookingRef: string) => void;
 }
 
 function getNumericPrice(b: BookingItem): number {
@@ -47,6 +65,8 @@ export function BookingsScreen({
   drivers = [],
   assignments = {},
   ticketRules = [],
+  reviewers = [],
+  reviewerAssignments = {},
   isLoading,
   isSyncing,
   isZohoConnected,
@@ -56,9 +76,11 @@ export function BookingsScreen({
   onGenerateReview,
   onAssignDriver,
   onUnassignDriver,
+  onAssignReviewer,
+  onUnassignReviewer,
 }: BookingsScreenProps) {
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedFilter, setSelectedFilter] = useState<FilterType>('all');
+  const [selectedFilter, setSelectedFilter] = useState<FilterType>('normal');
 
   const filteredBookings = useMemo(() => {
     return bookings.filter((b) => {
@@ -198,9 +220,13 @@ export function BookingsScreen({
             drivers={drivers}
             assignment={assignments[item.referenceNumber]}
             ticketRules={ticketRules}
+            reviewers={reviewers}
+            reviewerAssignment={reviewerAssignments[item.referenceNumber]}
             onGenerateReview={onGenerateReview}
             onAssignDriver={onAssignDriver}
             onUnassignDriver={onUnassignDriver}
+            onAssignReviewer={onAssignReviewer}
+            onUnassignReviewer={onUnassignReviewer}
           />
         )}
         ListEmptyComponent={
