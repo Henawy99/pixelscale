@@ -64,9 +64,8 @@ platform :ios do
       upload_to_testflight(
         api_key: @api_key,
         skip_waiting_for_build_processing: true,
-        skip_submission: false,
+        skip_submission: true,
         distribute_external: false,
-        changelog: "PixelReview Native React Native iOS Release",
         ipa: File.expand_path("../build/ios/ipa/PixelReview.ipa", File.dirname(__FILE__))
       )
       UI.success("✅ Successfully uploaded to TestFlight!")
@@ -117,7 +116,7 @@ platform :ios do
     upload_to_testflight(
       api_key: @api_key,
       skip_waiting_for_build_processing: true,
-      skip_submission: false,
+      skip_submission: true,
       distribute_external: false,
       ipa: Dir[File.expand_path("../build/ios/ipa/*.ipa", File.dirname(__FILE__))].first
     )
