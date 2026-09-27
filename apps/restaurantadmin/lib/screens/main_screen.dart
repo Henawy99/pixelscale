@@ -3,7 +3,7 @@ import 'package:restaurantadmin/screens/orders_screen.dart';
 import 'package:restaurantadmin/screens/inventory_screen.dart';
 import 'package:restaurantadmin/screens/menus_screen.dart';
 import 'package:restaurantadmin/screens/delivery_monitor_screen.dart';
-import 'package:restaurantadmin/screens/receipt_watcher_screen.dart';
+import 'package:restaurantadmin/screens/expenses/expenses_screen.dart';
 import 'package:restaurantadmin/screens/employees/schedule_tab.dart';
 import 'package:restaurantadmin/screens/delivery_sessions_screen.dart';
 import 'package:restaurantadmin/services/employee_assignments_repository.dart';
@@ -30,7 +30,7 @@ class _MainScreenState extends State<MainScreen> {
     const InventoryScreen(),
     const MenusScreen(),
     DeliveryMonitorScreen(supabaseClient: Supabase.instance.client),
-    const ReceiptWatcherScreen(),
+    const ExpensesScreen(),
     _EmployeesRoot(),
     const DeliverySessionsScreen(),
   ];
@@ -40,7 +40,7 @@ class _MainScreenState extends State<MainScreen> {
     'Inventory',
     'Menus',
     'Map',
-    'Receipts',
+    'Expenses',
     'Employees',
     'Platforms',
   ];
@@ -124,8 +124,8 @@ class _MainScreenState extends State<MainScreen> {
               label: 'Map',
             ),
             BottomNavigationBarItem(
-              icon: Icon(Icons.image_search),
-              label: 'Receipts',
+              icon: Icon(Icons.request_quote_outlined),
+              label: 'Expenses',
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.group_outlined),

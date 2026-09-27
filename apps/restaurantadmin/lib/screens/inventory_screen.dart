@@ -103,6 +103,28 @@ class _InventoryScreenState extends State<InventoryScreen>
       'icon': Icons.cake_outlined,
       'color': Colors.pink.shade400,
     },
+    // No photos yet: the cards show the icon instead.
+    {
+      'name': 'DAIRY',
+      'imageUrl': 'assets/categories/dairy.jpg',
+      'id': 'DAIRY',
+      'icon': Icons.egg_outlined,
+      'color': Colors.amber.shade700,
+    },
+    {
+      'name': 'DRY GOODS',
+      'imageUrl': 'assets/categories/drygoods.jpg',
+      'id': 'DRY_GOODS',
+      'icon': Icons.kitchen_outlined,
+      'color': Colors.teal.shade600,
+    },
+    {
+      'name': 'SUPPLIES',
+      'imageUrl': 'assets/categories/supplies.jpg',
+      'id': 'SUPPLIES',
+      'icon': Icons.cleaning_services_outlined,
+      'color': Colors.blueGrey.shade600,
+    },
   ];
 
   List<ReceiptDisplayItem> _receiptDisplayItems = [];
