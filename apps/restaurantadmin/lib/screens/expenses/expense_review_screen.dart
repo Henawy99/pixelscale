@@ -249,6 +249,20 @@ class _ExpenseReviewScreenState extends State<ExpenseReviewScreen> {
     );
   }
 
+  Future<void> _reopenForStock() async {
+    final ok = await _confirm(
+      'Add this invoice to stock?',
+      'It is from ${formatDate(_expense!.date)}. Only do this if these goods are still in the kitchen — '
+          'otherwise your stock count would be too high.',
+      'Review for stock',
+    );
+    if (!ok) return;
+    await _run(() async {
+      await _service.reopenForStock(widget.expenseId);
+      await _load();
+    });
+  }
+
   Future<void> _unbook() async {
     final ok = await _confirm(
       'Undo booking?',
@@ -331,7 +345,7 @@ class _ExpenseReviewScreenState extends State<ExpenseReviewScreen> {
                 _ => null,
               },
               itemBuilder: (_) => [
-                if (!e.isBooked && e.documentPaths.isNotEmpty)
+                if (!e.isBooked && !e.isRecorded && e.documentPaths.isNotEmpty)
                   const PopupMenuItem(
                     value: 'reread',
                     child: ListTile(leading: Icon(Icons.refresh), title: Text('Read again')),
@@ -416,7 +430,7 @@ class _ExpenseReviewScreenState extends State<ExpenseReviewScreen> {
             children: [
               Text('Items (${_lines.length})', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
               const Spacer(),
-              if (!e.isBooked) ...[
+              if (!e.isBooked && !e.isRecorded) ...[
                 _countChip('$ready ready', const Color(0xFF059669)),
                 if (attention > 0) ...[
                   const SizedBox(width: 6),
@@ -707,6 +721,27 @@ class _ExpenseReviewScreenState extends State<ExpenseReviewScreen> {
   }
 
   Widget _stockRow(Expense e, ExpenseLine l, LineDecision d, StockMaterial? m) {
+    // History only: show the match, nothing to edit.
+    if (e.isRecorded) {
+      final conv = d.conversionRatio;
+      if (!l.isProduct || m == null) {
+        return _statusBox(
+          const Color(0xFFF3F4F6),
+          Icons.remove_circle_outline,
+          const Color(0xFF6B7280),
+          l.isProduct ? 'No material matched' : l.kindLabel,
+          null,
+        );
+      }
+      return _statusBox(
+        const Color(0xFFF3F4F6),
+        Icons.inventory_2_outlined,
+        const Color(0xFF475569),
+        m.name,
+        conv == null ? null : '${quantityText(l.quantity)} × ${formatQuantity(conv, m.unit)} (not added to stock)',
+      );
+    }
+
     // Booked: show what was added.
     if (e.isBooked) {
       if (!l.booked || m == null || l.baseQuantity == null) {
@@ -876,6 +911,27 @@ class _ExpenseReviewScreenState extends State<ExpenseReviewScreen> {
                 ),
               ),
               TextButton(onPressed: _busy ? null : _unbook, child: const Text('Undo')),
+            ],
+          ),
+        ),
+      );
+    }
+    if (e.isRecorded) {
+      return SafeArea(
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+          color: const Color(0xFFF1F5F9),
+          child: Row(
+            children: [
+              const Icon(Icons.history_edu_rounded, color: Color(0xFF64748B)),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Text(
+                  'Recorded for your spending history. Not added to stock.',
+                  style: TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF334155)),
+                ),
+              ),
+              TextButton(onPressed: _busy ? null : _reopenForStock, child: const Text('Add to stock')),
             ],
           ),
         ),

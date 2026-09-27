@@ -5,6 +5,7 @@
 //
 // Body: { paths: string[] }            new expense from uploaded pages (bucket "scanned-receipts")
 //    or { purchase_id: string }         read an existing expense again (e.g. after a failure)
+//    + { mode: "record" }               optional: history only — status "recorded", never offered for stock
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.43.4";
@@ -56,7 +57,7 @@ serve(async (req: Request) => {
     userId = user.id;
   }
 
-  let body: { paths?: string[]; purchase_id?: string } = {};
+  let body: { paths?: string[]; purchase_id?: string; mode?: string } = {};
   try {
     body = await req.json();
   } catch {
@@ -111,6 +112,12 @@ serve(async (req: Request) => {
     const supplierName = supplierId
       ? (suppliers ?? []).find((s) => s.id === supplierId)?.name ?? doc.supplier.name
       : doc.supplier.name;
+
+    // A certain match teaches the supplier its VAT id, so it is recognised even if the name changes.
+    const matchedRow = (suppliers ?? []).find((s) => s.id === supplierId);
+    if (matchedRow && !matchedRow.vat_id && doc.supplier.vat_id && supplierMatch.score >= 0.95) {
+      await admin.from("suppliers").update({ vat_id: doc.supplier.vat_id }).eq("id", matchedRow.id).is("vat_id", null);
+    }
 
     let catalog: CatalogRow[] = [];
     if (supplierId) {
@@ -215,7 +222,7 @@ serve(async (req: Request) => {
     const { error: updErr } = await admin
       .from("purchases")
       .update({
-        status: "needs_review",
+        status: body.mode === "record" ? "recorded" : "needs_review",
         error: null,
         supplier_id: supplierId,
         supplier_name: supplierName,
@@ -236,7 +243,7 @@ serve(async (req: Request) => {
       `[scan-expense] ${purchaseId}: ${supplierName ?? "?"} #${doc.invoice_number ?? "?"}, ${items.length} lines, ` +
         `${items.filter((i) => i.material_id).length} matched, supplier ${supplierMatch.status}, ${model} ${ms}ms`
     );
-    return json({ purchase_id: purchaseId, status: "needs_review" });
+    return json({ purchase_id: purchaseId, status: body.mode === "record" ? "recorded" : "needs_review" });
   } catch (e) {
     const message = (e as Error).message ?? String(e);
     console.error(`[scan-expense] ${purchaseId} failed:`, message);

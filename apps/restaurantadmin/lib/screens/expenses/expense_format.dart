@@ -47,6 +47,7 @@ String quantityText(double? q) => q == null ? '' : _plain.format(q);
   'failed' => (label: 'Could not read', color: const Color(0xFFDC2626), icon: Icons.error_outline_rounded),
   'booked' || 'approved' => (label: 'In stock', color: const Color(0xFF059669), icon: Icons.check_circle_rounded),
   'pending_review' => (label: 'Old scan', color: const Color(0xFF9CA3AF), icon: Icons.history_rounded),
+  'recorded' => (label: 'Recorded', color: const Color(0xFF64748B), icon: Icons.history_edu_rounded),
   _ => (label: 'To review', color: const Color(0xFFD97706), icon: Icons.rate_review_outlined),
 };
 

@@ -195,6 +195,11 @@ class ExpenseService {
     return (((res as Map?)?['changes'] as List?) ?? const []).cast<Map<String, dynamic>>();
   }
 
+  /// A recorded (history-only) expense becomes reviewable for stock again.
+  Future<void> reopenForStock(String expenseId) async {
+    await _db.from('purchases').update({'status': 'needs_review'}).eq('id', expenseId).eq('status', 'recorded');
+  }
+
   Future<void> unbook(String expenseId) async {
     await _db.rpc('unbook_expense', params: {'p_purchase_id': expenseId});
   }

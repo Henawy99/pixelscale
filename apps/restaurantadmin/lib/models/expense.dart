@@ -63,6 +63,9 @@ class Expense {
   bool get isBooked => status == 'booked' || status == 'approved';
   bool get needsReview => status == 'needs_review';
 
+  /// Imported for the spending history only: never offered for stock unless reopened.
+  bool get isRecorded => status == 'recorded';
+
   /// Made by the previous scanner (no supplier, no document). Shown, but not counted as work to do.
   bool get isLegacyScan => status == 'pending_review';
 
