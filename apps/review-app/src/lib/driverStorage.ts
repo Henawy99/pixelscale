@@ -1,5 +1,5 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Driver, DriverAssignment, BookingItem } from '../types';
+import { kv } from './storage';
+import { Driver, DriverAssignment, BookingItem, getNumericPrice, platformFeeRate } from '../types';
 
 const STORAGE_KEY_DRIVERS = '@pixelreview_drivers';
 const STORAGE_KEY_ASSIGNMENTS = '@pixelreview_driver_assignments';
@@ -29,9 +29,9 @@ export const DEFAULT_DRIVERS: Driver[] = [
 
 export async function getStoredDrivers(): Promise<Driver[]> {
   try {
-    const raw = await AsyncStorage.getItem(STORAGE_KEY_DRIVERS);
+    const raw = await kv.getItem(STORAGE_KEY_DRIVERS);
     if (raw === null) {
-      await AsyncStorage.setItem(STORAGE_KEY_DRIVERS, JSON.stringify(DEFAULT_DRIVERS));
+      await kv.setItem(STORAGE_KEY_DRIVERS, JSON.stringify(DEFAULT_DRIVERS));
       return DEFAULT_DRIVERS;
     }
     const parsed = JSON.parse(raw);
@@ -52,18 +52,18 @@ export async function saveDriver(driver: Driver): Promise<Driver[]> {
   } else {
     updated = [driver, ...current];
   }
-  await AsyncStorage.setItem(STORAGE_KEY_DRIVERS, JSON.stringify(updated));
+  await kv.setItem(STORAGE_KEY_DRIVERS, JSON.stringify(updated));
   return updated;
 }
 
 export async function deleteDriver(id: string): Promise<Driver[]> {
   const current = await getStoredDrivers();
   const updated = current.filter((d) => d.id !== id);
-  await AsyncStorage.setItem(STORAGE_KEY_DRIVERS, JSON.stringify(updated));
+  await kv.setItem(STORAGE_KEY_DRIVERS, JSON.stringify(updated));
 
   // Also clean up any booking assignments associated with this deleted driver
   try {
-    const rawAssignments = await AsyncStorage.getItem(STORAGE_KEY_ASSIGNMENTS);
+    const rawAssignments = await kv.getItem(STORAGE_KEY_ASSIGNMENTS);
     if (rawAssignments) {
       const assignments = JSON.parse(rawAssignments);
       let changed = false;
@@ -74,7 +74,7 @@ export async function deleteDriver(id: string): Promise<Driver[]> {
         }
       }
       if (changed) {
-        await AsyncStorage.setItem(STORAGE_KEY_ASSIGNMENTS, JSON.stringify(assignments));
+        await kv.setItem(STORAGE_KEY_ASSIGNMENTS, JSON.stringify(assignments));
       }
     }
   } catch (err) {
@@ -86,7 +86,7 @@ export async function deleteDriver(id: string): Promise<Driver[]> {
 
 export async function getStoredAssignments(): Promise<Record<string, DriverAssignment>> {
   try {
-    const raw = await AsyncStorage.getItem(STORAGE_KEY_ASSIGNMENTS);
+    const raw = await kv.getItem(STORAGE_KEY_ASSIGNMENTS);
     if (!raw) return {};
     return JSON.parse(raw);
   } catch (err) {
@@ -107,7 +107,7 @@ export async function assignDriverToBooking(
     assignedAt: Date.now(),
     customPayoutAmount,
   };
-  await AsyncStorage.setItem(STORAGE_KEY_ASSIGNMENTS, JSON.stringify(current));
+  await kv.setItem(STORAGE_KEY_ASSIGNMENTS, JSON.stringify(current));
   return { ...current };
 }
 
@@ -116,14 +116,8 @@ export async function unassignDriverFromBooking(
 ): Promise<Record<string, DriverAssignment>> {
   const current = await getStoredAssignments();
   delete current[bookingRef];
-  await AsyncStorage.setItem(STORAGE_KEY_ASSIGNMENTS, JSON.stringify(current));
+  await kv.setItem(STORAGE_KEY_ASSIGNMENTS, JSON.stringify(current));
   return { ...current };
-}
-
-function getNumericPrice(b: BookingItem): number {
-  if (typeof b.priceAmount === 'number' && !isNaN(b.priceAmount)) return b.priceAmount;
-  const num = parseFloat((b.price || '').replace(/[^0-9.,]/g, '').replace(',', '.'));
-  return isNaN(num) ? 0 : num;
 }
 
 /**
@@ -144,7 +138,7 @@ export function calculateDriverTourPayout(
   }
 
   const gross = getNumericPrice(booking);
-  const netGyg = gross * 0.7; // 30% GYG commission deducted
+  const netGyg = gross * (1 - platformFeeRate(booking));
 
   if (driver.payoutType === 'percentage') {
     const rate = Math.max(0, Math.min(100, driver.defaultPayoutRate || 50));

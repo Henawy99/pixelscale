@@ -83,12 +83,23 @@ export interface BookingItem {
   isLastMinute: boolean;
   receivedAt: string;
   status: 'confirmed' | 'last-minute' | 'cancelled' | 'pending';
+  platform?: 'getyourguide' | 'airbnb' | 'viator' | 'other';
+  grossPrice?: string;
+  /** Supplier product reference code (e.g. "HALL-5F-GOSAU"), when the booking email carries it. */
+  productReference?: string;
+  /** GetYourGuide product id (e.g. "1478631"), when the booking email carries it. */
+  gygTourId?: string;
 }
 
 export function getNumericPrice(b: BookingItem): number {
   if (typeof b.priceAmount === 'number' && !isNaN(b.priceAmount)) return b.priceAmount;
   const num = parseFloat((b.price || '').replace(/[^0-9.,]/g, '').replace(',', '.'));
   return isNaN(num) ? 0 : num;
+}
+
+/** Commission kept by the booking platform: 20% on Airbnb, 30% on GetYourGuide. */
+export function platformFeeRate(b: BookingItem): number {
+  return b.platform === 'airbnb' ? 0.2 : 0.3;
 }
 
 export function isBookingReview(b: BookingItem): boolean {
@@ -110,14 +121,25 @@ export interface ZohoConfig {
   forceRefresh?: boolean;
 }
 
+export interface GmailConfig {
+  email: string;
+  password?: string;
+  host?: string;
+  port?: number;
+  folder?: string;
+  forceRefresh?: boolean;
+}
+
 export interface BookingsResponse {
   success: boolean;
   bookings: BookingItem[];
   total: number;
-  source: 'zoho' | 'mock' | 'cache';
+  source: 'zoho' | 'gmail' | 'multi' | 'mock' | 'cache';
   lastSyncedAt: string;
   error?: string;
   account?: string;
+  zohoStatus?: string;
+  gmailStatus?: string;
 }
 
 export interface Driver {
@@ -136,17 +158,6 @@ export interface DriverAssignment {
   driverId: string;
   assignedAt: number;
   customPayoutAmount?: number; // Optional override for this specific tour
-}
-
-export interface TourTicketRule {
-  id: string;
-  tourKeyword: string; // e.g. "Hallstatt Salt Mine" or "Hallstatt"
-  tourNamePattern?: string; // Human label e.g. "Hallstatt Salt Mine & Skywalk Private Tour"
-  ticketCostPerPassenger: number; // e.g. 49 (EUR)
-  fixedBookingCost?: number; // optional fixed booking fee (e.g. reservation fee)
-  description?: string;
-  isEnabled: boolean;
-  createdAt: number;
 }
 
 export interface Reviewer {
@@ -169,17 +180,27 @@ export interface ReviewerAssignment {
   notes?: string;
 }
 
+/** An entrance or transport ticket bought for every guest of a tour, e.g. the Salt Mine combo. */
+export interface TourTicket {
+  id: string;
+  name: string;
+  /** EUR per guest; 0 means the price hasn't been entered yet. */
+  pricePerPassenger: number;
+}
+
+/** A product in the GetYourGuide supplier catalog. */
 export interface OfferedTour {
   id: string;
   title: string;
   gygUrl: string;
+  /** Supplier "Product Reference Code", e.g. "HALL-5F-GOSAU". */
+  referenceCode?: string;
+  /** Numeric GetYourGuide product id from the URL, e.g. "1478631". */
+  gygTourId?: string;
+  /** Older or alternate titles that booking emails may still use. */
+  aliases?: string[];
+  tickets?: TourTicket[];
   location?: string;
   notes?: string;
-  ticketCostPerPassenger?: number;
   createdAt: number;
 }
-
-export type ActiveTab = 'bookings' | 'tours' | 'calendar' | 'drivers' | 'studio' | 'settings' | 'history';
-export type FilterType = 'all' | 'normal' | 'review' | 'confirmed' | 'last-minute' | 'cancelled';
-
-

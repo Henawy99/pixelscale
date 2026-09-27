@@ -1,4 +1,4 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { kv } from './storage';
 import { Linking, Alert, Share } from 'react-native';
 import { Reviewer, ReviewerAssignment, BookingItem } from '../types';
 
@@ -25,13 +25,13 @@ export const DEFAULT_REVIEWERS: Reviewer[] = [
 ];
 
 /**
- * Retrieve all reviewers from AsyncStorage
+ * Retrieve all reviewers from storage
  */
 export async function getStoredReviewers(): Promise<Reviewer[]> {
   try {
-    const raw = await AsyncStorage.getItem(STORAGE_KEY_REVIEWERS);
+    const raw = await kv.getItem(STORAGE_KEY_REVIEWERS);
     if (!raw) {
-      await AsyncStorage.setItem(
+      await kv.setItem(
         STORAGE_KEY_REVIEWERS,
         JSON.stringify(DEFAULT_REVIEWERS)
       );
@@ -58,7 +58,7 @@ export async function saveReviewer(reviewer: Reviewer): Promise<Reviewer[]> {
   } else {
     updated = [reviewer, ...current];
   }
-  await AsyncStorage.setItem(STORAGE_KEY_REVIEWERS, JSON.stringify(updated));
+  await kv.setItem(STORAGE_KEY_REVIEWERS, JSON.stringify(updated));
   return updated;
 }
 
@@ -68,7 +68,7 @@ export async function saveReviewer(reviewer: Reviewer): Promise<Reviewer[]> {
 export async function deleteReviewer(id: string): Promise<Reviewer[]> {
   const current = await getStoredReviewers();
   const updated = current.filter((r) => r.id !== id);
-  await AsyncStorage.setItem(STORAGE_KEY_REVIEWERS, JSON.stringify(updated));
+  await kv.setItem(STORAGE_KEY_REVIEWERS, JSON.stringify(updated));
 
   // Also clean up any assignments to this reviewer
   try {
@@ -83,7 +83,7 @@ export async function deleteReviewer(id: string): Promise<Reviewer[]> {
       }
     }
     if (hasChanges) {
-      await AsyncStorage.setItem(
+      await kv.setItem(
         STORAGE_KEY_REVIEWER_ASSIGNMENTS,
         JSON.stringify(updatedAssignments)
       );
@@ -100,7 +100,7 @@ export async function deleteReviewer(id: string): Promise<Reviewer[]> {
  */
 export async function getStoredReviewerAssignments(): Promise<Record<string, ReviewerAssignment>> {
   try {
-    const raw = await AsyncStorage.getItem(STORAGE_KEY_REVIEWER_ASSIGNMENTS);
+    const raw = await kv.getItem(STORAGE_KEY_REVIEWER_ASSIGNMENTS);
     if (!raw) return {};
     const parsed = JSON.parse(raw);
     return typeof parsed === 'object' && parsed !== null ? parsed : {};
@@ -132,7 +132,7 @@ export async function assignReviewerToBooking(
     notes: notes ?? existing?.notes,
   };
 
-  await AsyncStorage.setItem(
+  await kv.setItem(
     STORAGE_KEY_REVIEWER_ASSIGNMENTS,
     JSON.stringify(assignments)
   );
@@ -148,7 +148,7 @@ export async function unassignReviewerFromBooking(
   const assignments = await getStoredReviewerAssignments();
   if (assignments[bookingRef]) {
     delete assignments[bookingRef];
-    await AsyncStorage.setItem(
+    await kv.setItem(
       STORAGE_KEY_REVIEWER_ASSIGNMENTS,
       JSON.stringify(assignments)
     );

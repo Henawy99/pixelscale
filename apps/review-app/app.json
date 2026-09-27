@@ -5,30 +5,49 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
-    "splash": {
-      "image": "./assets/splash.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#f8fafc"
-    },
+    "userInterfaceStyle": "automatic",
     "ios": {
       "bundleIdentifier": "com.pixelscale.reviewapp",
-      "buildNumber": "13",
+      "buildNumber": "14",
       "supportsTablet": false,
       "config": {
         "usesNonExemptEncryption": false
       },
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
-      }
+      },
+      "appleTeamId": "G67XQ5S4QU"
     },
     "android": {
       "package": "com.pixelscale.reviewapp",
-      "versionCode": 13,
+      "versionCode": 14,
       "adaptiveIcon": {
         "backgroundColor": "#4f46e5",
         "foregroundImage": "./assets/icon.png"
       }
+    },
+    "plugins": [
+      "expo-router",
+      "expo-status-bar",
+      "expo-image",
+      "expo-sqlite",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#F2F2F7",
+          "dark": {
+            "image": "./assets/splash-icon.png",
+            "backgroundColor": "#000000"
+          }
+        }
+      ]
+    ],
+    "scheme": "pixelreview",
+    "experiments": {
+      "typedRoutes": true
     }
   }
 }
