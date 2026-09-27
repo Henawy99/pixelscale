@@ -17,6 +17,7 @@
     "@capacitor/core": "^8.5.2",
     "@capacitor/ios": "^8.5.2",
     "@google/genai": "^2.24.0",
+    "@neondatabase/serverless": "^1.1.0",
     "canvas-confetti": "^1.9.4",
     "cheerio": "^1.2.0",
     "clsx": "^2.1.1",

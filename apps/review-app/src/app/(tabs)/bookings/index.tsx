@@ -60,7 +60,7 @@ function matchesQuery(b: BookingItem, q: string) {
 
 export default function BookingsScreen() {
   const router = useRouter();
-  const { bookings, drivers, assignments, reviewers, reviewerAssignments, matchTour, sync, refresh } = useAppData();
+  const { bookings, drivers, assignments, matchTour, sync, refresh } = useAppData();
 
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState<Category>('tours');
@@ -95,8 +95,6 @@ export default function BookingsScreen() {
     booking: b,
     drivers,
     assignment: assignments[b.referenceNumber],
-    reviewers,
-    reviewerAssignment: reviewerAssignments[b.referenceNumber],
   });
 
   const showPastRows = showPast || q.length > 0;

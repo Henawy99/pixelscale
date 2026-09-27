@@ -40,6 +40,9 @@ export const tone = {
   gyg: '#FF5533',
 } as const;
 
+/** Row background for bookings marked done: translucent system green, readable in light and dark mode. */
+export const DONE_ROW_BACKGROUND = '#34C75933';
+
 export const DRIVER_COLORS = ['#3b82f6', '#10b981', '#8b5cf6', '#f59e0b', '#ec4899', '#06b6d4', '#4f46e5'];
 
 /** Reusable modifier presets so every screen shares one type scale. */

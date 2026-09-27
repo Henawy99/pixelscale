@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useState, useSyncExternalStore } from 'react';
 import { Alert } from 'react-native';
 import { type Href, useFocusEffect, useRouter } from 'expo-router';
 import Constants from 'expo-constants';
@@ -9,15 +9,18 @@ import { disabled, listStyle } from '@expo/ui/swift-ui/modifiers';
 import { useAppData } from '@/state/app-data';
 import { DEFAULT_API_URL, getApiBaseUrl, getGeminiKey, getGmailConfig, getZohoConfig } from '@/api/client';
 import { formatRelative } from '@/lib/dates';
+import { getCloudStatus, subscribeCloudStatus } from '@/lib/cloudSync';
 import { syncSourceLabel } from '@/lib/labels';
 import { NavRow, ValueRow } from '@/components/primitives';
-import { ACCENT, text } from '@/components/theme';
+import { ACCENT, text, tone } from '@/components/theme';
 
 export default function SettingsScreen() {
   const router = useRouter();
-  const { bookings, sync, refresh } = useAppData();
+  const { bookings, sync, refresh, syncSavedData } = useAppData();
   const [summary, setSummary] = useState({ gmail: '', zoho: '', server: '', customKey: false });
   const [testing, setTesting] = useState(false);
+  const [savingCloud, setSavingCloud] = useState(false);
+  const cloud = useSyncExternalStore(subscribeCloudStatus, getCloudStatus);
 
   // Re-read stored connection details whenever the screen comes back into view.
   useFocusEffect(
@@ -46,6 +49,22 @@ export default function SettingsScreen() {
       Alert.alert('Sync Failed', result.error);
     }
   };
+
+  const syncDatabase = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setSavingCloud(true);
+    await syncSavedData();
+    setSavingCloud(false);
+    const after = getCloudStatus();
+    if (after.error) Alert.alert('Database Not Reached', `${after.error}\n\nYour changes are kept on this phone and uploaded later.`);
+    else Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  };
+
+  const cloudFooter = !cloud.enabled
+    ? 'This build has no database token, so data is only saved on this phone.'
+    : cloud.error
+      ? `${cloud.error} Changes stay on this phone until the database is reachable.`
+      : 'Drivers, review people, assignments, tours, done bookings and generated reviews are saved in the cloud database and come back on any phone. Mail passwords and API keys stay on this phone.';
 
   const version = `${Constants.expoConfig?.version ?? '1.0.0'} (${Constants.expoConfig?.ios?.buildNumber ?? '—'})`;
 
@@ -95,6 +114,25 @@ export default function SettingsScreen() {
               {testing ? <ProgressView /> : null}
             </HStack>
           </Button>
+        </Section>
+
+        <Section title="Database" footer={<Text>{cloudFooter}</Text>}>
+          <ValueRow
+            title="Last saved"
+            value={!cloud.enabled ? 'Off' : cloud.lastSyncedAt ? formatRelative(cloud.lastSyncedAt) : 'Not yet'}
+          />
+          {cloud.pendingChanges > 0 ? (
+            <ValueRow title="Waiting to upload" value={String(cloud.pendingChanges)} valueColor={tone.warning} />
+          ) : null}
+          {cloud.enabled ? (
+            <Button onPress={syncDatabase} modifiers={[disabled(savingCloud)]}>
+              <HStack spacing={8}>
+                <Text>{savingCloud ? 'Saving…' : 'Save & Refresh Now'}</Text>
+                <Spacer />
+                {savingCloud ? <ProgressView /> : null}
+              </HStack>
+            </Button>
+          ) : null}
         </Section>
 
         <Section>

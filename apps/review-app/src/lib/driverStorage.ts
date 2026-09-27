@@ -4,38 +4,21 @@ import { Driver, DriverAssignment, BookingItem, getNumericPrice, platformFeeRate
 const STORAGE_KEY_DRIVERS = '@pixelreview_drivers';
 const STORAGE_KEY_ASSIGNMENTS = '@pixelreview_driver_assignments';
 
-export const DEFAULT_DRIVERS: Driver[] = [
-  {
-    id: 'drv_marco',
-    name: 'Marco Rossi',
-    phone: '+43 664 1234567',
-    payoutType: 'percentage',
-    defaultPayoutRate: 50, // 50% of net GYG payout
-    color: '#3b82f6',
-    notes: 'Primary driver for Hallstatt & Berchtesgaden private tours',
-    createdAt: Date.now() - 30 * 86400000,
-  },
-  {
-    id: 'drv_stefan',
-    name: 'Stefan Gruber',
-    phone: '+43 676 9876543',
-    payoutType: 'fixed',
-    defaultPayoutRate: 150, // €150 fixed per tour
-    color: '#10b981',
-    notes: 'Salzburg & Eagle\'s Nest Specialist',
-    createdAt: Date.now() - 15 * 86400000,
-  },
-];
+// Placeholder drivers that earlier builds created on first launch. Untouched copies are hidden;
+// edited ones are real data and stay.
+const SAMPLE_DRIVERS = new Set(['drv_marco|Marco Rossi|+43 664 1234567', 'drv_stefan|Stefan Gruber|+43 676 9876543']);
+const isSample = (d: Driver) => SAMPLE_DRIVERS.has(`${d.id}|${d.name}|${d.phone}`);
+
+/** Throws when the stored list can't be read, so a save never overwrites it with a partial list. */
+async function readDrivers(): Promise<Driver[]> {
+  const raw = await kv.getItem(STORAGE_KEY_DRIVERS);
+  const parsed = raw ? JSON.parse(raw) : [];
+  return Array.isArray(parsed) ? parsed.filter((d: Driver) => !isSample(d)) : [];
+}
 
 export async function getStoredDrivers(): Promise<Driver[]> {
   try {
-    const raw = await kv.getItem(STORAGE_KEY_DRIVERS);
-    if (raw === null) {
-      await kv.setItem(STORAGE_KEY_DRIVERS, JSON.stringify(DEFAULT_DRIVERS));
-      return DEFAULT_DRIVERS;
-    }
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
+    return await readDrivers();
   } catch (err) {
     console.warn('Failed to load drivers:', err);
     return [];
@@ -43,7 +26,7 @@ export async function getStoredDrivers(): Promise<Driver[]> {
 }
 
 export async function saveDriver(driver: Driver): Promise<Driver[]> {
-  const current = await getStoredDrivers();
+  const current = await readDrivers();
   const index = current.findIndex((d) => d.id === driver.id);
   let updated: Driver[];
   if (index >= 0) {
@@ -57,7 +40,7 @@ export async function saveDriver(driver: Driver): Promise<Driver[]> {
 }
 
 export async function deleteDriver(id: string): Promise<Driver[]> {
-  const current = await getStoredDrivers();
+  const current = await readDrivers();
   const updated = current.filter((d) => d.id !== id);
   await kv.setItem(STORAGE_KEY_DRIVERS, JSON.stringify(updated));
 

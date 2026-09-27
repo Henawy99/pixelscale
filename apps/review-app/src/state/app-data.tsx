@@ -39,6 +39,9 @@ import {
 } from '../lib/toursStorage';
 import { createTourMatcher, type TourMatcher } from '../lib/tours';
 import { addHistoryItem, deleteHistoryItem, getStoredHistory } from '../lib/historyStorage';
+import { getStoredDoneBookings, setStoredBookingDone } from '../lib/doneStorage';
+import { pruneCustomerPhotos } from '../lib/customerPhotos';
+import { syncWithCloud } from '../lib/cloudSync';
 
 const AUTO_SYNC_MS = 45_000;
 
@@ -63,10 +66,14 @@ interface AppData {
   /** Tours chosen by hand per booking reference (a tour id or NO_TOUR). */
   tourLinks: Record<string, string>;
   history: HistoryItem[];
+  /** Bookings marked done (photos sent to the guest), by reference → when. */
+  doneBookings: Record<string, number>;
   sync: SyncState;
 
   /** Force-syncs bookings from the mail server. Resolves with the outcome for UI feedback. */
   refresh: () => Promise<SyncResult>;
+  /** Uploads unsaved changes to the cloud database and reloads anything changed on another device. */
+  syncSavedData: () => Promise<void>;
 
   assignDriver: (bookingRef: string, driverId: string, customPayout?: number) => Promise<void>;
   unassignDriver: (bookingRef: string) => Promise<void>;
@@ -94,6 +101,8 @@ interface AppData {
 
   addHistory: (res: AnalyzeResponse) => Promise<void>;
   deleteHistory: (id: string) => Promise<void>;
+
+  setBookingDone: (bookingRef: string, done: boolean) => Promise<void>;
 }
 
 export type SyncResult =
@@ -112,6 +121,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   const [tourLinks, setTourLinks] = useState<Record<string, string>>({});
   const matchTour = useMemo(() => createTourMatcher(offeredTours, tourLinks), [offeredTours, tourLinks]);
   const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [doneBookings, setDoneBookings] = useState<Record<string, number>>({});
   const [sync, setSync] = useState<SyncState>({
     isLoading: true,
     isSyncing: false,
@@ -147,29 +157,46 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // Local data first (a few ms from SQLite), then the first sync, so bookings arrive with their
-  // drivers, reviewers and tours already known.
+  // Everything the app saves. The first read waits for the cloud database pull (see storage.ts).
+  const loadLocal = useCallback(async () => {
+    const [d, a, r, ra, tours, links, h, done] = await Promise.all([
+      getStoredDrivers(),
+      getStoredAssignments(),
+      getStoredReviewers(),
+      getStoredReviewerAssignments(),
+      getStoredOfferedTours(),
+      getStoredBookingTourLinks(),
+      getStoredHistory(),
+      getStoredDoneBookings(),
+    ]);
+    setDrivers(d);
+    setAssignments(a);
+    setReviewers(r);
+    setReviewerAssignments(ra);
+    setOfferedTours(tours);
+    setTourLinks(links);
+    setHistory(h);
+    setDoneBookings(done);
+    return done;
+  }, []);
+
+  // Saved data first, then the first bookings sync, so bookings arrive with their drivers,
+  // reviewers and tours already known.
   useEffect(() => {
     (async () => {
-      const [d, a, r, ra, tours, links, h] = await Promise.all([
-        getStoredDrivers(),
-        getStoredAssignments(),
-        getStoredReviewers(),
-        getStoredReviewerAssignments(),
-        getStoredOfferedTours(),
-        getStoredBookingTourLinks(),
-        getStoredHistory(),
-      ]);
-      setDrivers(d);
-      setAssignments(a);
-      setReviewers(r);
-      setReviewerAssignments(ra);
-      setOfferedTours(tours);
-      setTourLinks(links);
-      setHistory(h);
+      const done = await loadLocal();
+      try {
+        pruneCustomerPhotos(done);
+      } catch (err) {
+        console.warn('Photo cleanup skipped:', err);
+      }
       await loadBookings(true);
     })();
-  }, [loadBookings]);
+  }, [loadLocal, loadBookings]);
+
+  const syncSavedData = useCallback(async () => {
+    if (await syncWithCloud()) await loadLocal();
+  }, [loadLocal]);
 
   // Background auto-sync while the app is in the foreground.
   useEffect(() => {
@@ -185,6 +212,8 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     const sub = AppState.addEventListener('change', (state) => {
       if (state === 'active') {
         loadBookings(false);
+        // Picks up changes saved from another device (or Expo Go) while this one was in the background.
+        syncSavedData();
         start();
       } else {
         stop();
@@ -194,7 +223,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       stop();
       sub.remove();
     };
-  }, [loadBookings]);
+  }, [loadBookings, syncSavedData]);
 
   const value = useMemo<AppData>(
     () => ({
@@ -207,9 +236,11 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       matchTour,
       tourLinks,
       history,
+      doneBookings,
       sync,
 
       refresh: () => loadBookings(false),
+      syncSavedData,
 
       assignDriver: async (ref, driverId, customPayout) => {
         setAssignments(await assignDriverToBooking(ref, driverId, customPayout));
@@ -264,6 +295,10 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       deleteHistory: async (id) => {
         setHistory(await deleteHistoryItem(id));
       },
+
+      setBookingDone: async (ref, done) => {
+        setDoneBookings({ ...(await setStoredBookingDone(ref, done)) });
+      },
     }),
     [
       bookings,
@@ -275,8 +310,10 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       matchTour,
       tourLinks,
       history,
+      doneBookings,
       sync,
       loadBookings,
+      syncSavedData,
     ]
   );
 

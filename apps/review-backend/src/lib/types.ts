@@ -83,9 +83,20 @@ export interface BookingItem {
   isLastMinute: boolean;
   receivedAt: string;
   status: 'confirmed' | 'last-minute' | 'cancelled' | 'pending';
+  platform?: 'getyourguide' | 'airbnb' | 'viator' | 'other';
+  grossPrice?: string;
 }
 
 export interface ZohoConfig {
+  email: string;
+  password?: string;
+  host?: string;
+  port?: number;
+  folder?: string;
+  forceRefresh?: boolean;
+}
+
+export interface GmailConfig {
   email: string;
   password?: string;
   host?: string;
@@ -98,9 +109,11 @@ export interface BookingsResponse {
   success: boolean;
   bookings: BookingItem[];
   total: number;
-  source: 'zoho' | 'mock' | 'cache';
+  source: 'zoho' | 'gmail' | 'multi' | 'mock' | 'cache';
   lastSyncedAt: string;
   error?: string;
   account?: string;
+  zohoStatus?: string;
+  gmailStatus?: string;
 }
 

@@ -8,19 +8,22 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "bundleIdentifier": "com.pixelscale.reviewapp",
-      "buildNumber": "14",
+      "buildNumber": "16",
       "supportsTablet": false,
       "config": {
         "usesNonExemptEncryption": false
       },
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "LSApplicationQueriesSchemes": [
+          "whatsapp"
+        ]
       },
       "appleTeamId": "G67XQ5S4QU"
     },
     "android": {
       "package": "com.pixelscale.reviewapp",
-      "versionCode": 14,
+      "versionCode": 16,
       "adaptiveIcon": {
         "backgroundColor": "#4f46e5",
         "foregroundImage": "./assets/icon.png"
@@ -31,6 +34,12 @@
       "expo-status-bar",
       "expo-image",
       "expo-sqlite",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "PixelReview opens your photos so you can send guests the pictures you took of them on their tour."
+        }
+      ],
       [
         "expo-splash-screen",
         {

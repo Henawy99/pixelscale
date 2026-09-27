@@ -47,7 +47,7 @@ import { ACCENT, text } from '@/components/theme';
 type Mode = 'day' | 'week';
 
 export default function CalendarScreen() {
-  const { bookings, drivers, assignments, reviewers, reviewerAssignments, matchTour, refresh } = useAppData();
+  const { bookings, drivers, assignments, matchTour, refresh } = useAppData();
   const todayKey = toDateKey(new Date());
   const [monday, setMonday] = useState(() => startOfWeek(new Date()));
   const [selectedKey, setSelectedKey] = useState(todayKey);
@@ -107,8 +107,6 @@ export default function CalendarScreen() {
     booking: b,
     drivers,
     assignment: assignments[b.referenceNumber],
-    reviewers,
-    reviewerAssignment: reviewerAssignments[b.referenceNumber],
     leading: 'time' as const,
   });
 

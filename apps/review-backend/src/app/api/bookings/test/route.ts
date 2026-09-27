@@ -6,15 +6,31 @@ export const dynamic = 'force-dynamic';
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const email = body.email || process.env.ZOHO_EMAIL;
-    const password = body.password || process.env.ZOHO_PASSWORD || process.env.ZOHO_APP_PASSWORD;
-    const defaultHost = email && email.toLowerCase().includes('@gmail.com') ? 'imap.gmail.com' : 'imap.zoho.eu';
-    const host = body.host || process.env.ZOHO_IMAP_HOST || defaultHost;
-    const port = Number(body.port || process.env.ZOHO_IMAP_PORT || 993);
+    const provider = body.provider || (body.email?.toLowerCase().includes('@gmail.com') ? 'gmail' : 'zoho');
+
+    let email = body.email;
+    let password = body.password;
+
+    if (!email && provider === 'gmail') {
+      email = process.env.GMAIL_EMAIL;
+      password = body.password || process.env.GMAIL_PASSWORD || process.env.GMAIL_APP_PASSWORD;
+    } else if (!email) {
+      email = process.env.ZOHO_EMAIL;
+      password = body.password || process.env.ZOHO_PASSWORD || process.env.ZOHO_APP_PASSWORD;
+    }
+
+    const defaultHost =
+      provider === 'gmail' || (email && email.toLowerCase().includes('@gmail.com'))
+        ? 'imap.gmail.com'
+        : 'imappro.zoho.eu';
+
+    const host = body.host || (provider === 'gmail' ? process.env.GMAIL_IMAP_HOST : process.env.ZOHO_IMAP_HOST) || defaultHost;
+    const port = Number(body.port || (provider === 'gmail' ? process.env.GMAIL_IMAP_PORT : process.env.ZOHO_IMAP_PORT) || 993);
 
     if (!email || !password) {
+      const name = provider === 'gmail' ? 'Gmail' : 'Zoho';
       return NextResponse.json(
-        { success: false, message: 'Zoho Email and Password are required.' },
+        { success: false, message: `${name} Email and Password are required.` },
         { status: 400 }
       );
     }
@@ -36,10 +52,13 @@ export async function POST(req: NextRequest) {
     lock.release();
     await client.logout();
 
+    const providerName = provider === 'gmail' ? 'Gmail (Airbnb)' : 'Zoho Mail (GYG)';
+
     return NextResponse.json({
       success: true,
-      message: `Successfully connected to Zoho Mail (${email}). Inbox has ${status.messages} messages (${status.unseen || 0} unread).`,
+      message: `Successfully connected to ${providerName} (${email})! Inbox has ${status.messages} messages (${status.unseen || 0} unread).`,
       details: {
+        provider,
         host,
         messages: status.messages,
         unseen: status.unseen,
@@ -50,10 +69,10 @@ export async function POST(req: NextRequest) {
     const errorMsg = errorObj?.responseText || errorObj?.message || String(err);
     let hint = '';
 
-    if (errorMsg.toLowerCase().includes('enable imap') || errorMsg.toLowerCase().includes('yet to enable')) {
-      hint = ' IMAP access is currently disabled for this Zoho account. To enable it: Log in to mail.zoho.eu → Settings → Mail Accounts → Click your account → Check "Enable IMAP Access" and Save.';
-    } else if (errorMsg.includes('AUTHENTICATIONFAILED') || errorMsg.includes('Invalid credentials')) {
-      hint = ' Invalid credentials. If 2FA is active, create an App Password at https://accounts.zoho.eu/#security/user_app_password.';
+    if (errorMsg.includes('AUTHENTICATIONFAILED') || errorMsg.includes('Invalid credentials')) {
+      hint = ' Invalid credentials. For Gmail, you MUST use an App Password (16 letters). Go to myaccount.google.com → Security → 2-Step Verification → App passwords to generate one.';
+    } else if (errorMsg.toLowerCase().includes('enable imap') || errorMsg.toLowerCase().includes('yet to enable')) {
+      hint = ' IMAP access is disabled. Go to your mail provider settings and enable IMAP access.';
     }
 
     return NextResponse.json(

@@ -1,12 +1,10 @@
 import { Button, HStack, Image, Spacer, Text, VStack } from '@expo/ui/swift-ui';
-import { frame, layoutPriority, opacity, strikethrough } from '@expo/ui/swift-ui/modifiers';
+import { frame, layoutPriority, listRowBackground, opacity, strikethrough } from '@expo/ui/swift-ui/modifiers';
 import { useRouter } from 'expo-router';
 import {
   BookingItem,
   Driver,
   DriverAssignment,
-  Reviewer,
-  ReviewerAssignment,
   getNumericPrice,
   isBookingReview,
 } from '../types';
@@ -15,14 +13,12 @@ import { formatEurWhole } from '../lib/finance';
 import { parsePassengerCount } from '../lib/tours';
 import { useAppData } from '../state/app-data';
 import { Tag } from './primitives';
-import { text, tone } from './theme';
+import { DONE_ROW_BACKGROUND, text, tone } from './theme';
 
 interface BookingRowProps {
   booking: BookingItem;
   drivers: Driver[];
   assignment?: DriverAssignment;
-  reviewers: Reviewer[];
-  reviewerAssignment?: ReviewerAssignment;
   /** "date" shows a calendar block on the left, "time" shows the start time (for day views). */
   leading?: 'date' | 'time';
 }
@@ -35,20 +31,18 @@ export function BookingRow({
   booking,
   drivers,
   assignment,
-  reviewers,
-  reviewerAssignment,
   leading = 'date',
 }: BookingRowProps) {
   const router = useRouter();
-  const { matchTour } = useAppData();
+  const { matchTour, doneBookings } = useAppData();
   const isCancelled = booking.status === 'cancelled';
   const isReview = isBookingReview(booking);
+  const isDone = !isCancelled && !!doneBookings[booking.referenceNumber];
   const date = bookingDate(booking);
   const time = bookingTime(booking);
   const guests = parsePassengerCount(booking.participants);
 
   const driver = assignment ? drivers.find((d) => d.id === assignment.driverId) : undefined;
-  const reviewer = reviewerAssignment ? reviewers.find((r) => r.id === reviewerAssignment.reviewerId) : undefined;
   const tour = matchTour(booking)?.tour;
 
   const subtitle = [
@@ -60,7 +54,9 @@ export function BookingRow({
     .join(' · ');
 
   return (
-    <Button onPress={() => router.push(`/booking/${encodeURIComponent(booking.referenceNumber)}`)}>
+    <Button
+      onPress={() => router.push(`/booking/${encodeURIComponent(booking.referenceNumber)}`)}
+      modifiers={isDone ? [listRowBackground(DONE_ROW_BACKGROUND)] : undefined}>
       <HStack spacing={12} modifiers={isCancelled ? [opacity(0.55)] : []}>
         {leading === 'date' ? (
           <VStack spacing={0} modifiers={[frame({ width: 38 })]}>
@@ -81,12 +77,13 @@ export function BookingRow({
             {isCancelled ? (
               <Tag label="Cancelled" color={tone.negative} icon="xmark" />
             ) : isReview ? (
+              // Review bookings only need their done state; tour and urgency tags would crowd it out.
               <>
                 <Tag label="Review" color={tone.review} icon="star.fill" />
-                {reviewer ? (
-                  <Tag label={reviewer.name.split(' ')[0]} color={reviewer.color || tone.positive} icon="person.fill" />
+                {isDone ? (
+                  <Tag label="Done" color={tone.positive} icon="checkmark" />
                 ) : (
-                  <Tag label="No reviewer" color={tone.warning} />
+                  <Tag label="Not done" color={tone.warning} icon="circle" />
                 )}
               </>
             ) : driver ? (
@@ -94,10 +91,14 @@ export function BookingRow({
             ) : (
               <Tag label="No driver" color={tone.warning} icon="car" />
             )}
-            {booking.isLastMinute && !isCancelled ? <Tag label="Last minute" color={tone.negative} icon="flame.fill" /> : null}
+            {/* Tour bookings: the guest's confirmation message has been sent. */}
+            {isDone && !isReview ? <Tag label="Sent" color={tone.positive} icon="checkmark" /> : null}
+            {booking.isLastMinute && !isCancelled && !isReview ? (
+              <Tag label="Last minute" color={tone.negative} icon="flame.fill" />
+            ) : null}
             {booking.platform === 'airbnb' ? <Tag label="Airbnb" color={tone.airbnb} /> : null}
             {/* Lowest priority: the tour code gives up width before the driver and status tags do. */}
-            {isCancelled ? null : (
+            {isCancelled || isReview ? null : (
               <HStack modifiers={[layoutPriority(-1)]}>
                 {tour ? (
                   <Tag label={tour.referenceCode || 'Tour'} color="gray" icon="ticket" />

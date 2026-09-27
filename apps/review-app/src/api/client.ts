@@ -1,4 +1,5 @@
 import { kv } from '../lib/storage';
+import { DEFAULT_API_URL, STORAGE_KEY_API_URL } from '../lib/apiConfig';
 import {
   BookingsResponse,
   AnalyzeResponse,
@@ -7,8 +8,7 @@ import {
   GmailConfig,
 } from '../types';
 
-export const DEFAULT_API_URL = 'https://review-app-seven-kappa.vercel.app';
-const STORAGE_KEY_API_URL = '@pixelreview_api_url';
+export { DEFAULT_API_URL };
 const STORAGE_KEY_ZOHO_CONFIG = '@pixelreview_zoho_config';
 const STORAGE_KEY_GMAIL_CONFIG = '@pixelreview_gmail_config';
 const STORAGE_KEY_GEMINI_KEY = '@pixelreview_gemini_key';

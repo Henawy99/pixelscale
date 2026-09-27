@@ -670,7 +670,7 @@ export const TOUR_CONTENT: Record<string, TourContent> = {
   "1478631": {
     "gygTourId": "1478631",
     "summary": "Travel privately from Salzburg to Hallstatt with funicular, Skywalk, and Salt Mine tickets included. Join the official underground tour, then enjoy free time in the lakeside village.",
-    "description": "Begin with pickup from your hotel or accommodation in Salzburg and travel through the Salzkammergut in a private car or minivan. Your driver-guide provides live commentary and practical assistance during the journey.\n\nOn arrival in Hallstatt, your included combination ticket gives you round-trip travel on the Hallstatt funicular, access to the World Heritage Skywalk, and admission to the Hallstatt Salt Mine. Ride the funicular to the high valley and enjoy panoramic views from the Skywalk over Hallstatt, the lake, and the surrounding Alps.\n\nContinue on foot for approximately 15 minutes to the Salt Mine entrance. The underground experience is conducted by the official Salzwelten Hallstatt attraction staff. Put on the provided miners' clothing and follow the official guided route through historic tunnels, miners' slides, multimedia displays, and the underground salt lake before leaving the mountain by mine train. The guided mine tour lasts approximately 90 minutes; allow around three hours for the complete funicular, Skywalk, and Salt Mine visit.\n\nAfter returning to the village, receive a short orientation from your driver-guide and enjoy free time to explore Hallstatt at your own pace, have lunch, walk along the lakefront, visit Market Square, or shop for souvenirs.\n\nMeet your driver at the agreed location for the private return journey to Salzburg and drop-off at your accommodation.\n\nThe included combination tickets are arranged for every confirmed booking. If the funicular, Skywalk, or Salt Mine unexpectedly cannot operate and the included visit cannot be provided, guests will receive a full refund. The Salt Mine is open only to children aged four and over and is not wheelchair accessible. The visit includes an approximately two-kilometre underground walking route. Wear sturdy, comfortable shoes and bring warm clothing, as the mine remains around 8°C throughout the year.",
+    "description": "Begin with pickup from your hotel or accommodation in Salzburg and travel through the Salzkammergut in a private car or minivan. This is a private driving tour: your driver shares local tips, insights, and recommendations on the way and takes care of all timing, while you explore each stop at your own pace.\n\nOn arrival in Hallstatt, your included combination ticket gives you round-trip travel on the Hallstatt funicular, access to the World Heritage Skywalk, and admission to the Hallstatt Salt Mine. Ride the funicular to the high valley and enjoy panoramic views from the Skywalk over Hallstatt, the lake, and the surrounding Alps.\n\nContinue on foot for approximately 15 minutes to the Salt Mine entrance. Your Salt Mine ticket has a fixed entry time, which your driver confirms when you arrive. The underground experience is conducted by the official Salzwelten Hallstatt attraction staff. Put on the provided miners' clothing and follow the official guided route through historic tunnels, miners' slides, multimedia displays, and the underground salt lake before leaving the mountain by mine train. The guided mine tour lasts approximately 90 minutes; allow around three hours for the complete funicular, Skywalk, and Salt Mine visit.\n\nBack in the village, enjoy free time to explore Hallstatt at your own pace, with your driver's recommendations for lunch, the lakefront, Market Square, and the best photo spots.\n\nMeet your driver at the agreed meeting point for the private return journey to Salzburg and drop-off at your accommodation.\n\nThe included combination tickets are arranged for every confirmed booking. If the funicular, Skywalk, or Salt Mine unexpectedly cannot operate and the included visit cannot be provided, guests will receive a full refund. The Salt Mine is open only to children aged four and over and is not wheelchair accessible. The visit includes an approximately two-kilometre underground walking route. Wear sturdy, comfortable shoes and bring warm clothing, as the mine remains around 8°C throughout the year.",
     "highlights": [
       "Enjoy a private 8.5-hour trip from Salzburg with hotel pickup and drop-off",
       "Ride the Hallstatt funicular with round-trip tickets included",
@@ -681,7 +681,7 @@ export const TOUR_CONTENT: Record<string, TourContent> = {
     "included": [
       "Private transportation by car or minivan",
       "Pickup and drop-off at Salzburg accommodation",
-      "Driver-guide and live commentary during transfers",
+      "Private driver with local tips and recommendations",
       "Round-trip Hallstatt funicular ticket",
       "World Heritage Skywalk access",
       "Hallstatt Salt Mine admission ticket",
@@ -693,7 +693,8 @@ export const TOUR_CONTENT: Record<string, TourContent> = {
     "excluded": [
       "Food and drinks",
       "Gratuities",
-      "Personal expenses"
+      "Personal expenses",
+      "Licensed tour guide (the Salt Mine tour is led by official mine staff)"
     ],
     "notSuitableFor": [
       "People with mobility impairments"
@@ -717,7 +718,7 @@ export const TOUR_CONTENT: Record<string, TourContent> = {
       "minTravellers": 1
     },
     "cutoffHours": 10,
-    "guide": "Driver-guide",
+    "guide": "Driver",
     "languages": [
       "English",
       "German",
@@ -798,28 +799,27 @@ export const TOUR_CONTENT: Record<string, TourContent> = {
   },
   "1482249": {
     "gygTourId": "1482249",
-    "summary": "Discover Salzburg, Hallstatt, and the Alpine Lakes on a private day trip from Munich. Enjoy guided walks, free time, and scenic photo stops as you explore these iconic destinations.",
-    "description": "Begin with a pickup from your hotel in Munich and travel in a comfortable private van with a professional driver-guide. Begin with the drive from Munich to Salzburg. In Salzburg, have two hours to explore the UNESCO-listed Old Town with a guided walk and free time. Stroll through the historic lanes, Getreidegasse, Mozart’s Birthplace (Mozart Geburtshaus), Salzburg Cathedral area, and enjoy views of Hohensalzburg Fortress.\n\nContinue from Salzburg by van to Fuschlsee, with approximately 20 minutes for a photo stop, guided commentary, and sightseeing. Drive approximately 15 minutes to St. Gilgen for a 35-minute guided sightseeing walk beside Wolfgangsee. Continue approximately 50 minutes to Hallstatt. Spend 2.5 hours in Hallstatt with a guided village walk followed by free time for lunch, shopping, photographs, and independent exploration. See the lakeside promenade, Market Square, traditional lanes, parish church area, and famous postcard viewpoint while learning about Hallstatt’s salt-mining heritage.\n\nContinue approximately 20 minutes by van to the Dachstein/Gosausee area for a 35-minute photo stop, guided sightseeing, and a short walk beneath the Dachstein mountains. Then return by private van to Munich, travelling through Salzburg, and drop guests at their original Munich pickup location.",
+    "summary": "Discover Salzburg, Hallstatt, and the Alpine Lakes on a private day trip from Munich. Your driver shares local tips while you enjoy free time and scenic photo stops at each destination.",
+    "description": "Begin with pickup from your hotel in Munich and travel in a comfortable private van with a professional driver who shares local tips, insights, and recommendations along the way. This is a private driving tour: you explore each stop at your own pace.\n\nIn Salzburg, enjoy two hours of free time in the UNESCO-listed Old Town. Your driver suggests a route through the historic lanes, Getreidegasse, Mozart’s Birthplace (Mozart Geburtshaus), and the Salzburg Cathedral area, with views of Hohensalzburg Fortress.\n\nContinue by van to Fuschlsee for a 20-minute photo stop, then drive about 15 minutes to St. Gilgen for 35 minutes beside Wolfgangsee. Continue about 50 minutes to Hallstatt and spend 2.5 hours exploring the lakeside promenade, Market Square, traditional lanes, parish church area, and famous postcard viewpoint, with time for lunch and shopping. Your driver recommends the best spots and agrees a clear meeting point before you set off.\n\nContinue about 20 minutes to the Dachstein/Gosausee area for a 35-minute photo stop and a short walk beneath the Dachstein mountains. Then return by private van to Munich, travelling through Salzburg, and drop-off at your original Munich pickup location.",
     "highlights": [
       "Explore Salzburg, Hallstatt, and the Alpine Lakes on a private day trip",
-      "Stroll through Salzburg's UNESCO-listed Old Town with a guided walk",
+      "Explore Salzburg's UNESCO-listed Old Town at your own pace",
       "Admire the lakeside promenade and Market Square in Hallstatt",
       "Enjoy a photo stop at Fuschlsee and a walk beside Wolfgangsee",
-      "Travel in comfort with a private van and a professional driver-guide"
+      "Travel in a private van with a driver who shares local tips"
     ],
     "included": [
-      "Private full-day guided tour",
+      "Private full-day tour in a comfortable van",
       "Hotel pickup and drop-off in Munich",
-      "Professional driver-guide",
-      "Guided walk in Salzburg",
-      "Guided sightseeing in St. Gilgen",
-      "Guided village walk in Hallstatt",
-      "Guided sightseeing in Dachstein/Gosausee area"
+      "Professional driver with local tips and recommendations",
+      "Free time in Salzburg Old Town and Hallstatt",
+      "Photo stops at Fuschlsee, St. Gilgen, and Gosausee"
     ],
     "excluded": [
       "Food and drinks",
       "Gratuities",
-      "Optional attraction entrance tickets"
+      "Optional attraction entrance tickets",
+      "Licensed tour guide"
     ],
     "notSuitableFor": [],
     "bring": [
@@ -828,6 +828,7 @@ export const TOUR_CONTENT: Record<string, TourContent> = {
       "Comfortable shoes"
     ],
     "knowBeforeYouGo": [
+      "This is a private driving tour, not a guided tour. Your driver shares local tips and recommendations, and you explore each stop independently.",
       "The tour lasts approximately 13 hours.",
       "The route may be adjusted for traffic, weather, seasonal access, and local conditions.",
       "Guests should bring a passport or ID, comfortable walking shoes, and clothing suitable for changing Alpine weather.",
@@ -844,7 +845,7 @@ export const TOUR_CONTENT: Record<string, TourContent> = {
       "minTravellers": 1
     },
     "cutoffHours": 10,
-    "guide": "Driver-guide",
+    "guide": "Driver",
     "languages": [
       "English",
       "German",
@@ -866,7 +867,7 @@ export const TOUR_CONTENT: Record<string, TourContent> = {
         "place": "Salzburg Old Town",
         "minutes": 120,
         "activities": [
-          "Guided walk",
+          "Walk",
           "Free time"
         ],
         "note": "Getreidegasse, Mozart’s Birthplace, Cathedral, fortress views"
@@ -882,7 +883,7 @@ export const TOUR_CONTENT: Record<string, TourContent> = {
         "minutes": 20,
         "activities": [
           "Photo stop",
-          "Guided commentary"
+          "Sightseeing"
         ]
       },
       {
@@ -895,7 +896,7 @@ export const TOUR_CONTENT: Record<string, TourContent> = {
         "place": "St. Gilgen on Wolfgangsee",
         "minutes": 35,
         "activities": [
-          "Guided walk",
+          "Walk",
           "Sightseeing"
         ]
       },
@@ -909,10 +910,10 @@ export const TOUR_CONTENT: Record<string, TourContent> = {
         "place": "Hallstatt",
         "minutes": 150,
         "activities": [
-          "Guided walk",
+          "Walk",
           "Free time"
         ],
-        "note": "Village walk, then lunch and free time"
+        "note": "Free time for the village, lunch and shopping"
       },
       {
         "type": "transfer",
@@ -948,11 +949,11 @@ export const TOUR_CONTENT: Record<string, TourContent> = {
   },
   "1486364": {
     "gygTourId": "1486364",
-    "summary": "Combine three experiences in one private day from Salzburg: Swarovski Crystal Worlds, a driver-guided Innsbruck Old Town walk, and the Nordkette ascent. Admission and mountain tickets are included.",
-    "description": "Begin with pickup from your Salzburg accommodation and travel privately through Alpine scenery toward Tyrol. Pause for a scenic photo stop before continuing to Swarovski Crystal Worlds in Wattens. With admission included, explore the Chambers of Wonder, Crystal Dome, Giant garden, and art installations for approximately 90 minutes. The museum visit is self-guided.\n\nContinue to Innsbruck for a driver-guided orientation walk through the imperial Old Town. See Maria-Theresien-Straße, St. Anne’s Column, the Golden Roof, and historic façades while hearing cultural and historical commentary. Then enjoy free time for lunch or independent exploration.\n\nThe defining third stage of the itinerary is the Nordkette mountain experience. Rather than returning directly after Innsbruck, take the funicular and cable cars above the city with a round-trip mountain ticket included. Allow approximately two hours for the ascent, panoramic viewpoints over Innsbruck and the Inn Valley, and the descent.\n\nRejoin your private vehicle and return through the Alps to your Salzburg accommodation. This private three-part day combines crystal art, an accompanied Old Town introduction, and a high-Alpine mountain ascent.",
+    "summary": "Combine three experiences in one private day from Salzburg: Swarovski Crystal Worlds, free time in Innsbruck's Old Town, and the Nordkette ascent. Admission and mountain tickets are included.",
+    "description": "Begin with pickup from your Salzburg accommodation and travel privately through Alpine scenery toward Tyrol, with your driver sharing local tips and insights along the way. Pause for a scenic photo stop before continuing to Swarovski Crystal Worlds in Wattens. With admission included, explore the Chambers of Wonder, Crystal Dome, Giant garden, and art installations for approximately 90 minutes. The museum visit is self-guided.\n\nContinue to Innsbruck, where your driver drops you in the imperial Old Town with recommendations for the best route past Maria-Theresien-Straße, St. Anne’s Column, the Golden Roof, and historic façades, plus tips for lunch. Explore at your own pace.\n\nThe defining third stage of the itinerary is the Nordkette mountain experience. Rather than returning directly after Innsbruck, take the funicular and cable cars above the city with a round-trip mountain ticket included. Allow approximately two hours for the ascent, panoramic viewpoints over Innsbruck and the Inn Valley, and the descent.\n\nRejoin your private vehicle and return through the Alps to your Salzburg accommodation. This private three-part day combines crystal art, Innsbruck's Old Town, and a high-Alpine mountain ascent.",
     "highlights": [
       "Combine Swarovski, Innsbruck Old Town, and Nordkette in one private day",
-      "Explore Innsbruck with a driver-guide, not only independent free time",
+      "Explore Innsbruck's Old Town with your driver's local tips",
       "Ride Nordkette after the city visit with round-trip tickets included",
       "Visit Swarovski Crystal Worlds with admission included",
       "Take in sweeping views over Innsbruck and the Inn Valley from Nordkette"
@@ -960,8 +961,8 @@ export const TOUR_CONTENT: Record<string, TourContent> = {
     "included": [
       "Private hotel pickup and drop-off in Salzburg",
       "Private transportation in a comfortable air-conditioned vehicle",
-      "Driver-guide and live cultural and historical commentary",
-      "Guided orientation walk in Innsbruck Old Town",
+      "Private driver with local tips and recommendations",
+      "Free time in Innsbruck Old Town",
       "Swarovski Crystal Worlds admission ticket",
       "Nordkette round-trip funicular and cable-car ticket",
       "Bottled water",
@@ -970,7 +971,8 @@ export const TOUR_CONTENT: Record<string, TourContent> = {
     "excluded": [
       "Lunch, food, and additional drinks",
       "Personal expenses",
-      "Gratuities"
+      "Gratuities",
+      "Licensed tour guide"
     ],
     "notSuitableFor": [
       "People with mobility impairments"
@@ -980,7 +982,7 @@ export const TOUR_CONTENT: Record<string, TourContent> = {
       "Comfortable shoes"
     ],
     "knowBeforeYouGo": [
-      "The route timing may vary with traffic and attraction operating conditions. Innsbruck Old Town includes walking on cobbled streets. The Swarovski museum visit is self-guided, while your driver-guide provides the Innsbruck Old Town orientation and commentary. Nordkette access and the level reached depend on weather and cable-car operations. If Nordkette access or the planned level is unavailable due to weather or cable-car operations, travelers will receive a full refund for the affected booking."
+      "The route timing may vary with traffic and attraction operating conditions. Innsbruck Old Town includes walking on cobbled streets. This is a private driving tour: the Swarovski museum and Innsbruck Old Town are explored independently, with tips and recommendations from your driver. Nordkette access and the level reached depend on weather and cable-car operations. If Nordkette access or the planned level is unavailable due to weather or cable-car operations, travelers will receive a full refund for the affected booking."
     ],
     "durationMinutes": 630,
     "startTimes": [
@@ -993,7 +995,7 @@ export const TOUR_CONTENT: Record<string, TourContent> = {
       "minTravellers": 2
     },
     "cutoffHours": 10,
-    "guide": "Driver-guide",
+    "guide": "Driver",
     "languages": [
       "English"
     ],
@@ -1029,7 +1031,7 @@ export const TOUR_CONTENT: Record<string, TourContent> = {
         "place": "Innsbruck Old Town",
         "minutes": 120,
         "activities": [
-          "Guided walk",
+          "Walk",
           "Free time"
         ],
         "note": "Maria-Theresien-Straße, St. Anne’s Column, Golden Roof, lunch"
@@ -1067,33 +1069,32 @@ export const TOUR_CONTENT: Record<string, TourContent> = {
       "https://cdn.getyourguide.com/img/tour/528c968cd70a4e7bfa303c54ba25b4a265f500777e64be480b17e2144c3bc71a.jpg/145.jpg",
       "https://cdn.getyourguide.com/img/tour/4482b17d5acc72adbf9837cd6eec080ab2760736bc1445ff0740d5fa9abbdc51.jpg/145.jpg"
     ],
-    "pickupInfo": "Pickup is from your hotel or address in Salzburg city at the booked start time. Please wait at the main entrance and keep your phone on. Swarovski Crystal Worlds admission and the Nordkette funicular and cable-car tickets are included and handed over by your driver-guide. We confirm pickup by phone or WhatsApp the evening before."
+    "pickupInfo": "Pickup is from your hotel or address in Salzburg city at the booked start time. Please wait at the main entrance and keep your phone on. Swarovski Crystal Worlds admission and the Nordkette funicular and cable-car tickets are included and handed over by your driver. We confirm pickup by phone or WhatsApp the evening before."
   },
   "1486803": {
     "gygTourId": "1486803",
-    "summary": "Explore Eagle's Nest and Obersalzberg on a private WWII-history tour with live commentary in English, German, or Arabic, plus Berchtesgaden and Königssee.",
-    "description": "Begin your private tour with a pickup from your Salzburg hotel at 8:00 AM in a comfortable private car or minivan. During the approximately 45-minute drive through the Austrian and Bavarian Alps, your host introduces the Obersalzberg region and explains the historical context of the Nazi era.\n\nAt the Eagle's Nest departure point, the official mountain bus and historic brass elevator tickets are included for every booked guest. Your host accompanies the group, explains the site's history, and allows time for the panoramic terraces and summit views.\n\nContinue to Documentation Obersalzberg, where admission is included. Explore the exhibition about dictatorship, persecution, war, genocide, and the Nazi leadership's use of Obersalzberg, including accessible parts of the historic bunker system. Your multilingual host helps you understand the historical context before and after the official museum visit.\n\nContinue to Berchtesgaden Old Town for an orientation walk around Market Square and time for lunch at your own expense. Then visit Königssee for a guided lakeside walk and photography time around the harbor and Malerwinkel area before returning to Salzburg. The experience is private and paced around your group. Live historical and cultural commentary is available throughout the day in English, German, or Arabic. If the included Eagle's Nest visit cannot operate, travelers will receive a full refund for the affected booking.",
+    "summary": "Explore Eagle's Nest and Obersalzberg on a private WWII-history day trip with an English, German, or Arabic-speaking driver, plus Berchtesgaden and Königssee.",
+    "description": "Begin your private day with pickup from your Salzburg hotel at 8:00 AM in a comfortable private car or minivan. On the approximately 45-minute drive into the Bavarian Alps, your English-, German-, or Arabic-speaking driver shares local tips and background on the Obersalzberg region.\n\nAt the Eagle's Nest departure point, the official mountain bus and historic brass elevator tickets are included for every booked guest. Explore the summit, terraces, and panoramic views at your own pace.\n\nContinue to Documentation Obersalzberg, where admission is included. The official exhibition covers dictatorship, persecution, war, genocide, and the Nazi leadership's use of Obersalzberg, including accessible parts of the historic bunker system.\n\nThen enjoy free time in Berchtesgaden Old Town, with lunch at your own expense, followed by a stop at Königssee, where your driver recommends the best walk around the harbor to the Malerwinkel viewpoint for photos, before returning to Salzburg. The experience is private and paced around your group. If the included Eagle's Nest visit cannot operate, travelers will receive a full refund for the affected booking.",
     "highlights": [
-      "Hear live WWII history in English, German, or Arabic",
+      "Travel privately with an English, German, or Arabic-speaking driver",
       "Explore Eagle's Nest with included mountain bus and elevator tickets",
       "Visit Documentation Obersalzberg and the historic bunker system",
-      "Walk through Berchtesgaden Old Town with your private host",
-      "Enjoy a guided Königssee lakeside walk and personalized photo stops"
+      "Enjoy free time in Berchtesgaden's historic Old Town",
+      "Walk along Königssee to the Malerwinkel viewpoint for photos"
     ],
     "included": [
       "Salzburg hotel pickup and drop-off",
       "Private transportation",
-      "Dedicated multilingual host speaking English, German, or Arabic",
-      "Live historical and cultural commentary",
+      "Driver speaking English, German, or Arabic, with local tips",
       "Eagle's Nest mountain bus and elevator tickets",
       "Documentation Obersalzberg admission",
-      "Bottled water",
-      "Guided orientation walks"
+      "Bottled water"
     ],
     "excluded": [
       "Lunch",
       "Food other than bottled water",
-      "Optional Königssee boat cruise"
+      "Optional Königssee boat cruise",
+      "Licensed tour guide"
     ],
     "notSuitableFor": [],
     "bring": [
@@ -1102,6 +1103,7 @@ export const TOUR_CONTENT: Record<string, TourContent> = {
       "Comfortable shoes"
     ],
     "knowBeforeYouGo": [
+      "This is a private driving tour, not a guided tour. Your driver shares local tips and recommendations; the Eagle's Nest and Documentation Obersalzberg are explored independently.",
       "The Eagle's Nest is seasonal and weather dependent.",
       "If the included Eagle's Nest visit cannot operate, travelers will receive a full refund for the affected booking."
     ],
@@ -1116,7 +1118,7 @@ export const TOUR_CONTENT: Record<string, TourContent> = {
       "minTravellers": 2
     },
     "cutoffHours": 10,
-    "guide": "Host",
+    "guide": "Driver",
     "languages": [
       "English",
       "German",
@@ -1138,11 +1140,11 @@ export const TOUR_CONTENT: Record<string, TourContent> = {
         "place": "Eagle's Nest (Kehlsteinhaus)",
         "minutes": 90,
         "activities": [
-          "Guided visit",
+          "Visit",
           "Sightseeing"
         ],
         "included": "Mountain bus & elevator",
-        "note": "Host explains the history; seasonal and weather dependent"
+        "note": "Explored at your own pace; seasonal and weather dependent"
       },
       {
         "type": "transfer",
@@ -1169,7 +1171,7 @@ export const TOUR_CONTENT: Record<string, TourContent> = {
         "place": "Berchtesgaden Old Town",
         "minutes": 60,
         "activities": [
-          "Orientation walk",
+          "Walk",
           "Free time"
         ],
         "note": "Market Square; lunch at own expense"
@@ -1184,7 +1186,7 @@ export const TOUR_CONTENT: Record<string, TourContent> = {
         "place": "Königssee",
         "minutes": 60,
         "activities": [
-          "Guided walk",
+          "Walk",
           "Photo stop"
         ],
         "note": "Harbour and Malerwinkel; boat cruise optional, not included"

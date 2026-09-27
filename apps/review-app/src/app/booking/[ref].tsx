@@ -22,13 +22,15 @@ import { foregroundStyle, keyboardType, lineLimit, scrollDismissesKeyboard, tag 
 import { useAppData, useBooking } from '@/state/app-data';
 import { BookingItem, getNumericPrice, isBookingReview } from '@/types';
 import { calculateDriverTourPayout } from '@/lib/driverStorage';
-import { getBookingTicketDeduction, reviewNotesFor } from '@/lib/tours';
+import { getBookingTicketDeduction } from '@/lib/tours';
 import { NO_TOUR } from '@/lib/toursStorage';
-import { formatWhatsAppReviewMessage, shareToWhatsApp } from '@/lib/reviewerStorage';
 import { formatEur, platformFeeRate, platformName } from '@/lib/finance';
 import { callPhone, openPickup, openUrl } from '@/lib/links';
 import { bookingTime, formatRelative } from '@/lib/dates';
+import { confirmationMessage, firstName } from '@/lib/guestMessages';
+import { shareToWhatsApp } from '@/lib/reviewerStorage';
 import { Tag, ValueRow } from '@/components/primitives';
+import { ReviewBookingDetail } from '@/components/review-booking-detail';
 import { ACCENT, text, tone } from '@/components/theme';
 import { parseAmount, useField } from '@/components/use-field';
 
@@ -53,6 +55,7 @@ export default function BookingScreen() {
       </>
     );
   }
+  if (isBookingReview(booking) && booking.status !== 'cancelled') return <ReviewBookingDetail booking={booking} />;
   return <BookingDetail booking={booking} />;
 }
 
@@ -65,12 +68,10 @@ function BookingDetail({ booking }: { booking: BookingItem }) {
     matchTour,
     tourLinks,
     linkBookingToTour,
-    reviewers,
-    reviewerAssignments,
     assignDriver,
     unassignDriver,
-    assignReviewer,
-    unassignReviewer,
+    doneBookings,
+    setBookingDone,
   } = useAppData();
 
   const ref = booking.referenceNumber;
@@ -78,9 +79,6 @@ function BookingDetail({ booking }: { booking: BookingItem }) {
   const isReview = isBookingReview(booking);
   const assignment = assignments[ref];
   const driver = assignment ? drivers.find((d) => d.id === assignment.driverId) : undefined;
-  const reviewerAssignment = reviewerAssignments[ref];
-  const reviewer = reviewerAssignment ? reviewers.find((r) => r.id === reviewerAssignment.reviewerId) : undefined;
-  const attachedReview = reviewerAssignment?.reviewText || reviewerAssignment?.generatedReviewText;
 
   const gross = getNumericPrice(booking);
   const feeRate = platformFeeRate(booking);
@@ -91,6 +89,29 @@ function BookingDetail({ booking }: { booking: BookingItem }) {
 
   const payoutField = useField(assignment?.customPayoutAmount ? String(assignment.customPayoutAmount) : '');
   const [copied, setCopied] = useState(false);
+
+  // Confirmation for the guest; "sent" shares the done marker that turns the booking green in lists.
+  const confirmation = useField(confirmationMessage(booking, tour));
+  const [confirmationCopied, setConfirmationCopied] = useState(false);
+  const sentAt = doneBookings[ref];
+  // Rewrite the message when the booking is linked to a different tour, since its information changes.
+  const tourId = tour?.id;
+  useEffect(() => {
+    confirmation.set(confirmationMessage(booking, tour));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tourId]);
+
+  const copyConfirmation = async () => {
+    await Clipboard.setStringAsync(confirmation.current());
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setConfirmationCopied(true);
+    setTimeout(() => setConfirmationCopied(false), 1500);
+  };
+
+  const toggleSent = async () => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    await setBookingDone(ref, !sentAt);
+  };
 
   const customPayout = () => {
     const n = parseAmount(payoutField.current());
@@ -114,12 +135,6 @@ function BookingDetail({ booking }: { booking: BookingItem }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [payoutField.value]);
 
-  const onReviewerChange = async (id: string) => {
-    Haptics.selectionAsync();
-    if (id === 'none') await unassignReviewer(ref);
-    else await assignReviewer(ref, id);
-  };
-
   const copyReference = async () => {
     await Clipboard.setStringAsync(ref);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -141,29 +156,9 @@ function BookingDetail({ booking }: { booking: BookingItem }) {
         .join('\n'),
     });
 
-  // With a recognised tour the studio already knows the GetYourGuide link, so it starts writing right away.
-  const openStudio = () =>
-    router.push({
-      pathname: '/studio',
-      params: {
-        url: tour?.gygUrl ?? '',
-        notes: tour
-          ? reviewNotesFor(tour, `Date: ${booking.date}`)
-          : `Tour: ${booking.tourTitle}\nDate: ${booking.date}`,
-        bookingRef: ref,
-        autostart: tour ? '1' : undefined,
-      },
-    });
-
   const onTourChange = async (id: string) => {
     Haptics.selectionAsync();
     await linkBookingToTour(ref, id === 'auto' ? null : id);
-  };
-
-  const sendWhatsApp = async () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    const message = formatWhatsAppReviewMessage(booking, reviewer?.name || 'Reviewer', attachedReview, reviewerAssignment?.photoUrls);
-    await shareToWhatsApp(reviewer?.whatsappPhone || reviewer?.phone, message);
   };
 
   const net = tickets.netGygPayout;
@@ -398,53 +393,41 @@ function BookingDetail({ booking }: { booking: BookingItem }) {
             </Section>
           ) : null}
 
-          {/* Review workflow — review bookings only */}
-          {isReview && !isCancelled ? (
-            <>
-              <Section
-                title="Reviewer"
-                footer={reviewers.length === 0 ? <Text>Add review people in the Team tab first.</Text> : undefined}>
-                <Picker
-                  label="Reviewer"
-                  systemImage="person.crop.circle.badge.checkmark"
-                  selection={reviewer?.id ?? 'none'}
-                  onSelectionChange={(v) => onReviewerChange(String(v))}>
-                  <Text modifiers={[tag('none')]}>Not attached</Text>
-                  {reviewers.map((r) => (
-                    <Text key={r.id} modifiers={[tag(r.id)]}>
-                      {r.name}
-                    </Text>
-                  ))}
-                </Picker>
-              </Section>
-
-              <Section
-                title="Review"
-                footer={
-                  !tour ? (
-                    <Text>Choose the tour above and reviews are written from its GetYourGuide page automatically.</Text>
-                  ) : reviewerAssignment?.photoUrls?.length ? (
-                    <Text>{`${reviewerAssignment.photoUrls.length} photo links will be sent with the review.`}</Text>
-                  ) : undefined
-                }>
-                {attachedReview ? (
-                  <Text modifiers={[text.subheadline, lineLimit(6)]}>{`“${attachedReview}”`}</Text>
-                ) : (
-                  <Text modifiers={[text.secondary]}>No review attached yet.</Text>
-                )}
-                <Button
-                  label={attachedReview ? 'Regenerate Review' : 'Generate Review & Photos'}
-                  systemImage="sparkles"
-                  onPress={openStudio}
+          {/* Confirmation for the guest — real tours only; review bookings are messaged by hand */}
+          {!isReview && !isCancelled ? (
+            <Section
+              title="Confirmation Message"
+              footer={
+                <Text>
+                  {sentAt
+                    ? `Marked as sent ${new Date(sentAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}.`
+                    : 'Edit it if needed, send it to the guest, then mark it as sent.'}
+                </Text>
+              }>
+              <TextField
+                text={confirmation.state}
+                onTextChange={confirmation.onTextChange}
+                axis="vertical"
+                modifiers={[lineLimit({ min: 6, max: 40 })]}
+              />
+              <Button onPress={copyConfirmation}>
+                <Label
+                  title={confirmationCopied ? 'Copied' : 'Copy Message'}
+                  systemImage={confirmationCopied ? 'checkmark' : 'doc.on.doc'}
                 />
-                <Button
-                  label={reviewer ? `Send to ${reviewer.name} on WhatsApp` : 'Share via WhatsApp'}
-                  systemImage="paperplane.fill"
-                  onPress={sendWhatsApp}
-                  modifiers={[foregroundStyle('green')]}
+              </Button>
+              {booking.customerPhone ? (
+                <Button onPress={() => shareToWhatsApp(booking.customerPhone, confirmation.current())}>
+                  <Label title={`Send to ${firstName(booking) || 'Guest'} on WhatsApp`} systemImage="paperplane.fill" />
+                </Button>
+              ) : null}
+              <Button onPress={toggleSent}>
+                <Label
+                  title={sentAt ? 'Mark as Not Sent' : 'Mark as Sent'}
+                  systemImage={sentAt ? 'arrow.uturn.backward' : 'checkmark.circle.fill'}
                 />
-              </Section>
-            </>
+              </Button>
+            </Section>
           ) : null}
 
           {booking.bookingUrl ? (
