@@ -2,203 +2,129 @@
 
 ## 1. Overview
 
-The Delivery Route Manager assigns incoming delivery orders to **2 drivers** and sequences each driver's stops so every order arrives as close as possible to its promised delivery time. It runs as a Supabase Edge Function (`plan-routes`) invoked on every relevant event, producing a plan visible on both the POS/dispatch tablet and the drivers' phones via Supabase Realtime.
+The Delivery Route Manager assigns every self-delivered order to the drivers who are online in the driver app, groups orders into tours and sequences each tour so orders arrive fresh and before their promised time. It runs as the Supabase Edge Function `plan-routes`, triggered by database events plus a 1-minute tick. Drivers see their next tour in the driver app (`lib/main_driver.dart`, built with `./build_driver_apk.sh`); dispatch sees all tours on the Delivery Monitor, both via Supabase Realtime.
 
-### Key Constraints
-- **Peak volume**: ~10 orders/hour
-- **2 drivers**, each starting/ending at the restaurant
-- **No hard stop limit** — the cost function + max route duration (1 hour) naturally limit how many orders a driver carries
-- **Handover time**: 5 min per stop (park, walk up, hand over)
-- **Planning horizon**: 45 min look-ahead for orders still in prep
-- **Solver time budget**: < 1 second for ≤ 15 open orders
+### Key decisions
+- **One plan for all brands.** All brands are cooked in the same kitchen and delivered by the same drivers, so the planner never splits by brand.
+- **Availability = online in the app.** A driver can receive tours when they switched "Online" in the driver app and their phone sent a heartbeat in the last 15 min (`driver_heartbeat_timeout_mins`). A scheduled shift is not required; if one exists, its end limits new tours.
+- **Multi-tour per driver.** Each driver has a sequence of tours. Only the next tour is committed (written as a route the driver sees); later tours are planned for cost accuracy and shown in `plan_log`.
+- **Food must be ready.** A tour leaves at `max(driver back at restaurant, food ready for every order in it)`.
+- **Out of scope for our drivers:** pickup orders, and Foodora orders with `transport.type = PICKUP_LOGISTICS` (a Foodora rider collects them).
 
 ---
 
 ## 2. Data Model
 
 ### Tables
-- **delivery_settings**: All tunable planner parameters (weights, timings, depot coordinates)
-- **drivers**: id, name, is_online, current lat/lng/heading/speed, current_route_id, projected_return_at
-- **delivery_routes**: id, assigned_driver_id, brand_id, status, plan_version, planned departure/return, actual departure/return, confirmed_at
-- **route_stops**: id, delivery_route_id, order_id, type (store|customer_delivery), sequence_number, lat/lng, planned_arrival_at, status
-- **orders**: delivery_status, assigned_driver_id, delivery_route_id, delivery_route_sequence, planned_arrival_at
-- **travel_time_cache**: bucketed lat/lng pairs + hour → cached duration/distance
-- **plan_log**: audit trail with cost breakdown and plan snapshot per version
-
-### Relationships
-- brands → delivery_settings (1:1)
-- drivers → delivery_routes (1:many)
-- delivery_routes → route_stops (1:many)
-- route_stops → orders (1:1 for customer_delivery stops)
-- orders → drivers (many:1 via assigned_driver_id)
+- **delivery_settings**: tunable parameters (weights, timings, depot). The planner and the settings screen use the oldest row.
+- **drivers**: `is_online`, `last_seen_at`, position, `fcm_token` (push), `current_route_id`, `projected_return_at`.
+- **driver_device_keys**: per-driver key the Android background service uses for heartbeats (no user session in that isolate).
+- **delivery_routes**: one row per tour; `status` assigned → in_progress → completed. Route ids stay stable across re-plans.
+- **route_stops**: store → customers → store, with planned arrival times and manual `pinned_driver_id`.
+- **orders**: `delivery_status`, `assigned_driver_id`, `delivery_route_id`, `delivery_route_sequence`, `planned_arrival_at`, `is_unassignable`, optional `food_ready_at` (kitchen signal).
+- **travel_time_cache**: ~100 m buckets; durations are reused across hours and refreshed after 30 days.
+- **plan_log**: audit trail with cost breakdown and all planned tours (no-op ticks are not logged).
+- **planner_lock**: serialises planner runs (see §4).
 
 ---
 
-## 3. Order State Machine
+## 3. Order and Tour States
 
-States and transitions:
+Order `delivery_status` (planner-owned except where noted):
 
-1. **preparing** → Order created, kitchen working. estimated_pickup_time is in the future. Planner can see this order and pre-plan routes.
-2. **ready_to_deliver** → Kitchen marks done (estimated_pickup_time reached).
-3. **assigned_to_route** → Planner assigns to a route. Has assigned_driver_id, delivery_route_id, delivery_route_sequence.
-4. **assigned_to_route → ready_to_deliver** → Route cancelled/replaced (replan).
-5. **out_for_delivery** → Driver departs (route status → in_progress).
-6. **delivered** → Driver marks delivered.
+1. **preparing** — waiting for a tour (the planner never infers "ready" on its own).
+2. **ready_to_deliver** — only when the kitchen set `food_ready_at`.
+3. **assigned_to_route** — on a driver's next tour.
+4. **out_for_delivery** — driver pressed "Start tour" (`driver_start_route`). Frozen: the planner never touches it again.
+5. **delivered** — `mark-delivered` or `driver_complete_route`.
 
-### Key Rules
-- Pickup orders (fulfillment_type = 'pickup') are IGNORED by the planner.
-- An order cannot ship before food is ready: departure = max(driver.availableAt, max(estimated_pickup_time for all orders in route)).
-- Orders already out_for_delivery are FROZEN — planner can re-order remaining stops but never reassign to a different driver.
-- There is no hard limit on orders per route — the cost function and max route duration (1 hour) naturally constrain route size.
+Tour: `assigned` (re-plannable) → `in_progress` (driver left) → `completed` (driver back, `driver_complete_route`).
+
+Food-ready time used by the planner: `food_ready_at` → `estimated_pickup_time` → pre-order: `max(created + prep, requested − 30 min)` → `created + default_prep_secs` (15 min).
+
+Orders promised more than `stale_order_mins` (60) ago that were never dispatched through the app are ignored (handled outside the system).
 
 ---
 
-## 4. Event → Replanning Flow
+## 4. Event → Re-planning Flow
 
-### Triggers
-- New order inserted (Postgres trigger via pg_net)
-- Order marked ready (delivery_status change)
-- Driver goes online/offline (Postgres trigger)
-- Driver departs (route → in_progress)
-- Stop delivered (mark-delivered edge function)
-- Driver returns to restaurant
-- GPS update shifts ETA > 3 min
-- Manual replan button (dispatch screen)
+### Triggers (all call `request_replan()`, which reads the key from Vault secret `planner_service_key`)
+- Order inserted, confirmed, cancelled, geocoded, or `food_ready_at` changed
+- Driver goes online / offline
+- Tour started or completed
+- Stop delivered (`mark-delivered`)
+- Every minute while there are open orders and an online driver, or a committed tour (`planner_tick`, pg_cron)
+- Manual replan button on the Delivery Monitor
 
 ### Flow
-1. Load open orders + driver states
-2. Build travel-time matrix (cached + API)
-3. Run solver (cheapest insertion + local search + exhaustive if ≤ 6 unassigned)
-4. Write results atomically: upsert routes, update orders, log plan_version
-5. Supabase Realtime pushes to dispatch + driver screens
+1. `planner_try_lock`: if a run is active, mark "re-run requested" and return 202. Bursts collapse into one follow-up run.
+2. Load open delivery orders (all brands), manual pins, available drivers, and tours on the road.
+3. For drivers on the road: return ETA from the last GPS fix through the undelivered stops.
+4. Travel-time matrix: one cache query; missing pairs from Google Distance Matrix (≤25 destinations per request), haversine fallback.
+5. Solve (§6).
+6. `apply_delivery_plan(p)` in one transaction: reuse each driver's `assigned` route row, replace stops only if the order sequence changed, release dropped orders, flag unassignable ones, log. Aborts if the world changed meanwhile (e.g. a tour started) and the planner re-plans.
+7. Push "New tour: N orders · Leave at HH:MM" to drivers whose next tour is new or changed (FCM, Android channel `driver_routes`).
+8. `planner_release`: run again if a trigger arrived during this run.
 
 ---
 
 ## 5. Cost Function
 
-### Per-Order Cost
 ```
-target_time = requested_delivery_time ?? estimated_delivery_time
-
-lateness     = max(0, arrival - target)                    [minutes]
-early_grace  = 10 min (regular), 15 min (pre-orders)
-earliness    = max(0, target - arrival - early_grace)      [minutes]
-
-order_cost   = late_w * lateness^1.5 + early_w * earliness
-```
-
-The superlinear lateness penalty (^1.5) means 20 min late costs 10 * 20^1.5 = 894, while 2x10 min late costs 2 * 10 * 10^1.5 = 632.
-
-### Plan Cost
-```
-plan_cost = sum(order_cost)
-          + drive_w   * total_driving_minutes
-          + idle_w    * driver_waiting_at_restaurant_while_orders_ready
-          + unassigned_w * (orders left unassigned past their ready time)
+per order  serviceW · (handover − ready)        freshness (waiting + riding)      default 0.5 / min
+         + idleW    · (departure − ready)       ready food sitting at the store   default 2 / min
+         + lateW    · late^1.5                  late = handover − (promised − safety buffer 2 min)   default 10
+         + earlyW   · early                     pre-orders only, before requested − 15 min           default 1 / min
+         + reassignW                            moved away from the driver it was committed to       default 30
+per plan + driveW   · driving minutes                                                                default 0.5 / min
+         + 100 000 per unassigned order, 1 000 000 per broken hard constraint (shift end, tour capacity, pin)
 ```
 
-### Default Weights
-| Weight | Default | Purpose |
-|--------|---------|---------|
-| late_w | 10 | Strongly penalizes lateness |
-| early_w | 1 | Mildly penalizes excessive earliness |
-| drive_w | 0.5 | Prefers shorter driving routes |
-| idle_w | 2 | Penalizes wasted driver time at restaurant |
-| unassigned_w | 50 | Heavy penalty for unassigned ready orders |
+Early delivery of ASAP orders is not penalised. The superlinear lateness term makes one order 20 min late (894) worse than two orders 10 min late (632). With these weights the planner bundles orders a few minutes apart and sends orders in different directions with different drivers.
 
 ---
 
 ## 6. Algorithm
 
-### Phase 1: Initialize
-1. Load all orders with delivery_status IN ('ready_to_deliver', 'assigned_to_route', 'out_for_delivery') plus orders in prep within the 45-min planning horizon.
-2. Load both drivers' states: location, current route, projected return time.
-3. Build travel-time matrix (restaurant + all order locations) using cached Google Distance Matrix results.
-4. Fix already-delivered stops and in-car orders as constraints.
+- **≤ `exhaustive_threshold` actionable orders (default 6): exact.** Every driver × tour split × sequence is enumerated (best schedule per driver and order subset, then every assignment), so the plan is provably optimal for the cost above.
+- **Larger:** regret-2 insertion (seeded with current commitments, and from scratch) → simulated annealing within `solver_time_limit_ms` (relocate, swap, 2-opt, split tour, merge tours, move tour to another driver) → deterministic local-search polish to a local optimum. Two runs, best kept.
+- Tests (`solver_test.ts`): the search matches the exact optimum on 60/60 random instances; 14 orders solve in ~400 ms.
 
-### Phase 2: Cheapest Insertion Heuristic
-1. Sort unassigned orders by urgency (earliest target time first).
-2. For each order, evaluate every possible insertion position in every driver's route, plus "new route when driver returns".
-3. Pick the insertion with lowest total plan cost.
-4. Enforce constraints: max 3 stops per route, max route duration, food must be ready.
-
-### Phase 3: Local Search (up to 200ms)
-- 2-opt within a route: reverse a segment to reduce cost
-- Move: move a stop from one driver's route to the other
-- Swap: swap stops between drivers
-- Repeat until no improvement or time budget exhausted.
-
-### Phase 4: Exhaustive Search (if <= 6 unassigned orders)
-- Enumerate all assignments (order to driver) x all permutations.
-- Compare against heuristic result, keep the better one.
-- Guarantees true optimum for small instances.
-
-### Phase 5: Write Atomically
-- Upsert delivery_routes and route_stops.
-- Update each order's assigned_driver_id, delivery_route_id, delivery_route_sequence, planned_arrival_at.
-- Emit incremented plan_version to plan_log.
+Measured against the previous planner on the same simulated evenings (`deno run` in `plan-routes/`): with 8 open orders, late orders dropped from 3.2 to 0.3 on average and food age from 36 to 26 min, with less driving.
 
 ---
 
-## 7. Two-Driver Reasoning
+## 7. Driver App
 
-The planner never treats drivers independently. Each candidate plan contains both drivers' routes and is scored as a whole. This makes direction-awareness work naturally.
-
-Example: Driver 1 heading north with 2 orders. New order in the south, target +30 min.
-- Adding south order to D1's north route: High cost (20 min detour, makes north orders late)
-- Giving to D2 (returns in 8 min): Low cost (D2 departs +8 min, arrives south +18 min, within target)
-- The cost function naturally picks D2.
-
----
-
-## 8. Worked Example
-
-### Setup
-- Restaurant: (47.813, 13.069), Time: 18:00
-- Drivers: D1 (free), D2 (free)
-- Orders: A (north, target 18:25, 8 min away), B (north near A, target 18:35, 12 min / 5 from A), C (south, target 18:30, 6 min away)
-
-### Optimal Plan: D1 takes A->B, D2 takes C
-- D1: 18:00 depart -> 18:08 arrive A (0 late) -> 18:13 leave A -> 18:18 arrive B (0 late) -> 18:27 return
-- D2: 18:00 depart -> 18:06 arrive C (0 late, 14 min early, 4 excess) -> 18:12 return
-- Order cost: 4 (just C's excess earliness)
-- Plan cost: ~19
-
-### Rejected Plan: D1 takes A->B->C
-- C arrives at 18:36 = 6 min late -> cost = 10 * 6^1.5 = 147
-- Plan cost: ~180 — rejected due to devastating lateness penalty
-
-### Timeline Arithmetic (S7)
-```
-18:00:00  Depart restaurant
-18:07:00  Arrive A (7 min drive)
-18:12:00  Leave A (5 min handover)
-18:17:00  Arrive B (5 min drive A->B)
-18:22:00  Leave B (5 min handover)
-18:31:00  Back at restaurant (9 min drive B->depot)
-```
+- Separate entrypoint `lib/main_driver.dart` → only the driver screens are compiled in; login is empty (no pre-filled credentials); non-driver accounts are refused.
+- Online toggle starts an Android foreground service that sends heartbeats + position via `driver_heartbeat` (device key), at most every 15 s.
+- New or changed tour: sound, vibration and notification (FCM push when the app is closed, local notification when open; both share the tag `driver_route` so they collapse).
+- "Start tour" → `driver_start_route`; "Back at restaurant" → `driver_complete_route` (SECURITY DEFINER RPCs that check the caller owns the tour).
+- Build: `./build_driver_apk.sh` (builds with an empty `.env` so the service-role key is never in the APK; version code increases every build).
 
 ---
 
-## 9. Configuration Reference
+## 8. Configuration Reference
 
-All durations and weights live in delivery_settings (nothing hard-coded).
+All live in `delivery_settings` (editable on the Delivery Settings screen unless noted).
 
 | Setting | Column | Default | Unit |
 |---------|--------|---------|------|
+| Kitchen prep time | default_prep_secs | 900 | seconds |
 | Handover time | handover_time_secs | 300 | seconds |
-| Early grace | early_grace_secs | 600 | seconds |
+| Safety buffer | safety_buffer_secs | 120 | seconds (DB only) |
 | Early grace (pre-order) | preorder_early_grace_secs | 900 | seconds |
-| Bundling wait | bundling_wait_secs | 240 | seconds |
 | Planning horizon | planning_horizon_secs | 2700 | seconds |
-| Max stops per route | max_stops_per_route | 999 | count (no hard limit) |
-| Max route duration | max_route_duration_secs | 3600 | seconds |
-| Solver time limit | solver_time_limit_ms | 200 | ms |
-| Exhaustive threshold | exhaustive_threshold | 6 | count |
-| Auto-assign delay | auto_assign_delay_secs | 60 | seconds |
+| Ignore undispatched orders promised more than | stale_order_mins | 60 | minutes (DB only) |
+| Driver heartbeat timeout | driver_heartbeat_timeout_mins | 15 | minutes (DB only) |
+| Shift end grace | shift_end_grace_minutes | 15 | minutes |
+| Max stops per tour | max_stops_per_route | 999 | count (hard limit) |
+| Solver time limit | solver_time_limit_ms | 400 | ms |
+| Exhaustive threshold | exhaustive_threshold | 6 | orders |
 | City speed fallback | city_speed_kmh | 25 | km/h |
 | Late weight | late_weight | 10 | - |
 | Early weight | early_weight | 1 | - |
 | Drive weight | drive_weight | 0.5 | - |
-| Idle weight | idle_weight | 2 | - |
-| Unassigned weight | unassigned_weight | 50 | - |
+| Idle (food waiting) weight | idle_weight | 2 | - |
+| Freshness weight | service_weight | 0.5 | - |
+| Reassign penalty | reassign_weight | 30 | - |

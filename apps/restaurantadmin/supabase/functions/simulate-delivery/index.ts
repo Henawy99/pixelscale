@@ -5,7 +5,7 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
-import { solve, evaluatePlan, computeRouteTimeline } from "../plan-routes/solver.ts";
+import { solve } from "../plan-routes/solver.ts";
 import { buildTestMatrix } from "../plan-routes/travel_time.ts";
 import type {
   PlannerOrder,

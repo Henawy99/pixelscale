@@ -1,734 +1,321 @@
 // supabase/functions/plan-routes/solver_test.ts
-// Unit tests for the route planner solver with stubbed travel-time matrix.
-// Covers acceptance scenarios S1–S7.
+// Unit tests for the multi-tour route planner.
 //
-// Run: deno test solver_test.ts --allow-all
+// Run: deno test --allow-all supabase/functions/plan-routes/solver_test.ts
 
-import {
-  assertEquals,
-  assertAlmostEquals,
-  assert,
-} from "https://deno.land/std@0.177.0/testing/asserts.ts";
+import { assert, assertEquals, assertAlmostEquals } from "https://deno.land/std@0.177.0/testing/asserts.ts";
 
-import { solve, evaluatePlan, computeRouteTimeline } from "./solver.ts";
-import { buildTestMatrix } from "./travel_time.ts";
-import type {
-  PlannerOrder,
-  PlannerDriver,
-  PlannerSettings,
-  TravelTimeMatrix,
-  TravelTime,
-  LatLng,
-} from "./types.ts";
+import { solve, __test } from "./solver.ts";
+import { haversineFallback } from "./travel_time.ts";
+import type { PlannerOrder, PlannerDriver, PlannerSettings, TravelTimeMatrix, LatLng, PlanResult } from "./types.ts";
 
 // ============================================================
 // HELPERS
 // ============================================================
 
-/** Create default settings for tests. */
-function defaultSettings(): PlannerSettings {
+const STORE: LatLng = { lat: 47.81328, lng: 13.06882 };
+const NOW = new Date("2026-09-27T18:00:00Z");
+
+function settings(overrides: Partial<PlannerSettings> = {}): PlannerSettings {
   return {
     lateWeight: 10,
     earlyWeight: 1,
     driveWeight: 0.5,
     idleWeight: 2,
     unassignedWeight: 50,
-    handoverTimeSecs: 300, // 5 min
-    earlyGraceSecs: 600, // 10 min
-    preorderEarlyGraceSecs: 900, // 15 min
-    bundlingWaitSecs: 240, // 4 min
-    planningHorizonSecs: 2700, // 45 min
+    serviceWeight: 0.5,
+    reassignWeight: 30,
+    handoverTimeSecs: 300,
+    earlyGraceSecs: 600,
+    preorderEarlyGraceSecs: 900,
+    bundlingWaitSecs: 240,
+    planningHorizonSecs: 2700,
+    safetyBufferSecs: 120,
     citySpeedKmh: 25,
     maxStopsPerRoute: 999,
-    maxRouteDurationSecs: 3600, // 1 hour
-    solverTimeLimitMs: 200,
+    maxRouteDurationSecs: 3600,
+    solverTimeLimitMs: 300,
     exhaustiveThreshold: 6,
-    storeLocation: { lat: 47.81328, lng: 13.06882 }, // Restaurant
+    storeLocation: STORE,
+    ...overrides,
   };
 }
 
-/** Create a test order. */
-function makeOrder(
+function order(
   id: string,
   location: LatLng,
-  targetMinFromNow: number,
-  now: Date,
-  overrides: Partial<PlannerOrder> = {}
+  targetMin: number,
+  opts: { readyMin?: number; preorder?: boolean } & Partial<PlannerOrder> = {},
 ): PlannerOrder {
+  const { readyMin, preorder, ...rest } = opts;
+  const target = new Date(NOW.getTime() + targetMin * 60_000);
   return {
     id,
-    brandId: "test-brand",
+    brandId: "brand",
     location,
-    customerName: `Customer ${id}`,
-    customerAddress: `Address ${id}`,
+    customerName: id,
+    customerAddress: id,
     customerPhone: null,
     deliveryNotes: null,
-    targetDeliveryTime: new Date(now.getTime() + targetMinFromNow * 60000),
-    estimatedPickupTime: null, // Ready now
-    requestedDeliveryTime: null,
+    targetDeliveryTime: target,
+    estimatedPickupTime: null,
+    requestedDeliveryTime: preorder ? target : null,
+    readyAt: readyMin === undefined ? null : new Date(NOW.getTime() + readyMin * 60_000),
     deliveryStatus: "ready_to_deliver",
     currentRouteId: null,
     currentDriverId: null,
     currentSequence: null,
-    orderTypeName: "Website",
+    orderTypeName: "Lieferando",
     paymentMethod: "online",
     totalPrice: 20,
-    ...overrides,
+    ...rest,
   };
 }
 
-/** Create a test driver. */
-function makeDriver(
-  id: string,
-  overrides: Partial<PlannerDriver> = {}
-): PlannerDriver {
+function driver(id: string, opts: Partial<PlannerDriver> = {}): PlannerDriver {
   return {
     id,
-    name: `Driver ${id}`,
+    name: id,
     isOnline: true,
-    currentLocation: null,
+    currentLocation: STORE,
     currentRouteId: null,
     projectedReturnAt: null,
-    ...overrides,
+    availableAt: null,
+    shiftEndAt: null,
+    ...opts,
   };
 }
 
-/**
- * Build a symmetric travel time matrix from a flat spec.
- * Spec format: { "0,1": secs, "1,2": secs, ... }
- * Missing pairs get haversine-like fallback.
- */
-function buildMatrix(
-  n: number,
-  spec: Record<string, number>
-): TravelTimeMatrix {
-  const entries = new Map<string, TravelTime>();
-  for (const [key, secs] of Object.entries(spec)) {
-    const [i, j] = key.split(",").map(Number);
-    entries.set(`${i},${j}`, { durationSeconds: secs, distanceMeters: secs * 10 });
-    // Make symmetric
-    if (!spec[`${j},${i}`]) {
-      entries.set(`${j},${i}`, { durationSeconds: secs, distanceMeters: secs * 10 });
-    }
-  }
-  return buildTestMatrix(n, entries);
+/** Road matrix from straight-line distance (×1.4 at 25 km/h), row 0 = store. */
+function matrixFor(orders: PlannerOrder[]): TravelTimeMatrix {
+  const pts = [STORE, ...orders.map((o) => o.location)];
+  return pts.map((a) => pts.map((b) => (a === b ? { durationSeconds: 0, distanceMeters: 0 } : haversineFallback(a, b, 25))));
 }
 
-// ============================================================
-// S1: Single driver, 3 orders, 3 targets
-// ============================================================
+/** Matrix with explicit minutes: minutes[i][j], row/col 0 = store. */
+function matrixMinutes(minutes: number[][]): TravelTimeMatrix {
+  return minutes.map((row) => row.map((m) => ({ durationSeconds: m * 60, distanceMeters: m * 400 })));
+}
 
-Deno.test("S1: 2 drivers free, 3 orders → split across drivers, no order late", () => {
-  const now = new Date("2026-01-01T18:00:00Z");
-  const settings = defaultSettings();
+function tourOf(res: PlanResult, orderId: string) {
+  return res.trips.find((t) => t.stops.some((s) => s.orderId === orderId));
+}
 
-  // Locations: 0=restaurant, 1=A (8 min north), 2=B (12 min north, near A), 3=C (6 min south, opposite)
-  // Matrix (index: 0=depot, 1=A, 2=B, 3=C):
-  // 0→1=8min, 0→2=12min, 0→3=6min, 1→2=5min, 1→3=14min, 2→3=18min
-  const matrix = buildMatrix(4, {
-    "0,1": 480,  // 8 min
-    "0,2": 720,  // 12 min
-    "0,3": 360,  // 6 min
-    "1,2": 300,  // 5 min
-    "1,3": 840,  // 14 min
-    "2,3": 1080, // 18 min
-  });
-
-  const orders: PlannerOrder[] = [
-    makeOrder("A", { lat: 47.83, lng: 13.07 }, 25, now), // target +25 min
-    makeOrder("B", { lat: 47.84, lng: 13.07 }, 35, now), // target +35 min
-    makeOrder("C", { lat: 47.80, lng: 13.06 }, 30, now), // target +30 min
-  ];
-
-  const drivers: PlannerDriver[] = [
-    makeDriver("D1"),
-    makeDriver("D2"),
-  ];
-
-  const result = solve(orders, drivers, matrix, settings, now, 0);
-
-  // Assertions
-  assertEquals(result.unassignedOrderIds.length, 0, "All orders should be assigned");
-  assert(result.routes.length >= 1, "At least one route");
-
-  // Check no order is late
-  for (const oc of result.costBreakdown.perOrder) {
-    assert(oc.latenessMinutes <= 0.1, `Order ${oc.orderId} should not be late, was ${oc.latenessMinutes} min late`);
+function arrivalMin(res: PlanResult, orderId: string): number {
+  for (const t of res.trips) {
+    const s = t.stops.find((x) => x.orderId === orderId);
+    if (s) return (s.plannedArrivalAt.getTime() - NOW.getTime()) / 60_000;
   }
+  throw new Error(`order ${orderId} not planned`);
+}
 
-  console.log("S1 cost breakdown:", JSON.stringify(result.costBreakdown, null, 2));
+// Salzburg-ish points around the restaurant.
+const NORTH_A = { lat: 47.8330, lng: 13.0650 };
+const NORTH_B = { lat: 47.8360, lng: 13.0600 };
+const SOUTH_C = { lat: 47.7900, lng: 13.0700 };
+const WEST_D = { lat: 47.8100, lng: 13.0200 };
+const EAST_E = { lat: 47.8150, lng: 13.0950 };
+
+// ============================================================
+// BEHAVIOUR
+// ============================================================
+
+Deno.test("two free drivers: nearby north orders bundled, south order to the other driver", () => {
+  const orders = [order("A", NORTH_A, 35), order("B", NORTH_B, 40), order("C", SOUTH_C, 35)];
+  const res = solve(orders, [driver("D1"), driver("D2")], matrixFor(orders), settings(), NOW, 0);
+
+  assertEquals(res.unassignedOrderIds, []);
+  assertEquals(tourOf(res, "A")!.driverId, tourOf(res, "B")!.driverId, "A and B should share a driver");
+  assert(tourOf(res, "C")!.driverId !== tourOf(res, "A")!.driverId, "C goes with the other driver");
+  for (const oc of res.costBreakdown.perOrder) assertEquals(oc.latenessMinutes, 0, `${oc.orderId} late`);
+});
+
+Deno.test("both drivers are planned together: busy driver's direction is respected", () => {
+  // D1 is out and back in 25 min; D2 is free. A new urgent order must go to D2.
+  const orders = [order("S", SOUTH_C, 20)];
+  const drivers = [
+    driver("D1", { availableAt: new Date(NOW.getTime() + 25 * 60_000), currentRouteId: "r1" }),
+    driver("D2"),
+  ];
+  const res = solve(orders, drivers, matrixFor(orders), settings(), NOW, 0);
+  assertEquals(tourOf(res, "S")!.driverId, "D2");
+});
+
+Deno.test("ready order leaves now instead of waiting 20 min for a not-ready neighbour", () => {
+  const orders = [order("A", NORTH_A, 45), order("B", NORTH_B, 70, { readyMin: 20 })];
+  const res = solve(orders, [driver("D1"), driver("D2")], matrixFor(orders), settings(), NOW, 0);
+  const a = tourOf(res, "A")!;
+  assertAlmostEquals(a.plannedDepartureAt.getTime(), NOW.getTime(), 1000);
+  assert(!a.stops.some((s) => s.orderId === "B"), "A should not wait for B");
+});
+
+Deno.test("food not ready yet: tour departs when the food is ready, never earlier", () => {
+  const orders = [order("A", NORTH_A, 60, { readyMin: 12 })];
+  const res = solve(orders, [driver("D1")], matrixFor(orders), settings(), NOW, 0);
+  assertAlmostEquals(res.routes[0].plannedDepartureAt.getTime(), NOW.getTime() + 12 * 60_000, 1000);
+});
+
+Deno.test("pre-order far in the future is deferred, not dispatched", () => {
+  const orders = [order("P", NORTH_A, 120, { preorder: true, readyMin: 90 }), order("A", SOUTH_C, 40)];
+  const res = solve(orders, [driver("D1")], matrixFor(orders), settings(), NOW, 0);
+  assert(!tourOf(res, "P"), "pre-order must not be planned yet");
+  assert(!res.unassignedOrderIds.includes("P"), "deferred is not the same as unassigned");
+  assert(tourOf(res, "A"));
+});
+
+Deno.test("timeline arithmetic: drive + 5 min handover per stop + return", () => {
+  // store→A 7, A→B 5, B→store 9 (minutes)
+  const orders = [order("A", NORTH_A, 30), order("B", NORTH_B, 40)];
+  const m = matrixMinutes([
+    [0, 7, 12],
+    [7, 0, 5],
+    [9, 5, 0],
+  ]);
+  const res = solve(orders, [driver("D1")], m, settings({ exhaustiveThreshold: 6 }), NOW, 0);
+  assertEquals(res.routes.length, 1);
+  const r = res.routes[0];
+  assertEquals(r.stops.map((s) => s.orderId), [null, "A", "B", null]);
+  assertEquals(arrivalMin(res, "A"), 7);
+  assertEquals(arrivalMin(res, "B"), 17); // 7 + 5 handover + 5 drive
+  assertEquals((r.plannedReturnAt.getTime() - NOW.getTime()) / 60_000, 31); // 17 + 5 + 9
+});
+
+Deno.test("one driver, orders ready at different times → two tours, second leaves on return", () => {
+  const orders = [order("A", WEST_D, 30), order("B", EAST_E, 75, { readyMin: 30 })];
+  const res = solve(orders, [driver("D1")], matrixFor(orders), settings(), NOW, 0);
+  const tours = res.trips.filter((t) => t.driverId === "D1");
+  assertEquals(tours.length, 2);
+  assertEquals(res.routes.length, 1, "only the next tour is committed");
+  assertEquals(res.routes[0].stops[1].orderId, "A");
+  assert(tours[1].plannedDepartureAt.getTime() >= tours[0].plannedReturnAt.getTime());
+});
+
+Deno.test("shift ending soon: the tour goes to the driver who stays", () => {
+  const orders = [order("A", WEST_D, 40)];
+  const drivers = [
+    driver("Short", { shiftEndAt: new Date(NOW.getTime() + 5 * 60_000) }),
+    driver("Long", { shiftEndAt: new Date(NOW.getTime() + 3 * 3600_000) }),
+  ];
+  const res = solve(orders, drivers, matrixFor(orders), settings({ shiftEndGraceMinutes: 5 }), NOW, 0);
+  assertEquals(tourOf(res, "A")!.driverId, "Long");
+});
+
+Deno.test("only driver's shift ends before the tour could return → order flagged unassigned", () => {
+  const orders = [order("A", WEST_D, 40)];
+  const drivers = [driver("Short", { shiftEndAt: new Date(NOW.getTime() + 2 * 60_000) })];
+  const res = solve(orders, drivers, matrixFor(orders), settings({ shiftEndGraceMinutes: 0 }), NOW, 0);
+  assertEquals(res.unassignedOrderIds, ["A"]);
+});
+
+Deno.test("manual pin is respected even when the other driver would be better", () => {
+  const orders = [order("A", NORTH_A, 40, { pinnedDriverId: "D2" })];
+  const drivers = [driver("D1"), driver("D2", { availableAt: new Date(NOW.getTime() + 10 * 60_000) })];
+  const res = solve(orders, drivers, matrixFor(orders), settings(), NOW, 0);
+  assertEquals(tourOf(res, "A")!.driverId, "D2");
+});
+
+Deno.test("pin to a driver who went offline does not strand the order", () => {
+  const orders = [order("A", NORTH_A, 40, { pinnedDriverId: "gone" })];
+  const res = solve(orders, [driver("D1")], matrixFor(orders), settings(), NOW, 0);
+  assertEquals(tourOf(res, "A")!.driverId, "D1");
+});
+
+Deno.test("stability: a committed order stays with its driver unless the gain is real", () => {
+  // D2 frees up 1 minute later than D1; the order was already given to D2.
+  const orders = [
+    order("A", NORTH_A, 45, { deliveryStatus: "assigned_to_route", currentDriverId: "D2", currentSequence: 1 }),
+  ];
+  const drivers = [driver("D1"), driver("D2", { availableAt: new Date(NOW.getTime() + 60_000) })];
+  const res = solve(orders, drivers, matrixFor(orders), settings(), NOW, 0);
+  assertEquals(tourOf(res, "A")!.driverId, "D2");
+});
+
+Deno.test("stability does not block a big improvement", () => {
+  // Committed to D2 but D2 is now 40 minutes away; D1 is free → move it.
+  const orders = [
+    order("A", NORTH_A, 25, { deliveryStatus: "assigned_to_route", currentDriverId: "D2", currentSequence: 1 }),
+  ];
+  const drivers = [driver("D1"), driver("D2", { availableAt: new Date(NOW.getTime() + 40 * 60_000) })];
+  const res = solve(orders, drivers, matrixFor(orders), settings(), NOW, 0);
+  assertEquals(tourOf(res, "A")!.driverId, "D1");
+});
+
+Deno.test("orders of different brands share tours (same kitchen, same drivers)", () => {
+  const orders = [order("A", NORTH_A, 35, { brandId: "tacos" }), order("B", NORTH_B, 35, { brandId: "burgers" })];
+  const res = solve(orders, [driver("D1")], matrixFor(orders), settings(), NOW, 0);
+  assertEquals(res.routes.length, 1);
+  assertEquals(res.routes[0].stops.filter((s) => s.orderId).length, 2);
+});
+
+Deno.test("tour capacity is a hard limit", () => {
+  const pts = [NORTH_A, NORTH_B, { lat: 47.834, lng: 13.063 }, { lat: 47.835, lng: 13.061 }];
+  const orders = pts.map((p, i) => order(`N${i}`, p, 50));
+  const res = solve(orders, [driver("D1")], matrixFor(orders), settings({ maxStopsPerRoute: 2 }), NOW, 0);
+  for (const t of res.trips) assert(t.stops.filter((s) => s.orderId).length <= 2);
+  assertEquals(res.unassignedOrderIds, []);
 });
 
 // ============================================================
-// S2: Opposite direction, second driver returning
+// OPTIMALITY & PERFORMANCE
 // ============================================================
 
-Deno.test("S2: Driver 1 heading north, driver 2 returning in 8 min → south order to driver 2", () => {
-  const now = new Date("2026-01-01T18:00:00Z");
-  const settings = defaultSettings();
-
-  // D1 is out with 2 northern orders (already assigned, out_for_delivery)
-  // D2 is out, projected return in 8 min
-  // New order S is 10 min south of restaurant, target +30 min
-
-  // Matrix: 0=depot, 1=N1(north1), 2=N2(north2), 3=S(south)
-  const matrix = buildMatrix(4, {
-    "0,1": 600,   // 10 min
-    "0,2": 720,   // 12 min
-    "0,3": 600,   // 10 min south
-    "1,2": 300,   // 5 min (north stops near each other)
-    "1,3": 1200,  // 20 min (north to south)
-    "2,3": 1320,  // 22 min (north to south)
-  });
-
-  const orders: PlannerOrder[] = [
-    makeOrder("N1", { lat: 47.83, lng: 13.07 }, 20, now, {
-      deliveryStatus: "out_for_delivery",
-      currentDriverId: "D1",
-      currentRouteId: "route-1",
-      currentSequence: 0,
-    }),
-    makeOrder("N2", { lat: 47.84, lng: 13.07 }, 25, now, {
-      deliveryStatus: "out_for_delivery",
-      currentDriverId: "D1",
-      currentRouteId: "route-1",
-      currentSequence: 1,
-    }),
-    makeOrder("S", { lat: 47.80, lng: 13.06 }, 30, now), // New south order
-  ];
-
-  const drivers: PlannerDriver[] = [
-    makeDriver("D1", {
-      currentRouteId: "route-1",
-      currentLocation: { lat: 47.82, lng: 13.07 },
-    }),
-    makeDriver("D2", {
-      currentRouteId: null,
-      projectedReturnAt: new Date(now.getTime() + 8 * 60000), // Back in 8 min
-    }),
-  ];
-
-  const result = solve(orders, drivers, matrix, settings, now, 0);
-
-  // The south order should be assigned to D2, not D1
-  const southOrder = result.routes
-    .flatMap((r) => r.stops.filter((s) => s.orderId === "S"))
-    .map((s) => {
-      const route = result.routes.find((r) => r.stops.includes(s));
-      return route?.driverId;
-    });
-
-  if (southOrder.length > 0) {
-    assertEquals(
-      southOrder[0],
-      "D2",
-      "South order should be assigned to driver 2 (not the one heading north)"
-    );
+function randomInstance(seed: number, n: number) {
+  let a = seed;
+  const rand = () => {
+    a = (a * 1103515245 + 12345) & 0x7fffffff;
+    return a / 0x7fffffff;
+  };
+  const orders: PlannerOrder[] = [];
+  for (let i = 0; i < n; i++) {
+    const loc = { lat: STORE.lat + (rand() - 0.5) * 0.06, lng: STORE.lng + (rand() - 0.5) * 0.09 };
+    const readyMin = Math.floor(rand() * 25) - 5;
+    orders.push(order(`O${i}`, loc, readyMin + 30 + Math.floor(rand() * 30), { readyMin }));
   }
+  const drivers = [driver("D1"), driver("D2", { availableAt: new Date(NOW.getTime() + Math.floor(rand() * 20) * 60_000) })];
+  return { orders, drivers };
+}
 
-  console.log("S2 result:", JSON.stringify(result.costBreakdown, null, 2));
-});
-
-// ============================================================
-// S3: Food not ready
-// ============================================================
-
-Deno.test("S3: Two nearby orders, one ready one not → send ready one alone rather than waiting", () => {
-  const now = new Date("2026-01-01T18:00:00Z");
-  const settings = defaultSettings();
-
-  // Matrix: 0=depot, 1=orderReady, 2=orderNotReady
-  const matrix = buildMatrix(3, {
-    "0,1": 420,  // 7 min
-    "0,2": 480,  // 8 min (nearby)
-    "1,2": 120,  // 2 min (very close)
-  });
-
-  const orders: PlannerOrder[] = [
-    makeOrder("READY", { lat: 47.82, lng: 13.07 }, 20, now), // Ready now, target +20
-    makeOrder("NOT_READY", { lat: 47.821, lng: 13.071 }, 22, now, {
-      estimatedPickupTime: new Date(now.getTime() + 12 * 60000), // Ready in 12 min
-    }),
-  ];
-
-  const drivers: PlannerDriver[] = [
-    makeDriver("D1"),
-  ];
-
-  const result = solve(orders, drivers, matrix, settings, now, 0);
-
-  // The ready order should be assigned
-  const readyAssigned = result.routes.some((r) =>
-    r.stops.some((s) => s.orderId === "READY")
-  );
-  assert(readyAssigned, "Ready order should be dispatched");
-
-  // The not-ready order can be assigned or not based on cost
-  console.log("S3 result:", JSON.stringify(result.costBreakdown, null, 2));
-});
-
-// ============================================================
-// S4: Pre-order (90 min out)
-// ============================================================
-
-Deno.test("S4: Pre-order 90 min out → not dispatched early", () => {
-  const now = new Date("2026-01-01T18:00:00Z");
-  const settings = defaultSettings();
-
-  const matrix = buildMatrix(2, {
-    "0,1": 600, // 10 min
-  });
-
-  const orders: PlannerOrder[] = [
-    makeOrder("PREORDER", { lat: 47.82, lng: 13.07 }, 90, now, {
-      requestedDeliveryTime: new Date(now.getTime() + 90 * 60000),
-    }),
-  ];
-
-  const drivers: PlannerDriver[] = [makeDriver("D1")];
-
-  const result = solve(orders, drivers, matrix, settings, now, 0);
-
-  // The pre-order should NOT be dispatched (90 min > planningHorizon 45 min + grace 15 min)
-  const preorderAssigned = result.routes.some((r) =>
-    r.stops.some((s) => s.orderId === "PREORDER")
-  );
-
-  assert(
-    !preorderAssigned || result.unassignedOrderIds.includes("PREORDER"),
-    "Pre-order 90 min out should not be dispatched early"
-  );
-
-  console.log("S4 result:", JSON.stringify(result.costBreakdown, null, 2));
-});
-
-// ============================================================
-// S5: Replanning mid-route
-// ============================================================
-
-Deno.test("S5: Replanning mid-route — new order near remaining stop", () => {
-  const now = new Date("2026-01-01T18:00:00Z");
-  const settings = defaultSettings();
-
-  // D1 has stops A, B remaining. New order C is near B.
-  // Matrix: 0=depot, 1=A, 2=B, 3=C(near B)
-  const matrix = buildMatrix(4, {
-    "0,1": 600,  // 10 min
-    "0,2": 900,  // 15 min
-    "0,3": 840,  // 14 min (near B)
-    "1,2": 300,  // 5 min
-    "1,3": 360,  // 6 min
-    "2,3": 120,  // 2 min (very close)
-  });
-
-  const orders: PlannerOrder[] = [
-    makeOrder("A", { lat: 47.82, lng: 13.07 }, 25, now, {
-      deliveryStatus: "assigned_to_route",
-      currentDriverId: "D1",
-      currentRouteId: "route-1",
-      currentSequence: 0,
-    }),
-    makeOrder("B", { lat: 47.83, lng: 13.07 }, 35, now, {
-      deliveryStatus: "assigned_to_route",
-      currentDriverId: "D1",
-      currentRouteId: "route-1",
-      currentSequence: 1,
-    }),
-    makeOrder("C", { lat: 47.831, lng: 13.071 }, 40, now), // New, near B
-  ];
-
-  const drivers: PlannerDriver[] = [
-    makeDriver("D1"),
-    makeDriver("D2"),
-  ];
-
-  const result = solve(orders, drivers, matrix, settings, now, 0);
-
-  // C should be inserted into D1's route (near B) or given to D2
-  // Either way, no order should be significantly late
-  assertEquals(result.unassignedOrderIds.length, 0, "All orders should be assigned");
-
-  // Check B is not pushed past tolerance
-  const bCost = result.costBreakdown.perOrder.find((oc) => oc.orderId === "B");
-  if (bCost) {
-    assert(bCost.latenessMinutes < 5, `Order B should not be pushed significantly late: ${bCost.latenessMinutes} min`);
+Deno.test("search finds the proven optimum on random small instances", () => {
+  let matched = 0;
+  const cases = 30;
+  for (let seed = 1; seed <= cases; seed++) {
+    const n = 4 + (seed % 3); // 4..6 orders
+    const { orders, drivers } = randomInstance(seed, n);
+    const p = __test.buildProblem(orders, orders.map((_, i) => i + 1), drivers, matrixFor(orders), settings(), NOW);
+    const optimum = __test.exactOptimum(p);
+    const found = __test.searchOnly(p, orders, 120, seed);
+    assert(found >= optimum - 1e-6, "search cannot beat a proven optimum");
+    if (found <= optimum + 1e-6) matched++;
   }
-
-  console.log("S5 result:", JSON.stringify(result.costBreakdown, null, 2));
+  assert(matched >= cases - 1, `search matched the optimum in ${matched}/${cases} cases`);
 });
 
-// ============================================================
-// S6: Exhaustive vs heuristic (within 5%)
-// ============================================================
+Deno.test("busy hour: 14 orders, 2 drivers — solved fast, everything planned, better than one-by-one", () => {
+  const { orders } = randomInstance(99, 14);
+  const drivers = [driver("D1"), driver("D2")];
+  const m = matrixFor(orders);
+  const t0 = Date.now();
+  const res = solve(orders, drivers, m, settings({ solverTimeLimitMs: 400 }), NOW, 0);
+  const took = Date.now() - t0;
 
-Deno.test("S6: Exhaustive vs heuristic within 5% for small instances", () => {
-  const now = new Date("2026-01-01T18:00:00Z");
-  const settings = defaultSettings();
-  settings.exhaustiveThreshold = 20; // Force exhaustive for comparison
+  assert(took < 1500, `solver took ${took}ms`);
+  assertEquals(res.method, "search");
+  assertEquals(res.unassignedOrderIds, []);
+  const planned = res.trips.flatMap((t) => t.stops.filter((s) => s.orderId).map((s) => s.orderId));
+  assertEquals(new Set(planned).size, 14);
 
-  const rng = (seed: number) => {
-    let s = seed;
-    return () => {
-      s = (s * 16807) % 2147483647;
-      return (s - 1) / 2147483646;
-    };
-  };
-
-  let heuristicWinsOrTies = 0;
-  const numInstances = 5; // Reduced for test speed
-
-  for (let instance = 0; instance < numInstances; instance++) {
-    const rand = rng(instance + 42);
-    const numOrders = 3 + Math.floor(rand() * 4); // 3-6 orders
-
-    // Random matrix
-    const n = numOrders + 1; // +1 for depot
-    const spec: Record<string, number> = {};
-    for (let i = 0; i < n; i++) {
-      for (let j = i + 1; j < n; j++) {
-        const secs = 180 + Math.floor(rand() * 720); // 3-15 min
-        spec[`${i},${j}`] = secs;
-      }
-    }
-    const matrix = buildMatrix(n, spec);
-
-    const orders: PlannerOrder[] = [];
-    for (let i = 0; i < numOrders; i++) {
-      orders.push(
-        makeOrder(
-          `O${i}`,
-          { lat: 47.81 + rand() * 0.04, lng: 13.05 + rand() * 0.04 },
-          20 + Math.floor(rand() * 20), // target 20-40 min
-          now
-        )
-      );
-    }
-
-    const drivers: PlannerDriver[] = [makeDriver("D1"), makeDriver("D2")];
-
-    // Run with exhaustive
-    const result = solve(orders, drivers, matrix, settings, now, 0);
-
-    // Run heuristic only (disable exhaustive)
-    const settingsHeuristic = { ...settings, exhaustiveThreshold: 0 };
-    const heuristicResult = solve(orders, drivers, matrix, settingsHeuristic, now, 0);
-
-    const exhaustiveCost = result.costBreakdown.totalCost;
-    const heuristicCost = heuristicResult.costBreakdown.totalCost;
-
-    if (exhaustiveCost > 0) {
-      const ratio = heuristicCost / exhaustiveCost;
-      console.log(
-        `Instance ${instance}: exhaustive=${exhaustiveCost.toFixed(2)}, heuristic=${heuristicCost.toFixed(2)}, ratio=${ratio.toFixed(3)}`
-      );
-      assert(
-        ratio <= 1.05,
-        `Instance ${instance}: heuristic cost ${heuristicCost.toFixed(2)} is more than 5% worse than exhaustive ${exhaustiveCost.toFixed(2)} (ratio=${ratio.toFixed(3)})`
-      );
-    }
-    heuristicWinsOrTies++;
-  }
-
-  assert(
-    heuristicWinsOrTies === numInstances,
-    `All ${numInstances} instances should pass the 5% criterion`
-  );
+  // Baseline: each order its own tour, alternating drivers in promised-time order.
+  const p = __test.buildProblem(orders, orders.map((_, i) => i + 1), drivers, m, settings(), NOW);
+  const byTarget = orders.map((_, i) => i).sort((a, b) => orders[a].targetDeliveryTime.getTime() - orders[b].targetDeliveryTime.getTime());
+  const baseline: number[][][] = [[], []];
+  byTarget.forEach((i, k) => baseline[k % 2].push([i]));
+  const baselineCost = __test.scheduleCost(p, baseline);
+  assert(res.costBreakdown.totalCost < baselineCost, `plan ${res.costBreakdown.totalCost} vs baseline ${baselineCost}`);
 });
 
-// ============================================================
-// S7: Timeline arithmetic
-// ============================================================
-
-Deno.test("S7: Timeline arithmetic — exact arrival times", () => {
-  const now = new Date("2026-01-01T18:00:00Z");
-  const settings = defaultSettings();
-  settings.handoverTimeSecs = 300; // 5 min
-
-  // restaurant→A = 7 min, A→B = 5 min, B→restaurant = 9 min
-  // Matrix: 0=depot, 1=A, 2=B
-  const matrix = buildMatrix(3, {
-    "0,1": 420,  // 7 min
-    "1,2": 300,  // 5 min
-    "2,0": 540,  // 9 min
-    "0,2": 720,  // 12 min (direct, not used in optimal A→B route)
-    "1,0": 420,  // 7 min return from A
-    "2,1": 300,  // 5 min B→A (symmetric)
-  });
-
-  const orders: PlannerOrder[] = [
-    makeOrder("A", { lat: 47.82, lng: 13.07 }, 30, now),
-    makeOrder("B", { lat: 47.83, lng: 13.07 }, 40, now),
-  ];
-
-  const drivers: PlannerDriver[] = [makeDriver("D1")];
-
-  const result = solve(orders, drivers, matrix, settings, now, 0);
-
-  assert(result.routes.length >= 1, "Should have at least one route");
-
-  // Find the route with both orders
-  const route = result.routes.find(
-    (r) => r.stops.some((s) => s.orderId === "A") && r.stops.some((s) => s.orderId === "B")
-  );
-
-  if (route) {
-    // Expected timeline:
-    // Depart 18:00
-    // Arrive A: 18:07 (7 min drive)
-    // Leave A: 18:12 (5 min handover)
-    // Arrive B: 18:17 (5 min drive A→B)
-    // Leave B: 18:22 (5 min handover)
-    // Back at restaurant: 18:31 (9 min drive B→depot)
-
-    const stopA = route.stops.find((s) => s.orderId === "A");
-    const stopB = route.stops.find((s) => s.orderId === "B");
-
-    if (stopA && stopB) {
-      // Check if A comes before B in the route
-      const idxA = route.stops.indexOf(stopA);
-      const idxB = route.stops.indexOf(stopB);
-
-      if (idxA < idxB) {
-        // A→B order
-        const arriveA = stopA.plannedArrivalAt;
-        const arriveB = stopB.plannedArrivalAt;
-        const returnAt = route.plannedReturnAt;
-
-        // Arrive A at 18:07
-        const expectedArriveA = new Date("2026-01-01T18:07:00Z");
-        const diffA = Math.abs(arriveA.getTime() - expectedArriveA.getTime()) / 1000;
-        assert(diffA < 2, `Arrive A should be ~18:07, got ${arriveA.toISOString()} (diff ${diffA}s)`);
-
-        // Arrive B at 18:17 (18:07 + 5min handover + 5min drive)
-        const expectedArriveB = new Date("2026-01-01T18:17:00Z");
-        const diffB = Math.abs(arriveB.getTime() - expectedArriveB.getTime()) / 1000;
-        assert(diffB < 2, `Arrive B should be ~18:17, got ${arriveB.toISOString()} (diff ${diffB}s)`);
-
-        // Return at 18:31 (18:17 + 5min handover + 9min drive)
-        const expectedReturn = new Date("2026-01-01T18:31:00Z");
-        const diffR = Math.abs(returnAt.getTime() - expectedReturn.getTime()) / 1000;
-        assert(diffR < 2, `Return should be ~18:31, got ${returnAt.toISOString()} (diff ${diffR}s)`);
-
-        console.log(`S7: Arrive A=${arriveA.toISOString()}, Arrive B=${arriveB.toISOString()}, Return=${returnAt.toISOString()}`);
-      } else {
-        // B→A order — adjust expectations
-        console.log("S7: Solver chose B→A order, checking relative timing instead");
-        // The important thing is the timeline math is correct
-        const totalDuration = (route.plannedReturnAt.getTime() - route.plannedDepartureAt.getTime()) / 1000;
-        // Should be: travel + 2 handovers + return
-        console.log(`S7: Total route duration: ${totalDuration}s`);
-      }
-    }
-  } else {
-    // Orders might be split — just check timeline of each
-    console.log("S7: Orders split across routes, checking individual timelines");
-  }
+Deno.test("no drivers: nothing planned, actionable orders reported unassigned", () => {
+  const orders = [order("A", NORTH_A, 30)];
+  const res = solve(orders, [], matrixFor(orders), settings(), NOW, 0);
+  assertEquals(res.routes, []);
+  assertEquals(res.unassignedOrderIds, ["A"]);
 });
-
-// ============================================================
-// S8: Shift end awareness — 10 min left with 25 min route
-// ============================================================
-
-Deno.test("S8: Shift ending in 10 min with a 30-min route → route not assigned to them", () => {
-  const now = new Date("2026-01-01T18:00:00Z");
-  const settings = defaultSettings();
-  settings.shiftEndGraceMinutes = 5; // 5 min grace
-
-  // Depot at (0, 0), Order 1 at (0.05, 0.05) -> ~10 min drive each way + 5 min handover = 25 min route
-  const order: PlannerOrder = {
-    id: "ORD-1",
-    brandId: "b1",
-    location: { lat: 47.85, lng: 13.08 },
-    customerName: "Alice",
-    customerAddress: "Alice St",
-    customerPhone: null,
-    deliveryNotes: null,
-    targetDeliveryTime: new Date("2026-01-01T18:30:00Z"),
-    estimatedPickupTime: null, // ready now
-    requestedDeliveryTime: null,
-    deliveryStatus: "ready_to_deliver",
-    currentRouteId: null,
-    currentDriverId: null,
-    currentSequence: null,
-    orderTypeName: "Web",
-    paymentMethod: "online",
-    totalPrice: 20,
-  };
-
-  // Matrix: depot (0) -> ORD-1 (1) takes 600s (10 min), return takes 600s (10 min)
-  // Total route time: 600s + 300s (handover) + 600s = 1500s (25 minutes).
-  // Return time will be 18:25:00.
-  const matrix: TravelTimeMatrix = [
-    [
-      { durationSeconds: 0, distanceMeters: 0 },
-      { durationSeconds: 600, distanceMeters: 5000 },
-    ],
-    [
-      { durationSeconds: 600, distanceMeters: 5000 },
-      { durationSeconds: 0, distanceMeters: 0 },
-    ],
-  ];
-
-  // Driver shift ends at 18:10:00 (10 min from now).
-  // With 5 min grace, max return is 18:15:00.
-  // The route returns at 18:25:00, which exceeds 18:15:00!
-  const driverEndingSoon: PlannerDriver = {
-    id: "D-ENDING-SOON",
-    name: "Short Shift Driver",
-    isOnline: true,
-    currentLocation: null,
-    currentRouteId: null,
-    projectedReturnAt: null,
-    shiftEndAt: new Date("2026-01-01T18:10:00Z"),
-  };
-
-  const result = solve([order], [driverEndingSoon], matrix, settings, now, 1);
-
-  // The route should NOT be assigned to D-ENDING-SOON (filtered out because 0 stops)!
-  assertEquals(result.routes.length, 0, "No route should be created because driver's shift ends in 10m for a 25m route");
-  assertEquals(result.unassignedOrderIds.length, 1, "Order should remain unassigned because driver's shift ends too soon");
-  assertEquals(result.unassignedOrderIds[0], "ORD-1");
-  console.log("S8 passed: Route rejected due to shift end constraint");
-});
-
-// ============================================================
-// S9: Two drivers — one ending soon, one with full shift
-// ============================================================
-
-Deno.test("S9: Two drivers — one ending in 10m, one on shift for 2h → route assigned to available driver", () => {
-  const now = new Date("2026-01-01T18:00:00Z");
-  const settings = defaultSettings();
-  settings.shiftEndGraceMinutes = 5;
-
-  const order: PlannerOrder = {
-    id: "ORD-1",
-    brandId: "b1",
-    location: { lat: 47.85, lng: 13.08 },
-    customerName: "Alice",
-    customerAddress: "Alice St",
-    customerPhone: null,
-    deliveryNotes: null,
-    targetDeliveryTime: new Date("2026-01-01T18:30:00Z"),
-    estimatedPickupTime: null,
-    requestedDeliveryTime: null,
-    deliveryStatus: "ready_to_deliver",
-    currentRouteId: null,
-    currentDriverId: null,
-    currentSequence: null,
-    orderTypeName: "Web",
-    paymentMethod: "online",
-    totalPrice: 20,
-  };
-
-  const matrix: TravelTimeMatrix = [
-    [
-      { durationSeconds: 0, distanceMeters: 0 },
-      { durationSeconds: 600, distanceMeters: 5000 },
-    ],
-    [
-      { durationSeconds: 600, distanceMeters: 5000 },
-      { durationSeconds: 0, distanceMeters: 0 },
-    ],
-  ];
-
-  const driverEndingSoon: PlannerDriver = {
-    id: "D-ENDING-SOON",
-    name: "Short Shift Driver",
-    isOnline: true,
-    currentLocation: null,
-    currentRouteId: null,
-    projectedReturnAt: null,
-    shiftEndAt: new Date("2026-01-01T18:10:00Z"),
-  };
-
-  const driverFullShift: PlannerDriver = {
-    id: "D-FULL-SHIFT",
-    name: "Full Shift Driver",
-    isOnline: true,
-    currentLocation: null,
-    currentRouteId: null,
-    projectedReturnAt: null,
-    shiftEndAt: new Date("2026-01-01T21:00:00Z"),
-  };
-
-  const result = solve([order], [driverEndingSoon, driverFullShift], matrix, settings, now, 1);
-
-  // D-ENDING-SOON has 0 stops, so only D-FULL-SHIFT has a route
-  assertEquals(result.routes.length, 1, "Only one driver should have an active route");
-  assertEquals(result.routes[0].driverId, "D-FULL-SHIFT", "Route should be assigned to D-FULL-SHIFT");
-  const customerStops = result.routes[0].stops.filter((s: any) => s.type === "customer_delivery");
-  assertEquals(customerStops.length, 1, "D-FULL-SHIFT should have 1 customer stop");
-  assertEquals(customerStops[0].orderId, "ORD-1");
-  assertEquals(result.unassignedOrderIds.length, 0, "No unassigned orders");
-  console.log("S9 passed: Route correctly routed to the driver with sufficient shift time");
-});
-
-// ============================================================
-// S10: Manual driver pinning override
-// ============================================================
-
-Deno.test("S10: Manual driver pinning override — assigned strictly to pinned driver", () => {
-  const now = new Date("2026-01-01T18:00:00Z");
-  const settings = defaultSettings();
-
-  const order1: PlannerOrder = {
-    id: "ORD-PINNED-TO-D2",
-    brandId: "brand1",
-    location: { lat: 47.81, lng: 13.06 },
-    customerName: "Alice",
-    customerAddress: "Main St 1",
-    customerPhone: null,
-    deliveryNotes: null,
-    targetDeliveryTime: new Date("2026-01-01T18:30:00Z"),
-    estimatedPickupTime: null,
-    requestedDeliveryTime: null,
-    deliveryStatus: "ready_to_deliver",
-    currentRouteId: null,
-    currentDriverId: null,
-    currentSequence: null,
-    orderTypeName: "Website",
-    paymentMethod: "card",
-    totalPrice: 25,
-    pinnedDriverId: "D2", // Manually pinned to Driver 2!
-  };
-
-  const matrix: TravelTimeMatrix = [
-    [
-      { durationSeconds: 0, distanceMeters: 0 },
-      { durationSeconds: 300, distanceMeters: 2000 },
-    ],
-    [
-      { durationSeconds: 300, distanceMeters: 2000 },
-      { durationSeconds: 0, distanceMeters: 0 },
-    ],
-  ];
-
-  const driver1: PlannerDriver = {
-    id: "D1",
-    name: "Driver 1",
-    isOnline: true,
-    currentLocation: null,
-    currentRouteId: null,
-    projectedReturnAt: null,
-  };
-
-  const driver2: PlannerDriver = {
-    id: "D2",
-    name: "Driver 2",
-    isOnline: true,
-    currentLocation: null,
-    currentRouteId: null,
-    projectedReturnAt: null,
-  };
-
-  // Even if D1 is first in driver array, the order MUST be assigned to D2
-  const result = solve([order1], [driver1, driver2], matrix, settings, now, 1);
-
-  assertEquals(result.routes.length, 1, "Only one driver should have a route");
-  assertEquals(result.routes[0].driverId, "D2", "Route must be assigned to pinned driver D2");
-  const customerStops = result.routes[0].stops.filter((s: any) => s.type === "customer_delivery");
-  assertEquals(customerStops.length, 1, "Should have 1 customer delivery stop");
-  assertEquals(customerStops[0].orderId, "ORD-PINNED-TO-D2");
-  console.log("S10 passed: Manual pin override strictly honored by solver");
-});
-

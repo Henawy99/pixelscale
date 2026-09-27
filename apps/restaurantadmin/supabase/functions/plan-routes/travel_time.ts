@@ -1,8 +1,16 @@
 // supabase/functions/plan-routes/travel_time.ts
 // Builds a travel-time matrix using Google Distance Matrix API with caching.
+//
+// Cache: travel_time_cache keyed by ~100 m buckets. Durations are fetched without traffic,
+// so an entry from any hour is reused; the same-hour row wins when present. Entries older
+// than 30 days are refreshed.
 
-import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.43.4";
+import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.43.4";
 import type { LatLng, TravelTime, TravelTimeMatrix, PlannerSettings } from "./types.ts";
+
+const CACHE_MAX_AGE_MS = 30 * 24 * 3600_000;
+/** Google Distance Matrix limits: ≤25 destinations and ≤100 elements per request. */
+const MAX_DESTS_PER_REQUEST = 25;
 
 /** Round coordinate to 3 decimal places (~111m bucket). */
 function bucket(coord: number): number {
@@ -10,7 +18,7 @@ function bucket(coord: number): number {
 }
 
 /** Haversine distance in meters. */
-function haversineMeters(a: LatLng, b: LatLng): number {
+export function haversineMeters(a: LatLng, b: LatLng): number {
   const R = 6371000;
   const dLat = ((b.lat - a.lat) * Math.PI) / 180;
   const dLng = ((b.lng - a.lng) * Math.PI) / 180;
@@ -41,84 +49,77 @@ export function haversineFallback(
   };
 }
 
-interface CacheKey {
-  originLatBucket: number;
-  originLngBucket: number;
-  destLatBucket: number;
-  destLngBucket: number;
-  hourBucket: number;
-}
-
-function makeCacheKey(from: LatLng, to: LatLng, hour: number): CacheKey {
-  return {
-    originLatBucket: bucket(from.lat),
-    originLngBucket: bucket(from.lng),
-    destLatBucket: bucket(to.lat),
-    destLngBucket: bucket(to.lng),
-    hourBucket: hour,
-  };
+function pairKey(from: LatLng, to: LatLng): string {
+  return `${bucket(from.lat)},${bucket(from.lng)}>${bucket(to.lat)},${bucket(to.lng)}`;
 }
 
 /**
- * Look up cached travel times from the database.
- * Returns a Map keyed by "olat,olng,dlat,dlng,h" → TravelTime.
+ * One query for every cached pair among the given locations.
+ * Returns pairKey → best TravelTime (same hour preferred, else most recent).
  */
 async function fetchCached(
   supabase: SupabaseClient,
-  keys: CacheKey[]
+  locations: LatLng[],
+  hour: number
 ): Promise<Map<string, TravelTime>> {
   const result = new Map<string, TravelTime>();
-  if (keys.length === 0) return result;
+  const lats = [...new Set(locations.map((l) => bucket(l.lat)))];
+  const lngs = [...new Set(locations.map((l) => bucket(l.lng)))];
+  if (lats.length === 0) return result;
 
-  // Batch query: fetch all matching rows
-  // Build an OR filter for each key
-  const filters = keys.map(
-    (k) =>
-      `origin_lat_bucket.eq.${k.originLatBucket},origin_lng_bucket.eq.${k.originLngBucket},dest_lat_bucket.eq.${k.destLatBucket},dest_lng_bucket.eq.${k.destLngBucket},hour_bucket.eq.${k.hourBucket}`
-  );
+  const { data, error } = await supabase
+    .from("travel_time_cache")
+    .select("origin_lat_bucket, origin_lng_bucket, dest_lat_bucket, dest_lng_bucket, hour_bucket, duration_seconds, distance_meters, fetched_at")
+    .in("origin_lat_bucket", lats)
+    .in("origin_lng_bucket", lngs)
+    .in("dest_lat_bucket", lats)
+    .in("dest_lng_bucket", lngs)
+    .gte("fetched_at", new Date(Date.now() - CACHE_MAX_AGE_MS).toISOString())
+    .limit(10000);
 
-  // Supabase doesn't support complex OR on multiple columns easily,
-  // so we query for each unique key. For our scale (<100 pairs) this is fine.
-  for (const k of keys) {
-    const { data, error } = await supabase
-      .from("travel_time_cache")
-      .select("duration_seconds, distance_meters")
-      .eq("origin_lat_bucket", k.originLatBucket)
-      .eq("origin_lng_bucket", k.originLngBucket)
-      .eq("dest_lat_bucket", k.destLatBucket)
-      .eq("dest_lng_bucket", k.destLngBucket)
-      .eq("hour_bucket", k.hourBucket)
-      .limit(1)
-      .maybeSingle();
-
-    if (!error && data) {
-      const key = `${k.originLatBucket},${k.originLngBucket},${k.destLatBucket},${k.destLngBucket},${k.hourBucket}`;
-      result.set(key, {
-        durationSeconds: data.duration_seconds,
-        distanceMeters: data.distance_meters,
-      });
-    }
+  if (error) {
+    console.error("[travel_time] cache read failed:", error.message);
+    return result;
   }
 
+  const rank = new Map<string, { sameHour: boolean; at: number }>();
+  for (const row of data ?? []) {
+    const key = `${Number(row.origin_lat_bucket)},${Number(row.origin_lng_bucket)}>${Number(row.dest_lat_bucket)},${Number(row.dest_lng_bucket)}`;
+    const sameHour = row.hour_bucket === hour;
+    const at = new Date(row.fetched_at).getTime();
+    const prev = rank.get(key);
+    if (!prev || (sameHour && !prev.sameHour) || (sameHour === prev.sameHour && at > prev.at)) {
+      rank.set(key, { sameHour, at });
+      result.set(key, { durationSeconds: row.duration_seconds, distanceMeters: row.distance_meters });
+    }
+  }
   return result;
 }
 
 /** Store travel times in the cache. */
 async function storeInCache(
   supabase: SupabaseClient,
-  entries: { key: CacheKey; tt: TravelTime }[]
+  entries: { from: LatLng; to: LatLng; tt: TravelTime }[],
+  hour: number
 ): Promise<void> {
   if (entries.length === 0) return;
-
-  const rows = entries.map((e) => ({
-    origin_lat_bucket: e.key.originLatBucket,
-    origin_lng_bucket: e.key.originLngBucket,
-    dest_lat_bucket: e.key.destLatBucket,
-    dest_lng_bucket: e.key.destLngBucket,
-    hour_bucket: e.key.hourBucket,
-    duration_seconds: e.tt.durationSeconds,
-    distance_meters: e.tt.distanceMeters,
-  }));
+  const seen = new Set<string>();
+  const rows = [];
+  for (const e of entries) {
+    const k = pairKey(e.from, e.to);
+    if (seen.has(k)) continue;
+    seen.add(k);
+    rows.push({
+      origin_lat_bucket: bucket(e.from.lat),
+      origin_lng_bucket: bucket(e.from.lng),
+      dest_lat_bucket: bucket(e.to.lat),
+      dest_lng_bucket: bucket(e.to.lng),
+      hour_bucket: hour,
+      duration_seconds: e.tt.durationSeconds,
+      distance_meters: e.tt.distanceMeters,
+      fetched_at: new Date().toISOString(),
+    });
+  }
 
   const { error } = await supabase
     .from("travel_time_cache")
@@ -128,68 +129,36 @@ async function storeInCache(
     });
 
   if (error) {
-    console.error("Failed to cache travel times:", error);
+    console.error("[travel_time] Failed to cache travel times:", error.message);
   }
 }
 
 /**
- * Fetch travel times from Google Distance Matrix API.
- * origins and destinations are arrays of LatLng.
- * Returns a 2D array: result[originIdx][destIdx] = TravelTime.
+ * One origin → up to 25 destinations from Google Distance Matrix.
+ * Returns null when the request fails as a whole (caller falls back to haversine).
  */
-async function fetchFromGoogleDistanceMatrix(
-  origins: LatLng[],
+async function fetchRow(
+  origin: LatLng,
   destinations: LatLng[],
-  apiKey: string,
-  citySpeedKmh: number
-): Promise<TravelTime[][]> {
-  if (origins.length === 0 || destinations.length === 0) return [];
-
-  const originsStr = origins.map((o) => `${o.lat},${o.lng}`).join("|");
+  apiKey: string
+): Promise<(TravelTime | null)[] | null> {
   const destsStr = destinations.map((d) => `${d.lat},${d.lng}`).join("|");
-
-  const url = `https://maps.googleapis.com/maps/api/distancematrix/json?origins=${originsStr}&destinations=${destsStr}&mode=driving&key=${apiKey}`;
-
+  const url =
+    `https://maps.googleapis.com/maps/api/distancematrix/json?origins=${origin.lat},${origin.lng}` +
+    `&destinations=${encodeURIComponent(destsStr)}&mode=driving&key=${apiKey}`;
   try {
     const resp = await fetch(url);
-    if (!resp.ok) {
-      console.error(`Distance Matrix HTTP ${resp.status}`);
-      throw new Error(`HTTP ${resp.status}`);
-    }
-
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const data = await resp.json();
-    if (data.status !== "OK") {
-      console.error("Distance Matrix API error:", data.status, data.error_message);
-      throw new Error(`API status: ${data.status}`);
-    }
-
-    const result: TravelTime[][] = [];
-    for (let i = 0; i < data.rows.length; i++) {
-      const row: TravelTime[] = [];
-      for (let j = 0; j < data.rows[i].elements.length; j++) {
-        const elem = data.rows[i].elements[j];
-        if (elem.status === "OK") {
-          row.push({
-            durationSeconds: elem.duration.value,
-            distanceMeters: elem.distance.value,
-          });
-        } else {
-          // Fallback for this pair
-          console.warn(
-            `Distance Matrix element [${i}][${j}] status: ${elem.status}, using haversine fallback`
-          );
-          row.push(haversineFallback(origins[i], destinations[j], citySpeedKmh));
-        }
-      }
-      result.push(row);
-    }
-    return result;
-  } catch (err) {
-    console.error("Distance Matrix fetch failed, using full haversine fallback:", err);
-    // Return haversine fallback for everything
-    return origins.map((o) =>
-      destinations.map((d) => haversineFallback(o, d, citySpeedKmh))
+    if (data.status !== "OK") throw new Error(`${data.status} ${data.error_message ?? ""}`);
+    return (data.rows?.[0]?.elements ?? []).map((el: any) =>
+      el.status === "OK"
+        ? { durationSeconds: el.duration.value, distanceMeters: el.distance.value }
+        : null
     );
+  } catch (err) {
+    console.error("[travel_time] Distance Matrix request failed:", err);
+    return null;
   }
 }
 
@@ -197,7 +166,8 @@ async function fetchFromGoogleDistanceMatrix(
  * Build the full NxN travel time matrix for all locations.
  * locations[0] = store, locations[1..N-1] = order delivery points.
  *
- * Uses cache where available, fetches missing from Google, caches results.
+ * Uses cache where available, fetches missing pairs from Google, caches results,
+ * and falls back to a haversine estimate for anything still unknown.
  */
 export async function buildTravelTimeMatrix(
   locations: LatLng[],
@@ -205,126 +175,64 @@ export async function buildTravelTimeMatrix(
   supabase: SupabaseClient
 ): Promise<TravelTimeMatrix> {
   const n = locations.length;
-  const now = new Date();
-  const currentHour = now.getHours(); // 0-23
-
-  // Initialize matrix
+  const hour = new Date().getUTCHours();
   const matrix: TravelTimeMatrix = Array.from({ length: n }, () =>
     Array.from({ length: n }, () => ({ durationSeconds: 0, distanceMeters: 0 }))
   );
 
-  // Self-to-self is always 0
-  // Build list of pairs we need
-  interface PairRequest {
-    fromIdx: number;
-    toIdx: number;
-    cacheKey: CacheKey;
-    cacheKeyStr: string;
-  }
+  const cached = await fetchCached(supabase, locations, hour);
 
-  const pairs: PairRequest[] = [];
+  // Missing pairs grouped by origin. Points in the same bucket are treated as the same place.
+  const missing = new Map<number, number[]>();
+  let hits = 0;
+  let total = 0;
   for (let i = 0; i < n; i++) {
     for (let j = 0; j < n; j++) {
       if (i === j) continue;
-      const ck = makeCacheKey(locations[i], locations[j], currentHour);
-      const ckStr = `${ck.originLatBucket},${ck.originLngBucket},${ck.destLatBucket},${ck.destLngBucket},${ck.hourBucket}`;
-      pairs.push({ fromIdx: i, toIdx: j, cacheKey: ck, cacheKeyStr: ckStr });
+      total++;
+      const k = pairKey(locations[i], locations[j]);
+      const hit = cached.get(k);
+      if (hit) {
+        matrix[i][j] = hit;
+        hits++;
+      } else if (k.split(">")[0] === k.split(">")[1]) {
+        matrix[i][j] = haversineFallback(locations[i], locations[j], settings.citySpeedKmh);
+      } else {
+        if (!missing.has(i)) missing.set(i, []);
+        missing.get(i)!.push(j);
+      }
     }
   }
 
-  // Fetch from cache
-  const uniqueKeys = [...new Map(pairs.map((p) => [p.cacheKeyStr, p.cacheKey])).values()];
-  const cached = await fetchCached(supabase, uniqueKeys);
+  const missingCount = [...missing.values()].reduce((s, a) => s + a.length, 0);
+  console.log(`[travel_time] ${total} pairs: ${hits} cached, ${missingCount} to fetch`);
+  if (missingCount === 0) return matrix;
 
-  // Fill matrix from cache and identify misses
-  const missingPairs: PairRequest[] = [];
-  for (const pair of pairs) {
-    const cachedTT = cached.get(pair.cacheKeyStr);
-    if (cachedTT) {
-      matrix[pair.fromIdx][pair.toIdx] = cachedTT;
-    } else {
-      missingPairs.push(pair);
-    }
-  }
-
-  console.log(
-    `Travel time matrix: ${pairs.length} pairs, ${pairs.length - missingPairs.length} cached, ${missingPairs.length} to fetch`
-  );
-
-  if (missingPairs.length === 0) return matrix;
-
-  // Fetch missing from Google Distance Matrix API
   const apiKey = Deno.env.get("GOOGLE_MAPS_API_KEY");
-  if (!apiKey) {
-    console.warn("No GOOGLE_MAPS_API_KEY, using haversine fallback for all missing pairs");
-    for (const pair of missingPairs) {
-      matrix[pair.fromIdx][pair.toIdx] = haversineFallback(
-        locations[pair.fromIdx],
-        locations[pair.toIdx],
-        settings.citySpeedKmh
-      );
+  const toCache: { from: LatLng; to: LatLng; tt: TravelTime }[] = [];
+
+  const jobs: Promise<void>[] = [];
+  for (const [i, dests] of missing) {
+    for (let c = 0; c < dests.length; c += MAX_DESTS_PER_REQUEST) {
+      const chunk = dests.slice(c, c + MAX_DESTS_PER_REQUEST);
+      jobs.push((async () => {
+        const row = apiKey ? await fetchRow(locations[i], chunk.map((j) => locations[j]), apiKey) : null;
+        chunk.forEach((j, idx) => {
+          const tt = row?.[idx] ?? null;
+          if (tt) {
+            matrix[i][j] = tt;
+            toCache.push({ from: locations[i], to: locations[j], tt });
+          } else {
+            matrix[i][j] = haversineFallback(locations[i], locations[j], settings.citySpeedKmh);
+          }
+        });
+      })());
     }
-    return matrix;
   }
+  await Promise.all(jobs);
+  if (!apiKey) console.warn("[travel_time] No GOOGLE_MAPS_API_KEY — used haversine estimates");
 
-  // Google Distance Matrix supports max 25 origins × 25 destinations per request.
-  // For our scale (≤12 locations), we can do all at once.
-  // But we only fetch the missing pairs. Simplest: fetch full NxN if many are missing.
-  if (missingPairs.length > n) {
-    // Fetch full matrix from Google
-    const googleResult = await fetchFromGoogleDistanceMatrix(
-      locations,
-      locations,
-      apiKey,
-      settings.citySpeedKmh
-    );
-
-    const toCache: { key: CacheKey; tt: TravelTime }[] = [];
-    for (let i = 0; i < n; i++) {
-      for (let j = 0; j < n; j++) {
-        if (i === j) continue;
-        if (googleResult[i] && googleResult[i][j]) {
-          matrix[i][j] = googleResult[i][j];
-          // Cache this result
-          const ck = makeCacheKey(locations[i], locations[j], currentHour);
-          toCache.push({ key: ck, tt: googleResult[i][j] });
-        }
-      }
-    }
-
-    await storeInCache(supabase, toCache);
-  } else {
-    // Fetch only missing pairs individually (small number)
-    // Group by origin for efficiency
-    const byOrigin = new Map<number, number[]>();
-    for (const p of missingPairs) {
-      if (!byOrigin.has(p.fromIdx)) byOrigin.set(p.fromIdx, []);
-      byOrigin.get(p.fromIdx)!.push(p.toIdx);
-    }
-
-    const toCache: { key: CacheKey; tt: TravelTime }[] = [];
-    for (const [fromIdx, toIndices] of byOrigin) {
-      const origins = [locations[fromIdx]];
-      const destinations = toIndices.map((j) => locations[j]);
-      const result = await fetchFromGoogleDistanceMatrix(
-        origins,
-        destinations,
-        apiKey,
-        settings.citySpeedKmh
-      );
-      for (let dIdx = 0; dIdx < toIndices.length; dIdx++) {
-        const j = toIndices[dIdx];
-        if (result[0] && result[0][dIdx]) {
-          matrix[fromIdx][j] = result[0][dIdx];
-          const ck = makeCacheKey(locations[fromIdx], locations[j], currentHour);
-          toCache.push({ key: ck, tt: result[0][dIdx] });
-        }
-      }
-    }
-
-    await storeInCache(supabase, toCache);
-  }
-
+  await storeInCache(supabase, toCache, hour);
   return matrix;
 }
 

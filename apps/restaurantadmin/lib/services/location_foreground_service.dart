@@ -4,9 +4,10 @@ import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-// Supabase credentials - needed for background isolate
-const String _supabaseUrl = 'https://bwuqjdkfvrbdrdhecbwk.supabase.co';
-const String _supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ3dXFqZGtmdnJiZHJkaGVjYndrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzQ5NjcyMzcsImV4cCI6MjA1MDU0MzIzN30.hD_Mor7Z0NBXhSMBGT7vBhVd0aqN0-E0ewRjlKRoAxc';
+/// Minimum spacing between heartbeats sent from the background service.
+const Duration _minHeartbeatGap = Duration(seconds: 15);
+const Duration _idleHeartbeat = Duration(seconds: 30);
+const double _moveThresholdMeters = 75;
 
 /// This callback is called when the foreground task starts
 /// It runs in an isolate, so we need to reinitialize Supabase
@@ -15,132 +16,79 @@ void startCallback() {
   FlutterForegroundTask.setTaskHandler(LocationTaskHandler());
 }
 
-/// The task handler that runs in the background
+/// Runs in the background service isolate. Keeps the driver's position and "last seen"
+/// fresh even when the app UI is closed, using the driver_heartbeat RPC with a per-device
+/// key (the isolate has no user session).
 class LocationTaskHandler extends TaskHandler {
   StreamSubscription<Position>? _positionStream;
   Timer? _backupTimer;
-  String? _driverRecordId;
-  SupabaseClient? _supabaseClient;
-  bool _isInitialized = false;
+  SupabaseClient? _client;
+  String? _driverId;
+  String? _deviceKey;
+  DateTime? _lastSentAt;
+  Position? _lastSentPos;
+  bool _sending = false;
 
   @override
   Future<void> onStart(DateTime timestamp, TaskStarter starter) async {
-    debugPrint('[LocationTaskHandler] onStart called, starter: $starter');
-    
-    // Initialize Supabase in this isolate
-    await _initSupabase();
-    
-    // Get driver record ID from storage
-    _driverRecordId = await FlutterForegroundTask.getData(key: 'driverRecordId');
-    debugPrint('[LocationTaskHandler] Driver ID: $_driverRecordId');
-    
-    if (_driverRecordId == null) {
-      debugPrint('[LocationTaskHandler] No driver ID, cannot track');
+    final url = await FlutterForegroundTask.getData<String>(key: 'supabaseUrl');
+    final anonKey = await FlutterForegroundTask.getData<String>(key: 'supabaseAnonKey');
+    _driverId = await FlutterForegroundTask.getData<String>(key: 'driverRecordId');
+    _deviceKey = await FlutterForegroundTask.getData<String>(key: 'deviceKey');
+
+    if (url == null || anonKey == null || _driverId == null || _deviceKey == null) {
+      debugPrint('[LocationTaskHandler] Missing config, not tracking');
       return;
     }
+    _client = SupabaseClient(url, anonKey);
 
-    // Start location stream
-    _startLocationStream();
-    
-    // Backup timer for when device is stationary
-    _backupTimer = Timer.periodic(const Duration(seconds: 8), (_) async {
-      await _fetchAndSaveLocation();
-    });
-    
-    // Also fetch immediately
-    await _fetchAndSaveLocation();
-  }
-  
-  Future<void> _initSupabase() async {
-    if (_isInitialized) return;
-    
-    try {
-      // Create a new Supabase client for this isolate
-      _supabaseClient = SupabaseClient(_supabaseUrl, _supabaseAnonKey);
-      _isInitialized = true;
-      debugPrint('[LocationTaskHandler] ✅ Supabase client initialized in isolate');
-    } catch (e) {
-      debugPrint('[LocationTaskHandler] ❌ Error initializing Supabase: $e');
-    }
-  }
+    _positionStream = Geolocator.getPositionStream(
+      locationSettings: const LocationSettings(accuracy: LocationAccuracy.high, distanceFilter: 25),
+    ).listen((p) => _maybeSend(p));
 
-  void _startLocationStream() {
-    const locationSettings = LocationSettings(
-      accuracy: LocationAccuracy.bestForNavigation,
-      distanceFilter: 1, // Update every 1 meter for WhatsApp-like smooth tracking
-    );
-
-    _positionStream = Geolocator.getPositionStream(locationSettings: locationSettings)
-        .listen((Position position) async {
-      await _saveLocationToSupabase(position);
+    _backupTimer = Timer.periodic(_idleHeartbeat, (_) async {
+      try {
+        final p = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.medium);
+        await _maybeSend(p, force: true);
+      } catch (e) {
+        debugPrint('[LocationTaskHandler] Location fetch failed: $e');
+      }
     });
   }
 
-  Future<void> _fetchAndSaveLocation() async {
+  Future<void> _maybeSend(Position p, {bool force = false}) async {
+    if (_client == null || _sending) return;
+    final now = DateTime.now();
+    final last = _lastSentAt;
+    if (last != null && now.difference(last) < _minHeartbeatGap) return;
+    final moved = _lastSentPos == null
+        ? double.infinity
+        : Geolocator.distanceBetween(_lastSentPos!.latitude, _lastSentPos!.longitude, p.latitude, p.longitude);
+    if (!force && moved < _moveThresholdMeters && last != null && now.difference(last) < _idleHeartbeat) return;
+
+    _sending = true;
     try {
-      final position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.medium,
-      );
-      await _saveLocationToSupabase(position);
-    } catch (e) {
-      debugPrint('[LocationTaskHandler] Error fetching location: $e');
-    }
-  }
-
-  Future<void> _saveLocationToSupabase(Position position) async {
-    if (_driverRecordId == null) {
-      debugPrint('[LocationTaskHandler] ❌ No driver ID, skipping save');
-      return;
-    }
-    
-    if (_supabaseClient == null) {
-      debugPrint('[LocationTaskHandler] ❌ Supabase not initialized, trying to init...');
-      await _initSupabase();
-      if (_supabaseClient == null) return;
-    }
-
-    try {
-      final Map<String, dynamic> updateData = {
-        'current_latitude': position.latitude,
-        'current_longitude': position.longitude,
-        'last_seen_at': DateTime.now().toUtc().toIso8601String(),
-      };
-      
-      // Include heading if valid (0-360 degrees)
-      if (position.heading >= 0 && position.heading <= 360) {
-        updateData['current_heading'] = position.heading;
-      }
-      
-      // Include speed if valid (m/s)
-      if (position.speed >= 0) {
-        updateData['current_speed'] = position.speed;
-      }
-      
-      await _supabaseClient!
-          .from('drivers')
-          .update(updateData)
-          .eq('id', _driverRecordId!);
-
-      debugPrint('[LocationTaskHandler] ✅ Location saved: ${position.latitude.toStringAsFixed(5)}, ${position.longitude.toStringAsFixed(5)} heading=${position.heading.toStringAsFixed(0)}°');
-      
-      // Send location back to main isolate for UI update
-      FlutterForegroundTask.sendDataToMain({
-        'latitude': position.latitude,
-        'longitude': position.longitude,
-        'heading': position.heading,
-        'speed': position.speed,
-        'timestamp': DateTime.now().toIso8601String(),
+      await _client!.rpc('driver_heartbeat', params: {
+        'p_driver_id': _driverId,
+        'p_device_key': _deviceKey,
+        'p_lat': p.latitude,
+        'p_lng': p.longitude,
+        'p_heading': p.heading,
+        'p_speed': p.speed,
       });
-      
-      // Update notification with location
-      FlutterForegroundTask.updateService(
-        notificationTitle: '📍 Delivering...',
-        notificationText: 'Updated: ${DateTime.now().hour}:${DateTime.now().minute.toString().padLeft(2, '0')}',
-      );
+      _lastSentAt = now;
+      _lastSentPos = p;
+      FlutterForegroundTask.sendDataToMain({
+        'latitude': p.latitude,
+        'longitude': p.longitude,
+        'heading': p.heading,
+        'speed': p.speed,
+        'timestamp': now.toIso8601String(),
+      });
     } catch (e) {
-      debugPrint('[LocationTaskHandler] ❌ Error saving to Supabase: $e');
-      // Try to reinitialize if there was an error
-      _isInitialized = false;
+      debugPrint('[LocationTaskHandler] Heartbeat failed: $e');
+    } finally {
+      _sending = false;
     }
   }
 
@@ -151,21 +99,26 @@ class LocationTaskHandler extends TaskHandler {
 
   @override
   Future<void> onDestroy(DateTime timestamp, bool isTimeout) async {
-    debugPrint('[LocationTaskHandler] onDestroy called, isTimeout: $isTimeout');
     _positionStream?.cancel();
     _backupTimer?.cancel();
   }
 
   @override
-  void onReceiveData(Object data) {
-    debugPrint('[LocationTaskHandler] Received data: $data');
-    // Handle commands from main isolate if needed
-  }
+  void onReceiveData(Object data) {}
 
   @override
-  void onNotificationButtonPressed(String id) {
-    debugPrint('[LocationTaskHandler] Notification button pressed: $id');
+  void onNotificationButtonPressed(String id) async {
     if (id == 'stop_button') {
+      // "Go offline" from the notification: tell the planner, then stop.
+      try {
+        await _client?.rpc('driver_heartbeat', params: {
+          'p_driver_id': _driverId,
+          'p_device_key': _deviceKey,
+          'p_lat': null,
+          'p_lng': null,
+          'p_go_offline': true,
+        });
+      } catch (_) {}
       FlutterForegroundTask.stopService();
     }
   }
@@ -177,9 +130,7 @@ class LocationTaskHandler extends TaskHandler {
   }
 
   @override
-  void onNotificationDismissed() {
-    debugPrint('[LocationTaskHandler] Notification dismissed');
-  }
+  void onNotificationDismissed() {}
 }
 
 /// Service to manage the foreground task from the main app
@@ -188,13 +139,17 @@ class LocationForegroundService {
   factory LocationForegroundService() => _instance;
   LocationForegroundService._internal();
 
+  /// Set by the app entrypoint after Supabase.initialize (the isolate needs them).
+  static String? supabaseUrl;
+  static String? supabaseAnonKey;
+
   Function(double lat, double lng)? onLocationUpdate;
 
   /// Initialize the foreground task options
   Future<void> init() async {
     // Initialize communication port for receiving data from task handler
     FlutterForegroundTask.initCommunicationPort();
-    
+
     FlutterForegroundTask.init(
       androidNotificationOptions: AndroidNotificationOptions(
         channelId: 'driver_location_channel',
@@ -221,9 +176,17 @@ class LocationForegroundService {
   /// Start the foreground service
   Future<bool> startService(String driverRecordId) async {
     debugPrint('[LocationForegroundService] Starting service for driver: $driverRecordId');
-    
-    // Save driver ID for the isolate to use
+
+    // The isolate authenticates heartbeats with a per-device key instead of the user session.
+    try {
+      final res = await Supabase.instance.client.rpc('driver_get_device_key');
+      await FlutterForegroundTask.saveData(key: 'deviceKey', value: (res as Map)['device_key'] as String);
+    } catch (e) {
+      debugPrint('[LocationForegroundService] Could not get device key: $e');
+    }
     await FlutterForegroundTask.saveData(key: 'driverRecordId', value: driverRecordId);
+    if (supabaseUrl != null) await FlutterForegroundTask.saveData(key: 'supabaseUrl', value: supabaseUrl!);
+    if (supabaseAnonKey != null) await FlutterForegroundTask.saveData(key: 'supabaseAnonKey', value: supabaseAnonKey!);
 
     // Request notification permission on Android 13+
     final notificationPermission = await FlutterForegroundTask.checkNotificationPermission();
@@ -232,19 +195,17 @@ class LocationForegroundService {
     }
 
     // Set up listener to receive location updates from task handler
-    FlutterForegroundTask.addTaskDataCallback((data) {
-      if (data is Map && data.containsKey('latitude')) {
-        onLocationUpdate?.call(
-          data['latitude'] as double,
-          data['longitude'] as double,
-        );
-      }
-    });
+    FlutterForegroundTask.addTaskDataCallback(_onTaskData);
+
+    if (await FlutterForegroundTask.isRunningService) {
+      await FlutterForegroundTask.restartService();
+      return true;
+    }
 
     // Start the service
     final result = await FlutterForegroundTask.startService(
       notificationTitle: '🚗 You are Online',
-      notificationText: 'Tracking your location for deliveries...',
+      notificationText: 'Receiving delivery tours',
       notificationButtons: [
         const NotificationButton(id: 'stop_button', text: 'Go Offline'),
       ],
@@ -258,9 +219,8 @@ class LocationForegroundService {
   /// Stop the foreground service
   Future<bool> stopService() async {
     debugPrint('[LocationForegroundService] Stopping service');
-    
+
     FlutterForegroundTask.removeTaskDataCallback(_onTaskData);
-    onLocationUpdate = null;
 
     final result = await FlutterForegroundTask.stopService();
     debugPrint('[LocationForegroundService] Service stopped: $result');
@@ -268,7 +228,9 @@ class LocationForegroundService {
   }
 
   void _onTaskData(Object data) {
-    // Placeholder callback
+    if (data is Map && data['latitude'] is double && data['longitude'] is double) {
+      onLocationUpdate?.call(data['latitude'] as double, data['longitude'] as double);
+    }
   }
 
   /// Check if service is running
