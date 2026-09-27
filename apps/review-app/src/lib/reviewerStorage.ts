@@ -1,47 +1,31 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { kv } from './storage';
 import { Linking, Alert, Share } from 'react-native';
 import { Reviewer, ReviewerAssignment, BookingItem } from '../types';
 
 export const STORAGE_KEY_REVIEWERS = '@pixelreview_reviewers';
 export const STORAGE_KEY_REVIEWER_ASSIGNMENTS = '@pixelreview_reviewer_assignments';
 
-export const DEFAULT_REVIEWERS: Reviewer[] = [
-  {
-    id: 'rev_1',
-    name: 'Sophie Lindner',
-    phone: '+43 664 1234567',
-    color: '#ec4899',
-    notes: 'Local Salzburg reviewer, English & German',
-    createdAt: Date.now() - 86400000 * 5,
-  },
-  {
-    id: 'rev_2',
-    name: 'Marco Rossi',
-    phone: '+43 660 7654321',
-    color: '#06b6d4',
-    notes: 'Italian & English speaker, mountain photography enthusiast',
-    createdAt: Date.now() - 86400000 * 3,
-  },
-];
+// Placeholder review people that earlier builds created on first launch. Untouched copies are hidden;
+// edited ones are real data and stay.
+const SAMPLE_REVIEWERS = new Set(['rev_1|Sophie Lindner|+43 664 1234567', 'rev_2|Marco Rossi|+43 660 7654321']);
+const isSample = (r: Reviewer) => SAMPLE_REVIEWERS.has(`${r.id}|${r.name}|${r.phone}`);
+
+/** Throws when the stored list can't be read, so a save never overwrites it with a partial list. */
+async function readReviewers(): Promise<Reviewer[]> {
+  const raw = await kv.getItem(STORAGE_KEY_REVIEWERS);
+  const parsed = raw ? JSON.parse(raw) : [];
+  return Array.isArray(parsed) ? parsed.filter((r: Reviewer) => !isSample(r)) : [];
+}
 
 /**
- * Retrieve all reviewers from AsyncStorage
+ * Retrieve all reviewers from storage
  */
 export async function getStoredReviewers(): Promise<Reviewer[]> {
   try {
-    const raw = await AsyncStorage.getItem(STORAGE_KEY_REVIEWERS);
-    if (!raw) {
-      await AsyncStorage.setItem(
-        STORAGE_KEY_REVIEWERS,
-        JSON.stringify(DEFAULT_REVIEWERS)
-      );
-      return DEFAULT_REVIEWERS;
-    }
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : DEFAULT_REVIEWERS;
+    return await readReviewers();
   } catch (err) {
     console.warn('Error reading reviewers:', err);
-    return DEFAULT_REVIEWERS;
+    return [];
   }
 }
 
@@ -49,7 +33,7 @@ export async function getStoredReviewers(): Promise<Reviewer[]> {
  * Save or update a reviewer
  */
 export async function saveReviewer(reviewer: Reviewer): Promise<Reviewer[]> {
-  const current = await getStoredReviewers();
+  const current = await readReviewers();
   const index = current.findIndex((r) => r.id === reviewer.id);
   let updated: Reviewer[];
   if (index >= 0) {
@@ -58,7 +42,7 @@ export async function saveReviewer(reviewer: Reviewer): Promise<Reviewer[]> {
   } else {
     updated = [reviewer, ...current];
   }
-  await AsyncStorage.setItem(STORAGE_KEY_REVIEWERS, JSON.stringify(updated));
+  await kv.setItem(STORAGE_KEY_REVIEWERS, JSON.stringify(updated));
   return updated;
 }
 
@@ -66,9 +50,9 @@ export async function saveReviewer(reviewer: Reviewer): Promise<Reviewer[]> {
  * Delete a reviewer and clean up their assignments
  */
 export async function deleteReviewer(id: string): Promise<Reviewer[]> {
-  const current = await getStoredReviewers();
+  const current = await readReviewers();
   const updated = current.filter((r) => r.id !== id);
-  await AsyncStorage.setItem(STORAGE_KEY_REVIEWERS, JSON.stringify(updated));
+  await kv.setItem(STORAGE_KEY_REVIEWERS, JSON.stringify(updated));
 
   // Also clean up any assignments to this reviewer
   try {
@@ -83,7 +67,7 @@ export async function deleteReviewer(id: string): Promise<Reviewer[]> {
       }
     }
     if (hasChanges) {
-      await AsyncStorage.setItem(
+      await kv.setItem(
         STORAGE_KEY_REVIEWER_ASSIGNMENTS,
         JSON.stringify(updatedAssignments)
       );
@@ -100,7 +84,7 @@ export async function deleteReviewer(id: string): Promise<Reviewer[]> {
  */
 export async function getStoredReviewerAssignments(): Promise<Record<string, ReviewerAssignment>> {
   try {
-    const raw = await AsyncStorage.getItem(STORAGE_KEY_REVIEWER_ASSIGNMENTS);
+    const raw = await kv.getItem(STORAGE_KEY_REVIEWER_ASSIGNMENTS);
     if (!raw) return {};
     const parsed = JSON.parse(raw);
     return typeof parsed === 'object' && parsed !== null ? parsed : {};
@@ -132,7 +116,7 @@ export async function assignReviewerToBooking(
     notes: notes ?? existing?.notes,
   };
 
-  await AsyncStorage.setItem(
+  await kv.setItem(
     STORAGE_KEY_REVIEWER_ASSIGNMENTS,
     JSON.stringify(assignments)
   );
@@ -148,7 +132,7 @@ export async function unassignReviewerFromBooking(
   const assignments = await getStoredReviewerAssignments();
   if (assignments[bookingRef]) {
     delete assignments[bookingRef];
-    await AsyncStorage.setItem(
+    await kv.setItem(
       STORAGE_KEY_REVIEWER_ASSIGNMENTS,
       JSON.stringify(assignments)
     );

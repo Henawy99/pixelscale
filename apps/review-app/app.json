@@ -5,30 +5,58 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
-    "splash": {
-      "image": "./assets/splash.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#f8fafc"
-    },
+    "userInterfaceStyle": "automatic",
     "ios": {
       "bundleIdentifier": "com.pixelscale.reviewapp",
-      "buildNumber": "13",
+      "buildNumber": "16",
       "supportsTablet": false,
       "config": {
         "usesNonExemptEncryption": false
       },
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
-      }
+        "ITSAppUsesNonExemptEncryption": false,
+        "LSApplicationQueriesSchemes": [
+          "whatsapp"
+        ]
+      },
+      "appleTeamId": "G67XQ5S4QU"
     },
     "android": {
       "package": "com.pixelscale.reviewapp",
-      "versionCode": 13,
+      "versionCode": 16,
       "adaptiveIcon": {
         "backgroundColor": "#4f46e5",
         "foregroundImage": "./assets/icon.png"
       }
+    },
+    "plugins": [
+      "expo-router",
+      "expo-status-bar",
+      "expo-image",
+      "expo-sqlite",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "PixelReview opens your photos so you can send guests the pictures you took of them on their tour."
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#F2F2F7",
+          "dark": {
+            "image": "./assets/splash-icon.png",
+            "backgroundColor": "#000000"
+          }
+        }
+      ]
+    ],
+    "scheme": "pixelreview",
+    "experiments": {
+      "typedRoutes": true
     }
   }
 }

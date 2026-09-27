@@ -38,7 +38,7 @@ interface BookingsFeedProps {
   syncError?: string | null;
 }
 
-type FilterType = 'all' | 'normal' | 'review' | 'confirmed' | 'last-minute' | 'cancelled';
+type FilterType = 'all' | 'normal' | 'review' | 'airbnb' | 'gyg' | 'confirmed' | 'last-minute' | 'cancelled';
 
 function getNumericPrice(booking: BookingItem): number {
   if (typeof booking.priceAmount === 'number') return booking.priceAmount;
@@ -85,8 +85,14 @@ export function BookingsFeed({
       string,
       {
         totalRevenue: number;
+        totalFee: number;
+        netRevenue: number;
         normalRevenue: number;
+        normalFee: number;
+        normalNet: number;
         reviewRevenue: number;
+        reviewFee: number;
+        reviewNet: number;
         normalCount: number;
         reviewCount: number;
         totalCount: number;
@@ -101,8 +107,14 @@ export function BookingsFeed({
       if (!map[my]) {
         map[my] = {
           totalRevenue: 0,
+          totalFee: 0,
+          netRevenue: 0,
           normalRevenue: 0,
+          normalFee: 0,
+          normalNet: 0,
           reviewRevenue: 0,
+          reviewFee: 0,
+          reviewNet: 0,
           normalCount: 0,
           reviewCount: 0,
           totalCount: 0,
@@ -110,15 +122,25 @@ export function BookingsFeed({
       }
 
       const price = getNumericPrice(b);
+      const feeRate = b.platform === 'airbnb' ? 0.20 : 0.30;
+      const fee = price * feeRate;
+      const net = price * (1 - feeRate);
       const isReview = isBookingReview(b);
 
       map[my].totalRevenue += price;
+      map[my].totalFee += fee;
+      map[my].netRevenue += net;
       map[my].totalCount++;
+
       if (isReview) {
         map[my].reviewRevenue += price;
+        map[my].reviewFee += fee;
+        map[my].reviewNet += net;
         map[my].reviewCount++;
       } else {
         map[my].normalRevenue += price;
+        map[my].normalFee += fee;
+        map[my].normalNet += net;
         map[my].normalCount++;
       }
     });
@@ -142,29 +164,60 @@ export function BookingsFeed({
   const activeRevenueStats = useMemo(() => {
     if (selectedMonth === 'All Time') {
       let totalRevenue = 0;
+      let totalFee = 0;
+      let netRevenue = 0;
       let normalRevenue = 0;
+      let normalFee = 0;
+      let normalNet = 0;
       let reviewRevenue = 0;
+      let reviewFee = 0;
+      let reviewNet = 0;
       let normalCount = 0;
       let reviewCount = 0;
       let totalCount = 0;
 
       Object.values(monthlyStats).forEach((s) => {
         totalRevenue += s.totalRevenue;
+        totalFee += s.totalFee;
+        netRevenue += s.netRevenue;
         normalRevenue += s.normalRevenue;
+        normalFee += s.normalFee;
+        normalNet += s.normalNet;
         reviewRevenue += s.reviewRevenue;
+        reviewFee += s.reviewFee;
+        reviewNet += s.reviewNet;
         normalCount += s.normalCount;
         reviewCount += s.reviewCount;
         totalCount += s.totalCount;
       });
 
-      return { totalRevenue, normalRevenue, reviewRevenue, normalCount, reviewCount, totalCount };
+      return {
+        totalRevenue,
+        totalFee,
+        netRevenue,
+        normalRevenue,
+        normalFee,
+        normalNet,
+        reviewRevenue,
+        reviewFee,
+        reviewNet,
+        normalCount,
+        reviewCount,
+        totalCount,
+      };
     }
 
     return (
       monthlyStats[selectedMonth] || {
         totalRevenue: 0,
+        totalFee: 0,
+        netRevenue: 0,
         normalRevenue: 0,
+        normalFee: 0,
+        normalNet: 0,
         reviewRevenue: 0,
+        reviewFee: 0,
+        reviewNet: 0,
         normalCount: 0,
         reviewCount: 0,
         totalCount: 0,
@@ -186,6 +239,8 @@ export function BookingsFeed({
       // Filter tab
       if (selectedFilter === 'normal' && (isReview || item.status === 'cancelled')) return false;
       if (selectedFilter === 'review' && (!isReview || item.status === 'cancelled')) return false;
+      if (selectedFilter === 'airbnb' && item.platform !== 'airbnb') return false;
+      if (selectedFilter === 'gyg' && item.platform === 'airbnb') return false;
       if (selectedFilter === 'last-minute' && (!item.isLastMinute || item.status === 'cancelled')) return false;
       if (selectedFilter === 'confirmed' && item.status !== 'confirmed') return false;
       if (selectedFilter === 'cancelled' && item.status !== 'cancelled') return false;
@@ -212,6 +267,14 @@ export function BookingsFeed({
 
   const reviewCount = useMemo(() => {
     return bookings.filter((b) => isBookingReview(b) && b.status !== 'cancelled').length;
+  }, [bookings]);
+
+  const airbnbCount = useMemo(() => {
+    return bookings.filter((b) => b.platform === 'airbnb').length;
+  }, [bookings]);
+
+  const gygCount = useMemo(() => {
+    return bookings.filter((b) => b.platform !== 'airbnb').length;
   }, [bookings]);
 
   const lastMinuteCount = useMemo(() => {
@@ -255,7 +318,7 @@ export function BookingsFeed({
                 <span className="text-xs uppercase tracking-wider font-bold text-indigo-200">
                   Monthly Revenue & Net Payout
                 </span>
-                <p className="text-[10px] text-indigo-300/80">30% GetYourGuide commission applied</p>
+                <p className="text-[10px] text-indigo-300/80">20% Airbnb / 30% GetYourGuide fee applied</p>
               </div>
             </div>
 
@@ -281,14 +344,14 @@ export function BookingsFeed({
 
           {/* Revenue & Commission Breakdown */}
           <div className="pt-1 space-y-2.5">
-            {/* Primary Net Payout (70%) */}
+            {/* Primary Net Payout */}
             <div>
               <span className="text-[11px] font-semibold text-emerald-300 uppercase tracking-wider flex items-center gap-1">
-                <span>Estimated Net Payout (70%)</span>
+                <span>Estimated Net Payout</span>
               </span>
               <div className="flex items-baseline gap-2">
                 <span className="text-3xl font-black tracking-tight text-white">
-                  € {(activeRevenueStats.totalRevenue * 0.7).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  € {activeRevenueStats.netRevenue.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </span>
                 <span className="text-xs font-semibold text-emerald-400 bg-emerald-500/20 px-2 py-0.5 rounded-full flex items-center gap-1 border border-emerald-500/30">
                   <TrendingUp className="h-3 w-3" />
@@ -297,7 +360,7 @@ export function BookingsFeed({
               </div>
             </div>
 
-            {/* Gross Revenue vs 30% GYG Fee Strip */}
+            {/* Gross Revenue vs Platform Fee Strip */}
             <div className="grid grid-cols-2 gap-2 text-xs">
               <div className="px-2.5 py-1.5 rounded-xl bg-white/10 border border-white/10">
                 <span className="text-indigo-200 text-[10px] block font-medium">Customer Paid (Gross)</span>
@@ -308,10 +371,10 @@ export function BookingsFeed({
               <div className="px-2.5 py-1.5 rounded-xl bg-rose-500/15 border border-rose-400/20 text-rose-200">
                 <span className="text-rose-300 text-[10px] block font-medium flex items-center gap-1">
                   <Percent className="h-2.5 w-2.5" />
-                  <span>GYG Comm. (30%)</span>
+                  <span>Platform Fee (20% AB / 30% GYG)</span>
                 </span>
                 <span className="text-sm font-bold text-rose-300">
-                  -€ {(activeRevenueStats.totalRevenue * 0.3).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  -€ {activeRevenueStats.totalFee.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </span>
               </div>
             </div>
@@ -330,14 +393,14 @@ export function BookingsFeed({
               </div>
               <div>
                 <p className="text-base font-bold text-white leading-tight">
-                  € {(activeRevenueStats.normalRevenue * 0.7).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  € {activeRevenueStats.normalNet.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   <span className="text-[10px] font-semibold text-emerald-300 ml-1">net</span>
                 </p>
                 <p className="text-[10px] text-indigo-200/80">
                   Gross: € {activeRevenueStats.normalRevenue.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </p>
                 <p className="text-[10px] text-rose-300/90 font-medium">
-                  30% fee: -€ {(activeRevenueStats.normalRevenue * 0.3).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  fee: -€ {activeRevenueStats.normalFee.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </p>
               </div>
               <p className="text-[10px] text-indigo-300/70 pt-0.5 border-t border-white/10">
@@ -356,14 +419,14 @@ export function BookingsFeed({
               </div>
               <div>
                 <p className="text-base font-bold text-white leading-tight">
-                  € {(activeRevenueStats.reviewRevenue * 0.7).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  € {activeRevenueStats.reviewNet.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   <span className="text-[10px] font-semibold text-amber-300 ml-1">net</span>
                 </p>
                 <p className="text-[10px] text-amber-200/80">
                   Gross: € {activeRevenueStats.reviewRevenue.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </p>
                 <p className="text-[10px] text-rose-300/90 font-medium">
-                  30% fee: -€ {(activeRevenueStats.reviewRevenue * 0.3).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  fee: -€ {activeRevenueStats.reviewFee.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </p>
               </div>
               <p className="text-[10px] text-amber-200/70 pt-0.5 border-t border-white/10">
@@ -380,7 +443,7 @@ export function BookingsFeed({
           <div>
             <div className="flex items-center gap-2">
               <h2 className="text-lg font-extrabold text-slate-900 tracking-tight">
-                GetYourGuide Bookings
+                Tour Bookings (GYG & Airbnb)
               </h2>
               <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-100">
                 {bookings.length}
@@ -494,6 +557,32 @@ export function BookingsFeed({
           >
             <Star className="h-3 w-3 fill-violet-400 text-violet-400" />
             <span>Reviews ({reviewCount})</span>
+          </button>
+
+          {/* Airbnb Bookings */}
+          <button
+            type="button"
+            onClick={() => setSelectedFilter('airbnb')}
+            className={`flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
+              selectedFilter === 'airbnb'
+                ? 'bg-rose-600 text-white shadow-sm'
+                : 'bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200/60'
+            }`}
+          >
+            <span>Airbnb ({airbnbCount})</span>
+          </button>
+
+          {/* GetYourGuide Bookings */}
+          <button
+            type="button"
+            onClick={() => setSelectedFilter('gyg')}
+            className={`flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
+              selectedFilter === 'gyg'
+                ? 'bg-amber-600 text-white shadow-sm'
+                : 'bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200/60'
+            }`}
+          >
+            <span>GetYourGuide ({gygCount})</span>
           </button>
 
           {/* Confirmed */}
@@ -632,8 +721,19 @@ export function BookingsFeed({
                     )}
                   </div>
 
-                  {/* Right: Badges (Review Booking / Normal + Status) */}
+                  {/* Right: Badges */}
                   <div className="flex items-center gap-1.5">
+                    {/* Platform Badge */}
+                    {booking.platform === 'airbnb' ? (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-rose-50 text-rose-700 border border-rose-200">
+                        Airbnb
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-50 text-amber-800 border border-amber-200">
+                        GetYourGuide
+                      </span>
+                    )}
+
                     {/* Review Booking Badge vs Normal */}
                     {isReview ? (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-violet-50 text-violet-700 border border-violet-200">
@@ -666,6 +766,17 @@ export function BookingsFeed({
                     )}
                   </div>
                 </div>
+
+                {/* Hero Image if available */}
+                {booking.imageUrl && (
+                  <div className="w-full h-44 overflow-hidden bg-slate-100 border-b border-slate-100 relative">
+                    <img
+                      src={booking.imageUrl}
+                      alt={booking.tourTitle}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                )}
 
                 {/* Main Card Body */}
                 <div className="p-4 space-y-3.5">
@@ -702,7 +813,9 @@ export function BookingsFeed({
                           <User className="h-3 w-3 text-amber-600" />
                           <span>Party & Payout</span>
                         </span>
-                        <span className="text-[10px] font-medium text-slate-400">30% GYG fee</span>
+                        <span className="text-[10px] font-medium text-slate-400">
+                          {booking.platform === 'airbnb' ? '20% Airbnb fee' : '30% GYG fee'}
+                        </span>
                       </div>
                       <div className="flex items-baseline justify-between gap-1">
                         <p className="text-xs font-bold text-slate-900 truncate">
@@ -710,7 +823,7 @@ export function BookingsFeed({
                         </p>
                         {getNumericPrice(booking) > 0 && (
                           <span className="text-[11px] font-extrabold text-emerald-600 shrink-0 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200/60">
-                            Net: € {(getNumericPrice(booking) * 0.7).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            Net: € {(getNumericPrice(booking) * (booking.platform === 'airbnb' ? 0.8 : 0.7)).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </span>
                         )}
                       </div>

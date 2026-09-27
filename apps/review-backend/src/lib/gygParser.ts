@@ -284,12 +284,13 @@ export function parseGetYourGuideBooking(
   // Any booking under 30 euros is classified as a review booking
   const isReviewBooking = typeof priceAmount === 'number' ? priceAmount < 30 : false;
 
-  // If still missing reference number, generate fallback or abort
-  if (!referenceNumber && !tourTitle) {
+  // Every booking, change and cancellation email carries its GYG reference number (e.g. GYGVN22MGBBK).
+  // GetYourGuide account, marketing and survey emails don't, so they are not bookings.
+  if (!/^GYG[A-Z0-9]{6,14}$/.test(referenceNumber)) {
     return null;
   }
 
-  const id = referenceNumber || `bk_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+  const id = referenceNumber;
   const receivedAt = emailContent.date
     ? new Date(emailContent.date).toISOString()
     : new Date().toISOString();
@@ -317,7 +318,7 @@ export function parseGetYourGuideBooking(
 
   return {
     id,
-    referenceNumber: referenceNumber || 'GYG-' + id.substring(0, 8),
+    referenceNumber,
     tourTitle: tourTitle || 'GetYourGuide Experience',
     fareOption: fareOption || undefined,
     date: date || 'Upcoming',
@@ -338,6 +339,7 @@ export function parseGetYourGuideBooking(
     isLastMinute,
     receivedAt,
     status: isCancelled ? 'cancelled' : isLastMinute ? 'last-minute' : 'confirmed',
+    platform: 'getyourguide',
   };
 }
 
