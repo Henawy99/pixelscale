@@ -201,8 +201,11 @@ export interface ExtractResult {
   usage: unknown;
 }
 
-/** Newest first; the next one is tried when a model is overloaded or unavailable. */
-export const DEFAULT_MODELS = ["gemini-3.8-flash", "gemini-3.5-flash", "gemini-2.5-flash"];
+/**
+ * Newest first; the next one is tried when a model is overloaded or its quota is used up.
+ * (Free-tier quotas are per model, so a longer chain also means more scans per day.)
+ */
+export const DEFAULT_MODELS = ["gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.6-flash", "gemini-3.5-flash", "gemini-2.5-flash"];
 
 export async function extractDocument(
   files: DocumentFile[],
@@ -256,8 +259,8 @@ export async function extractDocument(
       }
       const detail = `${model}: ${resp.status} ${(await resp.text()).slice(0, 200)}`;
       errors.push(detail);
-      // Overloaded or rate limited: retry once, then move on to the next model.
-      if (![429, 500, 503].includes(resp.status)) break;
+      // Overloaded: retry once, then move on. Quota used up (429): move on right away.
+      if (![500, 503].includes(resp.status)) break;
       if (attempt === 1) await new Promise((r) => setTimeout(r, 1500));
     }
   }
