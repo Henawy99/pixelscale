@@ -9,6 +9,7 @@ import 'package:permission_handler/permission_handler.dart' as ph;
 import 'package:url_launcher/url_launcher.dart';
 import 'package:restaurantadmin/services/location_foreground_service.dart';
 import 'package:restaurantadmin/services/demo_order_service.dart';
+import 'package:restaurantadmin/services/driver_notifications.dart';
 
 // ─────────────────────────────────────────────────────────────────────
 // Design tokens
@@ -67,6 +68,13 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with TickerProvider
 
   Timer? _locationUpdateTimer;
   StreamSubscription<Position>? _positionStream;
+  DateTime? _lastLocationWriteAt;
+  Position? _lastWrittenPosition;
+
+  // New-tour alerts
+  RealtimeChannel? _tourChannel;
+  Timer? _tourCheckDebounce;
+  final Set<String> _knownTours = {};
 
   // Pulse animation for online status
   late AnimationController _pulseController;
@@ -91,7 +99,9 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with TickerProvider
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _pulseController.dispose();
-    _stopLocationTracking();
+    _tourCheckDebounce?.cancel();
+    if (_tourChannel != null) _supabase.removeChannel(_tourChannel!);
+    _stopLocationTracking(stopService: false);
     super.dispose();
   }
 
@@ -134,15 +144,99 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with TickerProvider
 
   Future<void> _initializeDriver() async {
     await _fetchDriverRecord();
+    if (_driverRecordId != null) {
+      DriverNotifications.registerPushToken(_driverRecordId!);
+      _watchForNewTours();
+    }
     if (_driverRecordId != null && _isDriverOnline) {
       _startLocationTracking();
     }
     if (mounted) setState(() => _isLoading = false);
   }
 
+  /// Alert the driver (sound, vibration, notification) when a new or changed tour arrives.
+  void _watchForNewTours() {
+    _checkForNewTour(prime: true);
+    _tourChannel = _supabase
+        .channel('driver-tours-$_driverRecordId')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'delivery_routes',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'assigned_driver_id',
+            value: _driverRecordId!,
+          ),
+          callback: (_) => _scheduleTourCheck(),
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.insert,
+          schema: 'public',
+          table: 'route_stops',
+          callback: (_) => _scheduleTourCheck(),
+        )
+        .subscribe();
+  }
+
+  void _scheduleTourCheck() {
+    _tourCheckDebounce?.cancel();
+    _tourCheckDebounce = Timer(const Duration(milliseconds: 800), () => _checkForNewTour());
+  }
+
+  Future<void> _checkForNewTour({bool prime = false}) async {
+    if (_driverRecordId == null) return;
+    try {
+      final rows = await _supabase
+          .from('delivery_routes')
+          .select('id, planned_departure_at, route_stops(order_id)')
+          .eq('assigned_driver_id', _driverRecordId!)
+          .eq('status', 'assigned')
+          .eq('is_demo', _isDemoDriver)
+          .order('created_at', ascending: false)
+          .limit(1);
+      final list = rows as List;
+      if (list.isEmpty) return;
+      final route = Map<String, dynamic>.from(list.first as Map);
+      final orderIds = ((route['route_stops'] as List?) ?? [])
+          .map((s) => (s as Map)['order_id'] as String?)
+          .whereType<String>()
+          .toList()
+        ..sort();
+      if (orderIds.isEmpty) return;
+      final key = '${route['id']}:${orderIds.join(',')}';
+      if (!_knownTours.add(key) || prime) return;
+
+      final n = orderIds.length;
+      final departure = DateTime.tryParse(route['planned_departure_at'] as String? ?? '')?.toLocal();
+      final leave = departure == null || departure.isBefore(DateTime.now().add(const Duration(minutes: 1)))
+          ? 'now'
+          : 'at ${departure.hour.toString().padLeft(2, '0')}:${departure.minute.toString().padLeft(2, '0')}';
+      final title = 'New tour: $n ${n == 1 ? 'order' : 'orders'}';
+
+      HapticFeedback.heavyImpact();
+      SystemSound.play(SystemSoundType.alert);
+      await DriverNotifications.showNewTour(title: title, body: 'Leave $leave');
+      if (!mounted) return;
+      setState(() => _currentTab = 0);
+      _routeTabKey.currentState?.reload();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('🔔 $title · leave $leave'),
+          backgroundColor: _DriverTheme.accent,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 6),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+      );
+    } catch (e) {
+      debugPrint('[DriverHomeScreen] Tour check failed: $e');
+    }
+  }
+
   /// Start continuous location streaming with foreground service for Android
   void _startLocationTracking() async {
-    _stopLocationTracking();
+    await _stopLocationTracking(stopService: false);
     if (!mounted || !_isDriverOnline || _driverRecordId == null) return;
 
     debugPrint('[DriverHomeScreen] 🚀 Starting continuous location tracking...');
@@ -169,8 +263,8 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with TickerProvider
     }
 
     const LocationSettings locationSettings = LocationSettings(
-      accuracy: LocationAccuracy.bestForNavigation,
-      distanceFilter: 1,
+      accuracy: LocationAccuracy.high,
+      distanceFilter: 15,
     );
 
     _positionStream = Geolocator.getPositionStream(locationSettings: locationSettings)
@@ -191,8 +285,8 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with TickerProvider
       debugPrint('[DriverHomeScreen] ❌ Location stream error: $error');
     });
 
-    // Backup timer every 5 seconds for stationary positions
-    _locationUpdateTimer = Timer.periodic(const Duration(seconds: 5), (timer) async {
+    // Backup timer for stationary positions (keeps "last seen" fresh for the planner)
+    _locationUpdateTimer = Timer.periodic(const Duration(seconds: 30), (timer) async {
       if (!_isDriverOnline || !mounted) {
         timer.cancel();
         return;
@@ -235,13 +329,13 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with TickerProvider
     }
   }
 
-  void _stopLocationTracking() async {
+  Future<void> _stopLocationTracking({bool stopService = true}) async {
     _positionStream?.cancel();
     _positionStream = null;
     _locationUpdateTimer?.cancel();
     _locationUpdateTimer = null;
 
-    if (Platform.isAndroid) {
+    if (stopService && Platform.isAndroid) {
       await _foregroundService.stopService();
     }
 
@@ -365,6 +459,19 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with TickerProvider
 
   Future<void> _saveLocationToDatabase(Position position) async {
     if (_driverRecordId == null) return;
+
+    // At most one write every 10 s, sooner only after moving 50 m (and never within 3 s).
+    final last = _lastLocationWriteAt;
+    if (last != null) {
+      final since = DateTime.now().difference(last);
+      final moved = _lastWrittenPosition == null
+          ? double.infinity
+          : Geolocator.distanceBetween(_lastWrittenPosition!.latitude, _lastWrittenPosition!.longitude,
+              position.latitude, position.longitude);
+      if (since < const Duration(seconds: 3) || (since < const Duration(seconds: 10) && moved < 50)) return;
+    }
+    _lastLocationWriteAt = DateTime.now();
+    _lastWrittenPosition = position;
 
     try {
       final nowUtc = DateTime.now().toUtc();
@@ -677,6 +784,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with TickerProvider
     if (_isDriverOnline && _driverRecordId != null) {
       await _toggleOnlineStatus(false);
     }
+    if (_driverRecordId != null) await DriverNotifications.clearPushToken(_driverRecordId!);
     await _supabase.auth.signOut();
     if (mounted) {
       Navigator.of(context).pushNamedAndRemoveUntil(
@@ -1786,16 +1894,13 @@ class _DriverRouteTabState extends State<_DriverRouteTab> with TickerProviderSta
 
   void _startPolling() {
     _pollTimer?.cancel();
-    _pollTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
+    // Realtime delivers changes instantly; polling is only a safety net.
+    _pollTimer = Timer.periodic(const Duration(seconds: 15), (timer) {
       if (!mounted) {
         timer.cancel();
         return;
       }
-      // When no active route, actively check every 2 seconds for newly assigned route!
-      // When active route exists, check every 8 seconds to stay synchronized.
-      if (_activeRoute == null) {
-        _loadRoute(silent: true);
-      } else if (timer.tick % 4 == 0) {
+      if (_activeRoute == null || timer.tick % 2 == 0) {
         _loadRoute(silent: true);
       }
     });
@@ -1998,30 +2103,8 @@ class _DriverRouteTabState extends State<_DriverRouteTab> with TickerProviderSta
     setState(() => _isStartingRoute = true);
 
     try {
-      await _supabase
-          .from('delivery_routes')
-          .update({
-            'status': 'in_progress',
-            'started_at': DateTime.now().toUtc().toIso8601String(),
-          })
-          .eq('id', _activeRoute!['id'] as String);
-
-      // Update customer orders in this route to out_for_delivery & delivering
-      final orderIds = _stops
-          .map((s) => s['order_id'] as String?)
-          .where((id) => id != null && id.isNotEmpty)
-          .cast<String>()
-          .toList();
-
-      if (orderIds.isNotEmpty) {
-        await _supabase
-            .from('orders')
-            .update({
-              'delivery_status': 'out_for_delivery',
-              'status': 'delivering',
-            })
-            .inFilter('id', orderIds);
-      }
+      // Server-side: tour → in_progress, its orders → out for delivery, driver → on the road.
+      await _supabase.rpc('driver_start_route', params: {'p_route_id': _activeRoute!['id'] as String});
 
       HapticFeedback.heavyImpact();
 
@@ -2064,9 +2147,11 @@ class _DriverRouteTabState extends State<_DriverRouteTab> with TickerProviderSta
       await _loadRoute();
     } catch (e) {
       debugPrint('[DriverRouteTab] Error starting route: $e');
+      await _loadRoute(silent: true);
       if (mounted) {
+        final msg = e is PostgrestException ? e.message : '$e';
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to start route: $e'), backgroundColor: _DriverTheme.danger, behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+          SnackBar(content: Text('Could not start tour: $msg'), backgroundColor: _DriverTheme.danger, behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
         );
       }
     } finally {
@@ -2341,16 +2426,16 @@ class _DriverRouteTabState extends State<_DriverRouteTab> with TickerProviderSta
         );
       }
 
-      // Trigger plan-routes and let the Edge Function handle the route completion
-      // to bypass RLS issues securely.
+      // Closes the tour server-side; a trigger then plans this driver's next tour.
       try {
-        await _supabase.functions.invoke('plan-routes', body: {
-          'trigger_reason': 'driver_back_at_restaurant',
-          'complete_route_id': routeId,
-          'complete_driver_id': widget.driverRecordId,
-        });
+        await _supabase.rpc('driver_complete_route', params: {'p_route_id': routeId});
       } catch (e) {
-        debugPrint('[DriverRouteTab] Error invoking plan-routes on return: $e');
+        debugPrint('[DriverRouteTab] Error completing tour: $e');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Could not complete tour: ${e is PostgrestException ? e.message : e}'), backgroundColor: _DriverTheme.danger, behavior: SnackBarBehavior.floating),
+          );
+        }
       }
 
       // Reload route in case a new tour was auto-planned
@@ -2562,6 +2647,10 @@ class _DriverRouteTabState extends State<_DriverRouteTab> with TickerProviderSta
               ),
             ],
           ),
+          if (status == 'assigned') ...[
+            const SizedBox(height: 6),
+            _buildDepartureLine(),
+          ],
           if (status == 'in_progress' || allDone) ...[
             const SizedBox(height: 8),
             ClipRRect(
@@ -2576,6 +2665,30 @@ class _DriverRouteTabState extends State<_DriverRouteTab> with TickerProviderSta
           ],
         ],
       ),
+    );
+  }
+
+  /// "Leave now" / "Leave at 19:42 · back ~20:15" from the planner's times.
+  Widget _buildDepartureLine() {
+    String fmt(DateTime d) => '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
+    final dep = DateTime.tryParse(_activeRoute?['planned_departure_at'] as String? ?? '')?.toLocal();
+    final ret = DateTime.tryParse(_activeRoute?['planned_return_at'] as String? ?? '')?.toLocal();
+    if (dep == null) return const SizedBox.shrink();
+    final leaveNow = !dep.isAfter(DateTime.now().add(const Duration(minutes: 1)));
+    final color = leaveNow ? _DriverTheme.success : _DriverTheme.warning;
+    return Row(
+      children: [
+        Icon(leaveNow ? Icons.directions_car_filled_rounded : Icons.schedule_rounded, size: 16, color: color),
+        const SizedBox(width: 6),
+        Text(
+          leaveNow ? 'Leave now' : 'Leave at ${fmt(dep)} (food ready)',
+          style: TextStyle(color: color, fontSize: 13, fontWeight: FontWeight.w700),
+        ),
+        if (ret != null) ...[
+          const SizedBox(width: 8),
+          Text('· back ~${fmt(ret)}', style: const TextStyle(color: _DriverTheme.textMuted, fontSize: 12, fontWeight: FontWeight.w500)),
+        ],
+      ],
     );
   }
 

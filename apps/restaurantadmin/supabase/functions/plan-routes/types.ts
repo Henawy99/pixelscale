@@ -23,6 +23,11 @@ export interface PlannerOrder {
   estimatedPickupTime: Date | null;
   /** If set, this is a pre-order with a specific requested time. */
   requestedDeliveryTime: Date | null;
+  /**
+   * When the food is expected to be ready for pickup by a driver.
+   * Takes precedence over estimatedPickupTime. null/undefined = use estimatedPickupTime, else "now".
+   */
+  readyAt?: Date | null;
   /** Current delivery status. */
   deliveryStatus: string;
   /** If already assigned to a route. */
@@ -49,7 +54,10 @@ export interface PlannerDriver {
   currentRouteId: string | null;
   /** When the driver is expected back at the restaurant. */
   projectedReturnAt: Date | null;
-  /** When driver is available to depart (now or projected return). */
+  /**
+   * When the driver can leave the restaurant with a new tour.
+   * If set, it wins over projectedReturnAt (the planner computes it from the live route).
+   */
   availableAt?: Date | null;
   /** Scheduled end of driver's shift (null if unlimited/manual). */
   shiftEndAt?: Date | null;
@@ -63,6 +71,10 @@ export interface PlannerSettings {
   driveWeight: number;
   idleWeight: number;
   unassignedWeight: number;
+  /** Cost per minute between food ready and handover (freshness). Default 0.5. */
+  serviceWeight?: number;
+  /** One-off cost for moving an already-assigned order to another driver. Default 30. */
+  reassignWeight?: number;
 
   // Timing (seconds)
   handoverTimeSecs: number;
@@ -70,6 +82,8 @@ export interface PlannerSettings {
   preorderEarlyGraceSecs: number;
   bundlingWaitSecs: number;
   planningHorizonSecs: number;
+  /** Aim to arrive this many seconds before the promised time. Default 120. */
+  safetyBufferSecs?: number;
 
   // Shift constraints
   shiftEndGraceMinutes?: number;
@@ -116,7 +130,7 @@ export interface PlannedStop {
   isReady: boolean;
 }
 
-/** A planned route for one driver. */
+/** A planned tour for one driver (restaurant → customers → restaurant). */
 export interface PlannedRoute {
   driverId: string;
   stops: PlannedStop[]; // First and last are store stops
@@ -124,15 +138,24 @@ export interface PlannedRoute {
   totalDistanceMeters: number;
   plannedDepartureAt: Date;
   plannedReturnAt: Date;
+  /** 0 = the driver's next tour, 1 = the one after that, ... */
+  tripIndex: number;
 }
 
 /** The full output of the planner. */
 export interface PlanResult {
+  /** Next tour per driver (tripIndex 0). These are committed to the drivers. */
   routes: PlannedRoute[];
+  /** Every planned tour, including later ones that are not committed yet. */
+  trips: PlannedRoute[];
   unassignedOrderIds: string[];
   costBreakdown: CostBreakdown;
   planVersion: number;
   solverTimeMs: number;
+  /** "exact" when the optimum was proven by enumeration, "search" otherwise. */
+  method: "exact" | "search" | "empty";
+  /** Solver iterations (search) or schedules evaluated (exact). */
+  evaluations: number;
 }
 
 /** Detailed cost breakdown for logging. */
@@ -140,6 +163,7 @@ export interface CostBreakdown {
   totalCost: number;
   perOrder: OrderCost[];
   totalDrivingMinutes: number;
+  /** Minutes ready food waited at the restaurant for a driver (summed over orders). */
   totalIdleMinutes: number;
   unassignedCount: number;
 }
@@ -149,28 +173,4 @@ export interface OrderCost {
   latenessMinutes: number;
   earlinessMinutes: number;
   cost: number;
-}
-
-// ---- Internal solver types ----
-
-/** Represents a candidate route during solving. */
-export interface CandidateRoute {
-  driverId: string;
-  /** Indices into the matrix for the stops (excluding depot start/end, those are implicit as index 0). */
-  stopOrderIndices: number[];
-  /** Corresponding order IDs. */
-  stopOrderIds: string[];
-  /** Whether this driver is currently out (in_progress route). */
-  isCurrentlyOut: boolean;
-  /** When driver will be available at depot (now if at restaurant, projectedReturn if out). */
-  availableAt: Date;
-  /** Stops that are already delivered (frozen). */
-  frozenStopCount: number;
-  /** Driver's scheduled shift end time (null if none). */
-  shiftEndAt?: Date | null;
-}
-
-/** A full candidate plan (both/all drivers). */
-export interface CandidatePlan {
-  routes: CandidateRoute[];
 }

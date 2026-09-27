@@ -131,7 +131,7 @@ export async function sendPushNotification(
 
     // Send notifications in parallel using V1 API
     const results = await Promise.allSettled(
-      tokens.map(async ({ token }) => {
+      tokens.map(async ({ token }: { token: string }) => {
         try {
           const response = await fetch(
             `https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`,
@@ -206,3 +206,57 @@ export async function sendPushNotification(
   }
 }
 
+
+/**
+ * Send individual messages to specific device tokens (e.g. one driver each).
+ * Tokens that FCM reports as unregistered are cleared from drivers.fcm_token.
+ */
+export async function sendToTokens(
+  supabase: any,
+  messages: { token: string; title: string; body: string; data?: Record<string, string> }[],
+  options: { androidChannelId?: string; androidTag?: string } = {}
+): Promise<{ success: number; failed: number }> {
+  if (messages.length === 0) return { success: 0, failed: 0 };
+
+  const accessToken = await getAccessToken();
+  if (!accessToken) return { success: 0, failed: messages.length };
+  const projectId = JSON.parse(Deno.env.get('FIREBASE_SERVICE_ACCOUNT_JSON')!).project_id;
+
+  const results = await Promise.allSettled(
+    messages.map(async (m) => {
+      const response = await fetch(`https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${accessToken}` },
+        body: JSON.stringify({
+          message: {
+            token: m.token,
+            notification: { title: m.title, body: m.body },
+            data: m.data ?? {},
+            android: {
+              priority: 'high',
+              notification: {
+                sound: 'default',
+                ...(options.androidChannelId ? { channel_id: options.androidChannelId } : {}),
+                ...(options.androidTag ? { tag: options.androidTag } : {}),
+              },
+            },
+            apns: { payload: { aps: { sound: 'default' } } },
+          },
+        }),
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        if (errorText.includes('UNREGISTERED')) {
+          await supabase.from('drivers').update({ fcm_token: null }).eq('fcm_token', m.token);
+        }
+        throw new Error(errorText);
+      }
+    })
+  );
+
+  const success = results.filter((r) => r.status === 'fulfilled').length;
+  results.forEach((r) => {
+    if (r.status === 'rejected') console.error('[FCM] send failed:', r.reason);
+  });
+  return { success, failed: results.length - success };
+}

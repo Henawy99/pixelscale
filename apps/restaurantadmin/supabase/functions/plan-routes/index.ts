@@ -1,22 +1,36 @@
 // supabase/functions/plan-routes/index.ts
 // HTTP entry point for the delivery route planner.
-// Loads data from Supabase, runs the solver, writes results atomically.
+//
+// One plan covers every brand: all brands are cooked in the same kitchen and delivered by
+// the same drivers. Each run: load open delivery orders + drivers online in the app →
+// travel-time matrix → solver → apply_delivery_plan() (atomic, keeps route ids stable) →
+// push notification to drivers whose next tour changed.
+//
+// Runs are serialised with planner_try_lock/planner_release: triggers that arrive while a
+// run is in progress collapse into a single follow-up run.
+//
+// Body (all optional): { trigger_reason, is_demo, dry_run, complete_route_id }
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.43.4";
+import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.43.4";
 import { corsHeaders } from "../_shared/cors.ts";
-import { solve, evaluatePlan } from "./solver.ts";
-import { buildTravelTimeMatrix } from "./travel_time.ts";
-import type {
-  PlannerOrder,
-  PlannerDriver,
-  PlannerSettings,
-  LatLng,
-  PlannedRoute,
-  PlanResult,
-} from "./types.ts";
+import { sendToTokens } from "../_shared/fcm.ts";
+import { solve } from "./solver.ts";
+import { buildTravelTimeMatrix, haversineFallback } from "./travel_time.ts";
+import type { PlannerOrder, PlannerDriver, PlannerSettings, LatLng, PlanResult, TravelTimeMatrix } from "./types.ts";
 
 console.log("Plan Routes Function Up!");
+
+const MAX_RUNS = 4;
+
+function json(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+class StalePlanError extends Error {}
 
 // Geocode address using Google Maps API with Nominatim fallback
 async function geocodeAddress(
@@ -25,269 +39,258 @@ async function geocodeAddress(
   city?: string | null
 ): Promise<{ lat: number; lng: number } | null> {
   if (!street || !street.trim()) return null;
+  const q = [street, postcode, city || "Salzburg", "Austria"].filter(Boolean).join(", ");
 
-  // 1. Try Google Geocoding API if key configured
   const googleKey = Deno.env.get("GOOGLE_GEOCODING_API_KEY");
   if (googleKey) {
     try {
-      const parts = [street, postcode, city || "Salzburg", "Austria"].filter(Boolean).join(", ");
-      const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(parts)}&key=${googleKey}`;
-      const res = await fetch(url);
+      const res = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(q)}&key=${googleKey}`);
       const data = await res.json();
-      if (data.status === "OK" && data.results && data.results.length > 0) {
-        const loc = data.results[0].geometry.location;
-        if (loc && typeof loc.lat === "number" && typeof loc.lng === "number") {
-          return { lat: loc.lat, lng: loc.lng };
-        }
-      }
+      const loc = data.status === "OK" ? data.results?.[0]?.geometry?.location : null;
+      if (loc && typeof loc.lat === "number" && typeof loc.lng === "number") return { lat: loc.lat, lng: loc.lng };
     } catch (err) {
       console.warn("[geocodeAddress] Google Geocoding failed:", err);
     }
   }
 
-  // 2. Fallback to OpenStreetMap Nominatim
   try {
-    const q = [street, postcode, city || "Salzburg", "Austria"].filter(Boolean).join(", ");
-    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=1`;
-    const res = await fetch(url, {
+    const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=1`, {
       headers: { "User-Agent": "restaurantadmin-planner/1.0" },
     });
     if (res.ok) {
       const arr = await res.json();
-      if (Array.isArray(arr) && arr.length > 0) {
-        const lat = Number(arr[0]?.lat);
-        const lng = Number(arr[0]?.lon);
-        if (!isNaN(lat) && !isNaN(lng)) return { lat, lng };
-      }
+      const lat = Number(arr?.[0]?.lat);
+      const lng = Number(arr?.[0]?.lon);
+      if (!isNaN(lat) && !isNaN(lng)) return { lat, lng };
     }
   } catch (err) {
     console.warn("[geocodeAddress] Nominatim failed:", err);
   }
-
   return null;
 }
 
-serve(async (req: Request) => {
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+function toSettings(row: any): PlannerSettings & { defaultPrepSecs: number; staleOrderMins: number } {
+  return {
+    lateWeight: Number(row.late_weight),
+    earlyWeight: Number(row.early_weight),
+    driveWeight: Number(row.drive_weight),
+    idleWeight: Number(row.idle_weight),
+    unassignedWeight: Number(row.unassigned_weight),
+    serviceWeight: Number(row.service_weight ?? 0.5),
+    reassignWeight: Number(row.reassign_weight ?? 30),
+    handoverTimeSecs: row.handover_time_secs,
+    earlyGraceSecs: row.early_grace_secs,
+    preorderEarlyGraceSecs: row.preorder_early_grace_secs,
+    bundlingWaitSecs: row.bundling_wait_secs,
+    planningHorizonSecs: row.planning_horizon_secs,
+    safetyBufferSecs: row.safety_buffer_secs ?? 120,
+    citySpeedKmh: Number(row.city_speed_kmh),
+    maxStopsPerRoute: row.max_stops_per_route ?? 999,
+    maxRouteDurationSecs: row.max_route_duration_secs,
+    shiftEndGraceMinutes: row.shift_end_grace_minutes ?? 15,
+    solverTimeLimitMs: row.solver_time_limit_ms,
+    exhaustiveThreshold: row.exhaustive_threshold,
+    storeLocation: { lat: row.store_latitude, lng: row.store_longitude },
+    defaultPrepSecs: row.default_prep_secs ?? 900,
+    staleOrderMins: row.stale_order_mins ?? 60,
+  };
+}
+
+/** Route stops still to drive for a tour that is on the road. */
+interface LiveRoute {
+  id: string;
+  driverId: string;
+  remaining: LatLng[];
+}
+
+/**
+ * When a driver who is out on a tour will be back at the restaurant.
+ * Fresh GPS: drive from the current position through the undelivered stops and back.
+ * No fresh GPS: the same legs from the next stop, but never earlier than the plan said.
+ */
+function returnEta(
+  live: LiveRoute,
+  driverRow: any,
+  settings: PlannerSettings,
+  now: Date,
+  plannedReturn: Date | null
+): Date {
+  const store = settings.storeLocation;
+  const gps =
+    driverRow?.last_seen_at &&
+    driverRow.current_latitude != null &&
+    now.getTime() - new Date(driverRow.last_seen_at).getTime() < 5 * 60_000
+      ? { lat: driverRow.current_latitude, lng: driverRow.current_longitude }
+      : null;
+  let from: LatLng = gps ?? live.remaining[0] ?? store;
+  let t = now.getTime();
+  for (const stop of live.remaining) {
+    t += haversineFallback(from, stop, settings.citySpeedKmh).durationSeconds * 1000 + settings.handoverTimeSecs * 1000;
+    from = stop;
   }
+  t += haversineFallback(from, store, settings.citySpeedKmh).durationSeconds * 1000;
+  if (gps || !plannedReturn) return new Date(t);
+  return new Date(Math.max(t, Math.min(plannedReturn.getTime(), t + 20 * 60_000)));
+}
 
-  const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
-  const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+const fmtTime = (d: Date) =>
+  new Intl.DateTimeFormat("de-AT", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Vienna" }).format(d);
 
-  try {
-    // Parse trigger reason from body (optional)
-    let triggerReason = "manual";
-    let brandId: string | null = null;
-    let isDemoRun = false;
-    let completeRouteId: string | null = null;
-    let completeDriverId: string | null = null;
+// ============================================================
+// ONE PLANNING RUN
+// ============================================================
 
-    try {
-      const body = await req.json();
-      triggerReason = body.trigger_reason ?? "manual";
-      brandId = body.brand_id ?? null;
-      isDemoRun = body.is_demo === true || triggerReason === "demo_order_created" || triggerReason === "demo_reset";
-      completeRouteId = body.complete_route_id ?? null;
-      completeDriverId = body.complete_driver_id ?? null;
-    } catch {
-      // No body or invalid JSON — that's fine
-    }
+async function planOnce(
+  supabase: SupabaseClient,
+  opts: { isDemo: boolean; triggerReason: string; dryRun: boolean }
+) {
+  const { isDemo, triggerReason, dryRun } = opts;
+  const now = new Date();
 
-    // Guard: ignore cancellation events to avoid feedback loops
-    if (triggerReason === "route_status_cancelled") {
-      return new Response(
-        JSON.stringify({ message: "Ignored route cancellation event." }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
-      );
-    }
+  // 1. Settings (one row drives the whole kitchen).
+  const { data: settingsRow, error: settingsErr } = await supabase
+    .from("delivery_settings")
+    .select("*")
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  if (settingsErr || !settingsRow) throw new Error(`No delivery_settings row: ${settingsErr?.message ?? "missing"}`);
+  const settings = toSettings(settingsRow);
 
-    const now = new Date();
+  // 2. Open delivery orders across all brands.
+  const q = supabase
+    .from("orders")
+    .select(
+      "id, brand_id, created_at, delivery_latitude, delivery_longitude, customer_name, customer_street, customer_postcode, customer_city, customer_phone, delivery_notes, estimated_delivery_time, estimated_pickup_time, requested_delivery_time, food_ready_at, status, delivery_status, delivery_route_id, assigned_driver_id, delivery_route_sequence, order_type_name, payment_method, total_price, transport_type:platform_raw_data->transport->>type"
+    )
+    .eq("fulfillment_type", "delivery")
+    .not("status", "in", '("cancelled","delivered","completed","delivering","pending_payment")')
+    .eq("is_demo", isDemo)
+    .gte("created_at", new Date(now.getTime() - (isDemo ? 24 : 6) * 3600_000).toISOString());
+  const { data: rawOrders, error: ordersErr } = await q;
+  if (ordersErr) throw ordersErr;
 
-    // 0. Handle explicit route completion (bypass RLS from driver app)
-    if (completeRouteId) {
-      console.log(`[plan-routes] Explicitly completing route ${completeRouteId}`);
-      await supabase
-        .from("delivery_routes")
-        .update({
-          status: "completed",
-          completed_at: now.toISOString(),
-          actual_return_at: now.toISOString(),
-        })
-        .eq("id", completeRouteId);
+  // Orders on a tour that is already on the road are the driver's, whatever their status says.
+  const { data: onRoad } = await supabase
+    .from("delivery_routes")
+    .select("id")
+    .eq("status", "in_progress")
+    .eq("is_demo", isDemo);
+  const onRoadIds = new Set((onRoad ?? []).map((r: any) => r.id));
 
-      await supabase
-        .from("route_stops")
-        .update({
-          status: "completed",
-          actual_arrival_time: now.toISOString(),
-        })
-        .eq("delivery_route_id", completeRouteId);
-    }
+  const staleBefore = now.getTime() - settings.staleOrderMins * 60_000;
+  const open = (rawOrders ?? []).filter((o: any) => {
+    const ds = (o.delivery_status ?? "").toLowerCase();
+    if (ds === "out_for_delivery" || ds === "delivered") return false;
+    if (o.delivery_route_id && onRoadIds.has(o.delivery_route_id)) return false;
+    // Foodora rider picks it up — not ours to deliver.
+    if (o.transport_type === "PICKUP_LOGISTICS") return false;
+    if (ds === "assigned_to_route") return true;
+    // Promised long ago and never dispatched through the app: handled outside the system.
+    const target = new Date(o.requested_delivery_time ?? o.estimated_delivery_time ?? o.created_at).getTime();
+    return target >= staleBefore;
+  });
 
-    if (completeDriverId) {
-      console.log(`[plan-routes] Freeing up driver ${completeDriverId}`);
-      await supabase
-        .from("drivers")
-        .update({
-          current_route_id: null,
-          projected_return_at: null,
-        })
-        .eq("id", completeDriverId);
-    }
-
-    // 1. Load delivery_settings
-    let settingsQuery = supabase.from("delivery_settings").select("*");
-    if (brandId) {
-      settingsQuery = settingsQuery.eq("brand_id", brandId);
-    }
-    let { data: settingsRows, error: settingsErr } = await settingsQuery.limit(1).maybeSingle();
-    if (!settingsRows) {
-      // Fallback to primary delivery_settings if brand specific not found
-      const { data: fallbackRows } = await supabase.from("delivery_settings").select("*").limit(1).maybeSingle();
-      settingsRows = fallbackRows;
-    }
-    if (!settingsRows) {
-      console.error("Failed to load delivery_settings:", settingsErr);
-      return new Response(
-        JSON.stringify({ error: "No delivery_settings found. Create one first." }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
-      );
-    }
-
-    brandId = brandId ?? settingsRows.brand_id;
-
-    const settings: PlannerSettings = {
-      lateWeight: Number(settingsRows.late_weight),
-      earlyWeight: Number(settingsRows.early_weight),
-      driveWeight: Number(settingsRows.drive_weight),
-      idleWeight: Number(settingsRows.idle_weight),
-      unassignedWeight: Number(settingsRows.unassigned_weight),
-      handoverTimeSecs: settingsRows.handover_time_secs,
-      earlyGraceSecs: settingsRows.early_grace_secs,
-      preorderEarlyGraceSecs: settingsRows.preorder_early_grace_secs,
-      bundlingWaitSecs: settingsRows.bundling_wait_secs,
-      planningHorizonSecs: settingsRows.planning_horizon_secs,
-      citySpeedKmh: Number(settingsRows.city_speed_kmh),
-      maxStopsPerRoute: settingsRows.max_stops_per_route ?? 999,
-      maxRouteDurationSecs: settingsRows.max_route_duration_secs,
-      shiftEndGraceMinutes: settingsRows.shift_end_grace_minutes ?? 15,
-      solverTimeLimitMs: settingsRows.solver_time_limit_ms,
-      exhaustiveThreshold: settingsRows.exhaustive_threshold,
-      storeLocation: {
-        lat: settingsRows.store_latitude,
-        lng: settingsRows.store_longitude,
-      },
-    };
-
-    // 2. Load all eligible delivery orders
-    // Includes orders in preparing, ready_to_deliver, assigned_to_route, or unassigned (delivery_status null)
-    let candidateQuery = supabase
-      .from("orders")
-      .select(
-        "id, brand_id, delivery_latitude, delivery_longitude, customer_name, customer_street, customer_postcode, customer_city, customer_phone, delivery_notes, estimated_delivery_time, estimated_pickup_time, requested_delivery_time, status, delivery_status, delivery_route_id, assigned_driver_id, delivery_route_sequence, order_type_name, payment_method, total_price, fulfillment_type, is_demo"
-      )
-      .eq("fulfillment_type", "delivery")
-      .not("status", "in", '("cancelled","delivered","completed")');
-
-    if (brandId) {
-      candidateQuery = candidateQuery.eq("brand_id", brandId);
-    }
-    if (isDemoRun) {
-      candidateQuery = candidateQuery.eq("is_demo", true);
-    } else {
-      candidateQuery = candidateQuery.eq("is_demo", false);
-      const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-      candidateQuery = candidateQuery.gte("created_at", twentyFourHoursAgo);
-    }
-
-    const { data: rawOrders, error: rawOrdersErr } = await candidateQuery;
-    if (rawOrdersErr) throw rawOrdersErr;
-
-    // Filter out orders that are already delivered or currently out on the road
-    const activeOrders = (rawOrders || []).filter((o: any) => {
-      const ds = (o.delivery_status || "").toLowerCase();
-      const s = (o.status || "").toLowerCase();
-      if (ds === "out_for_delivery" || ds === "delivered" || s === "delivered" || s === "completed") {
-        return false;
-      }
-      return true;
-    });
-
-    // Automatically geocode orders that have a street address but missing coordinates
-    for (const o of activeOrders) {
-      if ((o.delivery_latitude == null || o.delivery_longitude == null) && o.customer_street) {
-        console.log(`[plan-routes] Auto-geocoding address for order ${o.id}: ${o.customer_street}, ${o.customer_postcode} ${o.customer_city}`);
-        const geo = await geocodeAddress(o.customer_street, o.customer_postcode, o.customer_city);
-        if (geo) {
-          o.delivery_latitude = geo.lat;
-          o.delivery_longitude = geo.lng;
-          await supabase
-            .from("orders")
-            .update({ delivery_latitude: geo.lat, delivery_longitude: geo.lng })
-            .eq("id", o.id);
+  for (const o of open) {
+    if ((o.delivery_latitude == null || o.delivery_longitude == null) && o.customer_street) {
+      const geo = await geocodeAddress(o.customer_street, o.customer_postcode, o.customer_city);
+      if (geo) {
+        o.delivery_latitude = geo.lat;
+        o.delivery_longitude = geo.lng;
+        if (!dryRun) {
+          await supabase.from("orders").update({ delivery_latitude: geo.lat, delivery_longitude: geo.lng }).eq("id", o.id);
         }
       }
     }
+  }
+  const noGeo = open.filter((o: any) => o.delivery_latitude == null || o.delivery_longitude == null);
+  const ordersData = open.filter((o: any) => o.delivery_latitude != null && o.delivery_longitude != null);
 
-    // Retain only orders with valid coordinates
-    const ordersData = activeOrders.filter(
-      (o: any) => o.delivery_latitude != null && o.delivery_longitude != null
-    );
-
-    if (!ordersData || ordersData.length === 0) {
-      console.log("No eligible orders to plan.");
-      return new Response(
-        JSON.stringify({ message: "No eligible orders.", plan_version: 0 }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
-      );
-    }
-
-    // Fetch existing driver pins from route_stops
-    const orderIds = ordersData.map((o: any) => o.id);
-    const { data: pinsData } = await supabase
+  // 3. Manual pins set from the dispatch screen.
+  const pinMap = new Map<string, string>();
+  if (ordersData.length > 0) {
+    const { data: pins } = await supabase
       .from("route_stops")
       .select("order_id, pinned_driver_id")
-      .in("order_id", orderIds)
+      .in("order_id", ordersData.map((o: any) => o.id))
       .not("pinned_driver_id", "is", null);
+    for (const pin of pins ?? []) pinMap.set(pin.order_id, pin.pinned_driver_id);
+  }
 
-    const pinMap = new Map<string, string>();
-    if (pinsData) {
-      for (const p of pinsData) {
-        if (p.order_id && p.pinned_driver_id) {
-          pinMap.set(p.order_id, p.pinned_driver_id);
-        }
-      }
+  // 4. Drivers.
+  const { data: allDriverRows } = await supabase
+    .from("drivers")
+    .select("id, name, is_demo, is_online, last_seen_at, current_latitude, current_longitude, fcm_token");
+  const driverRowById = new Map((allDriverRows ?? []).map((d: any) => [d.id, d]));
+
+  let availableRows: any[] = [];
+  if (isDemo) {
+    availableRows = (allDriverRows ?? []).filter((d: any) => d.is_demo && d.is_online);
+  } else {
+    const { data, error } = await supabase.from("available_drivers").select("id, name, shift_end_at");
+    if (error) throw error;
+    availableRows = (data ?? []).filter((d: any) => !driverRowById.get(d.id)?.is_demo);
+  }
+
+  // Tours already on the road decide when each driver is back.
+  const liveByDriver = new Map<string, { live: LiveRoute; plannedReturn: Date | null }>();
+  if (availableRows.length > 0) {
+    const { data: liveRoutes } = await supabase
+      .from("delivery_routes")
+      .select("id, assigned_driver_id, planned_return_at, route_stops(type, status, sequence_number, latitude, longitude)")
+      .eq("status", "in_progress")
+      .eq("is_demo", isDemo)
+      .in("assigned_driver_id", availableRows.map((d) => d.id));
+    for (const r of liveRoutes ?? []) {
+      const remaining = ((r as any).route_stops ?? [])
+        .filter((s: any) => s.type === "customer_delivery" && !["completed", "skipped", "failed"].includes(s.status))
+        .sort((a: any, b: any) => a.sequence_number - b.sequence_number)
+        .map((s: any) => ({ lat: s.latitude, lng: s.longitude }));
+      liveByDriver.set(r.assigned_driver_id, {
+        live: { id: r.id, driverId: r.assigned_driver_id, remaining },
+        plannedReturn: r.planned_return_at ? new Date(r.planned_return_at) : null,
+      });
     }
+  }
 
-    // Fetch all demo driver IDs to guarantee demo drivers are never mixed with real orders
-    const { data: demoDriversList } = await supabase
-      .from("drivers")
-      .select("id")
-      .eq("is_demo", true);
-    const demoDriverIds = new Set((demoDriversList || []).map((d: any) => d.id));
+  const drivers: PlannerDriver[] = availableRows.map((d: any) => {
+    const row = driverRowById.get(d.id);
+    const live = liveByDriver.get(d.id);
+    return {
+      id: d.id,
+      name: d.name,
+      isOnline: true,
+      currentLocation: row?.current_latitude != null ? { lat: row.current_latitude, lng: row.current_longitude } : null,
+      currentRouteId: live?.live.id ?? null,
+      projectedReturnAt: null,
+      availableAt: live ? returnEta(live.live, row, settings, now, live.plannedReturn) : now,
+      shiftEndAt: d.shift_end_at ? new Date(d.shift_end_at) : null,
+    };
+  });
 
-    // Convert to PlannerOrder
-    const orders: PlannerOrder[] = ordersData.map((o: any) => ({
+  // 5. Planner orders.
+  const prepMs = settings.defaultPrepSecs * 1000;
+  const orders: PlannerOrder[] = ordersData.map((o: any) => {
+    const created = new Date(o.created_at).getTime();
+    const requested = o.requested_delivery_time ? new Date(o.requested_delivery_time) : null;
+    let readyAt: Date;
+    if (o.food_ready_at) readyAt = new Date(o.food_ready_at);
+    else if (o.estimated_pickup_time) readyAt = new Date(o.estimated_pickup_time);
+    else if (requested) readyAt = new Date(Math.max(created + prepMs, requested.getTime() - 30 * 60_000));
+    else readyAt = new Date(created + prepMs);
+
+    return {
       id: o.id,
       brandId: o.brand_id,
       location: { lat: o.delivery_latitude, lng: o.delivery_longitude },
       customerName: o.customer_name,
-      customerAddress: [o.customer_street, o.customer_postcode, o.customer_city]
-        .filter(Boolean)
-        .join(", "),
+      customerAddress: [o.customer_street, o.customer_postcode, o.customer_city].filter(Boolean).join(", "),
       customerPhone: o.customer_phone,
       deliveryNotes: o.delivery_notes,
-      targetDeliveryTime: o.estimated_delivery_time
-        ? new Date(o.estimated_delivery_time)
-        : new Date(now.getTime() + 30 * 60000), // Default 30 min if missing
-      estimatedPickupTime: o.estimated_pickup_time
-        ? new Date(o.estimated_pickup_time)
-        : null,
-      requestedDeliveryTime: o.requested_delivery_time
-        ? new Date(o.requested_delivery_time)
-        : null,
+      targetDeliveryTime: o.estimated_delivery_time ? new Date(o.estimated_delivery_time) : new Date(created + 60 * 60_000),
+      estimatedPickupTime: o.estimated_pickup_time ? new Date(o.estimated_pickup_time) : null,
+      requestedDeliveryTime: requested,
+      readyAt,
       deliveryStatus: o.delivery_status,
       currentRouteId: o.delivery_route_id,
       currentDriverId: o.assigned_driver_id,
@@ -295,307 +298,248 @@ serve(async (req: Request) => {
       orderTypeName: o.order_type_name,
       paymentMethod: o.payment_method,
       totalPrice: o.total_price ?? 0,
-      // Ignore pin to demo driver if this is a real order run
-      pinnedDriverId: (!isDemoRun && pinMap.get(o.id) && demoDriverIds.has(pinMap.get(o.id)!))
-        ? null
-        : (pinMap.get(o.id) ?? null),
+      pinnedDriverId: pinMap.get(o.id) ?? null,
+    };
+  });
+
+  // 6. Travel times (only when there is something to plan).
+  const locations: LatLng[] = [settings.storeLocation, ...orders.map((o) => o.location)];
+  const matrix: TravelTimeMatrix =
+    orders.length > 0 && drivers.length > 0
+      ? await buildTravelTimeMatrix(locations, settings, supabase)
+      : locations.map(() => locations.map(() => ({ durationSeconds: 0, distanceMeters: 0 })));
+
+  // 7. Solve.
+  const { data: latestLog } = await supabase
+    .from("plan_log")
+    .select("plan_version")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const result: PlanResult = solve(orders, drivers, matrix, settings, now, latestLog?.plan_version ?? 0);
+
+  console.log(
+    `[plan-routes] ${triggerReason}: ${orders.length} orders, ${drivers.length} drivers → ` +
+      `${result.trips.length} tours (${result.routes.length} committed), ${result.unassignedOrderIds.length} unassigned, ` +
+      `${result.method} ${result.solverTimeMs}ms, cost ${result.costBreakdown.totalCost.toFixed(1)}`
+  );
+
+  // 8. Build the atomic write.
+  const orderById = new Map(orders.map((o) => [o.id, o]));
+  const indexById = new Map(orders.map((o, i) => [o.id, i + 1]));
+  const committed = new Set(result.routes.flatMap((r) => r.stops.map((s) => s.orderId).filter(Boolean)));
+  const unassigned = new Set(result.unassignedOrderIds);
+  const laterArrival = new Map<string, Date>();
+  for (const t of result.trips) {
+    if (t.tripIndex === 0) continue;
+    for (const s of t.stops) if (s.orderId) laterArrival.set(s.orderId, s.plannedArrivalAt);
+  }
+
+  const routesPayload = result.routes.map((r) => {
+    const firstOrder = orderById.get(r.stops.find((s) => s.orderId)!.orderId!)!;
+    return {
+      driver_id: r.driverId,
+      brand_id: firstOrder.brandId,
+      planned_departure_at: r.plannedDepartureAt.toISOString(),
+      planned_return_at: r.plannedReturnAt.toISOString(),
+      total_duration_secs: Math.round((r.plannedReturnAt.getTime() - r.plannedDepartureAt.getTime()) / 1000),
+      total_distance_m: r.totalDistanceMeters,
+      store_lat: settings.storeLocation.lat,
+      store_lng: settings.storeLocation.lng,
+      stops: r.stops.map((s, idx) => {
+        const next = r.stops[idx + 1];
+        return {
+          order_id: s.orderId,
+          type: s.type,
+          lat: s.location.lat,
+          lng: s.location.lng,
+          customer_name: s.customerName,
+          customer_address: s.customerAddress,
+          planned_arrival_at: s.plannedArrivalAt.toISOString(),
+          target_delivery_time: s.targetTime?.toISOString() ?? null,
+          travel_to_next_secs: next ? matrix[s.matrixIndex][next.matrixIndex].durationSeconds : 0,
+          service_secs: s.type === "customer_delivery" ? settings.handoverTimeSecs : 0,
+          pinned_driver_id: s.orderId ? pinMap.get(s.orderId) ?? null : null,
+        };
+      }),
+    };
+  });
+
+  // 'ready_to_deliver' only when the kitchen said so (the order board treats it as "delivering");
+  // the planner's own prep-time estimate never sets it.
+  const kitchenReady = new Set(
+    ordersData
+      .filter((o: any) => o.food_ready_at && new Date(o.food_ready_at).getTime() <= now.getTime())
+      .map((o: any) => o.id)
+  );
+  const waiting = orders
+    .filter((o) => !committed.has(o.id) && !unassigned.has(o.id))
+    .map((o) => ({
+      order_id: o.id,
+      delivery_status: kitchenReady.has(o.id) ? "ready_to_deliver" : "preparing",
+      planned_arrival_at: laterArrival.get(o.id)?.toISOString() ?? null,
     }));
 
-    // 3. Load available drivers (on-shift employees for real orders, or demo drivers if isDemoRun)
-    let driversData: any[] | null = null;
-    let driversErr: any = null;
+  const noDriverReason = isDemo ? "No demo driver online" : "No driver is online in the driver app";
+  const unassignable = [
+    ...result.unassignedOrderIds.map((id) => ({
+      order_id: id,
+      reason: drivers.length === 0 ? noDriverReason : "No online driver can deliver it before their shift ends",
+    })),
+    ...noGeo.map((o: any) => ({ order_id: o.id, reason: "Address could not be located on the map" })),
+  ];
 
-    if (isDemoRun) {
-      const res = await supabase
-        .from("drivers")
-        .select(
-          "id, employee_id, name, is_online, current_latitude, current_longitude, current_route_id, projected_return_at, available_at"
-        )
-        .eq("is_demo", true)
-        .eq("is_online", true);
-      driversData = res.data;
-      driversErr = res.error;
-    } else {
-      const res = await supabase
-        .from("available_drivers")
-        .select(
-          "id, employee_id, name, is_online, current_latitude, current_longitude, current_route_id, projected_return_at, available_at, shift_end_at"
-        );
-      
-      // STRICT FILTER: Real fetched orders must NEVER be assigned to demo drivers (Abu Nageb or any is_demo driver)
-      driversData = (res.data || []).filter((d: any) => {
-        if (demoDriverIds.has(d.id)) return false;
-        const name = (d.name || "").toLowerCase();
-        if (name.includes("demo") || name.includes("abunageb")) return false;
-        return true;
-      });
-      driversErr = res.error;
-    }
-
-    if (driversErr) throw driversErr;
-    if (!driversData || driversData.length === 0) {
-      console.log(isDemoRun ? "No demo drivers available." : "No real drivers on shift available.");
-      return new Response(
-        JSON.stringify({
-          message: isDemoRun ? "No demo drivers available." : "No real drivers on shift available.",
-          plan_version: 0,
-        }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
-      );
-    }
-
-    const drivers: PlannerDriver[] = driversData.map((d: any) => ({
-      id: d.id,
-      name: d.name,
-      isOnline: d.is_online ?? true,
-      currentLocation:
-        d.current_latitude && d.current_longitude
-          ? { lat: d.current_latitude, lng: d.current_longitude }
-          : null,
-      currentRouteId: d.current_route_id,
-      projectedReturnAt: d.projected_return_at
-        ? new Date(d.projected_return_at)
-        : null,
-      availableAt: d.available_at ? new Date(d.available_at) : null,
-      shiftEndAt: d.shift_end_at ? new Date(d.shift_end_at) : null,
-    }));
-
-    // 4. Build travel time matrix
-    //    Index 0 = depot (restaurant), then one index per order
-    const locations: LatLng[] = [
-      settings.storeLocation,
-      ...orders.map((o) => o.location),
-    ];
-
-    console.log(
-      `Building travel time matrix for ${locations.length} locations...`
-    );
-    const matrix = await buildTravelTimeMatrix(locations, settings, supabase);
-
-    // 5. Get current plan version
-    const { data: latestLog } = await supabase
-      .from("plan_log")
-      .select("plan_version")
-      .eq("brand_id", brandId)
-      .order("plan_version", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    const currentPlanVersion = latestLog?.plan_version ?? 0;
-
-    // 6. Run solver
-    console.log("Running solver...");
-    const result: PlanResult = solve(
-      orders,
-      drivers,
-      matrix,
-      settings,
-      now,
-      currentPlanVersion
-    );
-
-    console.log(
-      `Solver finished in ${result.solverTimeMs}ms. Plan version: ${result.planVersion}. ` +
-      `Routes: ${result.routes.length}. Unassigned: ${result.unassignedOrderIds.length}. ` +
-      `Cost: ${result.costBreakdown.totalCost.toFixed(2)}`
-    );
-
-    // 7. Write results atomically
-
-    // 7a. Cancel existing assigned (not in_progress) routes for this brand
-    let existingRoutesQuery = supabase
-      .from("delivery_routes")
-      .select("id")
-      .eq("brand_id", brandId)
-      .eq("status", "assigned");
-
-    if (isDemoRun) {
-      existingRoutesQuery = existingRoutesQuery.eq("is_demo", true);
-    } else {
-      existingRoutesQuery = existingRoutesQuery.eq("is_demo", false);
-    }
-
-    const { data: existingRoutes } = await existingRoutesQuery;
-
-    if (existingRoutes && existingRoutes.length > 0) {
-      const routeIds = existingRoutes.map((r: any) => r.id);
-      await supabase
-        .from("delivery_routes")
-        .update({ status: "cancelled" })
-        .in("id", routeIds);
-
-      // Clear old route_stops
-      await supabase
-        .from("route_stops")
-        .delete()
-        .in("delivery_route_id", routeIds);
-
-      // Unlink orders from old routes
-      await supabase
-        .from("orders")
-        .update({
-          delivery_route_id: null,
-          assigned_driver_id: null,
-          delivery_route_sequence: null,
-          planned_arrival_at: null,
-          delivery_status: "ready_to_deliver",
-        })
-        .in("delivery_route_id", routeIds)
-        .eq("delivery_status", "assigned_to_route");
-    }
-
-    // 7b. Create new routes and stops
-    for (const route of result.routes) {
-      // Create delivery_routes record
-      const { data: routeRecord, error: routeErr } = await supabase
-        .from("delivery_routes")
-        .insert({
-          assigned_driver_id: route.driverId,
-          brand_id: brandId,
-          status: "assigned",
-          is_demo: isDemoRun,
-          total_estimated_duration_seconds:
-            (route.plannedReturnAt.getTime() - route.plannedDepartureAt.getTime()) / 1000,
-          total_estimated_distance_meters: route.totalDistanceMeters,
-          store_latitude: settings.storeLocation.lat,
-          store_longitude: settings.storeLocation.lng,
-          plan_version: result.planVersion,
-          planned_departure_at: route.plannedDepartureAt.toISOString(),
-          planned_return_at: route.plannedReturnAt.toISOString(),
-        })
-        .select("id")
-        .single();
-
-      if (routeErr || !routeRecord) {
-        console.error("Failed to create delivery route:", routeErr);
-        continue;
-      }
-
-      const routeId = routeRecord.id;
-
-      // Create route_stops
-      const stopsToInsert = route.stops.map((stop, idx) => ({
-        delivery_route_id: routeId,
-        order_id: stop.orderId,
-        type: stop.type === "store" ? "store" : "customer_delivery",
-        sequence_number: idx,
-        latitude: stop.location.lat,
-        longitude: stop.location.lng,
-        customer_name: stop.customerName,
-        customer_address: stop.customerAddress,
-        estimated_arrival_time: stop.plannedArrivalAt.toISOString(),
-        planned_arrival_at: stop.plannedArrivalAt.toISOString(),
-        status: "pending",
-        pinned_driver_id: stop.orderId ? pinMap.get(stop.orderId) ?? null : null,
-        estimated_travel_time_to_next_stop_seconds:
-          idx < route.stops.length - 1
-            ? matrix[stop.matrixIndex][route.stops[idx + 1].matrixIndex]
-                .durationSeconds
-            : 0,
-      }));
-
-      const { error: stopsErr } = await supabase
-        .from("route_stops")
-        .insert(stopsToInsert);
-
-      if (stopsErr) {
-        console.error("Failed to insert route stops:", stopsErr);
-      }
-
-      // Update orders with route assignment
-      for (let i = 0; i < route.stops.length; i++) {
-        const stop = route.stops[i];
-        if (!stop.orderId) continue;
-
-        const { error: orderErr } = await supabase
-          .from("orders")
-          .update({
-            assigned_driver_id: route.driverId,
-            delivery_route_id: routeId,
-            delivery_route_sequence: i,
-            delivery_status: "assigned_to_route",
-            planned_arrival_at: stop.plannedArrivalAt.toISOString(),
-            is_unassignable: false,
-            unassignable_reason: null,
-          })
-          .eq("id", stop.orderId);
-
-        if (orderErr) {
-          console.error(`Failed to update order ${stop.orderId}:`, orderErr);
-        }
-      }
-
-      // An 'assigned' route has not started yet. The driver is still at the restaurant,
-      // so projected_return_at should NOT be set into the future. That only happens when the tour starts.
-      await supabase
-        .from("drivers")
-        .update({
-          projected_return_at: null,
-          available_at: new Date().toISOString(),
-        })
-        .eq("id", route.driverId);
-    }
-
-    // 7c. Mark unassigned orders visibly if nobody on shift can take them
-    for (const unassignedId of result.unassignedOrderIds) {
-      await supabase
-        .from("orders")
-        .update({
-          is_unassignable: true,
-          unassignable_reason:
-            "No available driver on shift can reach customer before cutoff or shift end",
-        })
-        .eq("id", unassignedId)
-        .neq("delivery_status", "out_for_delivery");
-    }
-
-    // 7d. Log the plan
-    await supabase.from("plan_log").insert({
-      brand_id: brandId,
-      plan_version: result.planVersion,
-      trigger_reason: triggerReason,
-      cost_breakdown: result.costBreakdown,
-      plan_snapshot: {
-        routes: result.routes.map((r) => ({
-          driver_id: r.driverId,
-          stops: r.stops.map((s) => ({
+  const payload = {
+    is_demo: isDemo,
+    plan_version: result.planVersion,
+    trigger_reason: triggerReason,
+    brand_id: settingsRow.brand_id,
+    planned_at: now.toISOString(),
+    solver_time_ms: result.solverTimeMs,
+    cost_breakdown: result.costBreakdown,
+    plan_snapshot: {
+      method: result.method,
+      drivers: drivers.map((d) => ({ id: d.id, name: d.name, available_at: d.availableAt?.toISOString() })),
+      tours: result.trips.map((t) => ({
+        driver_id: t.driverId,
+        trip: t.tripIndex,
+        departure: t.plannedDepartureAt.toISOString(),
+        return: t.plannedReturnAt.toISOString(),
+        stops: t.stops
+          .filter((s) => s.orderId)
+          .map((s) => ({
             order_id: s.orderId,
-            type: s.type,
             planned_arrival: s.plannedArrivalAt.toISOString(),
             target_time: s.targetTime?.toISOString(),
           })),
-          departure: r.plannedDepartureAt.toISOString(),
-          return: r.plannedReturnAt.toISOString(),
-        })),
-        unassigned: result.unassignedOrderIds,
-      },
-      solver_time_ms: result.solverTimeMs,
-    });
+      })),
+      unassigned: result.unassignedOrderIds,
+      waiting: waiting.map((w) => w.order_id),
+    },
+    routes: routesPayload,
+    waiting,
+    unassignable,
+  };
 
-    console.log(`Plan v${result.planVersion} written successfully.`);
+  if (dryRun) return { result, payload, applied: null as any };
 
-    return new Response(
-      JSON.stringify({
-        message: "Plan created successfully.",
-        plan_version: result.planVersion,
-        routes_created: result.routes.length,
-        unassigned_orders: result.unassignedOrderIds.length,
-        cost: result.costBreakdown.totalCost,
-        solver_time_ms: result.solverTimeMs,
-      }),
-      {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-        status: 200,
-      }
+  const { data: applied, error: applyErr } = await supabase.rpc("apply_delivery_plan", { p: payload });
+  if (applyErr) throw applyErr;
+  if (!applied?.ok) throw new StalePlanError(applied?.reason ?? "stale");
+
+  // 9. Tell drivers about new or changed tours.
+  const changed: string[] = applied.changed_driver_ids ?? [];
+  const messages = changed
+    .map((driverId) => {
+      const token = driverRowById.get(driverId)?.fcm_token;
+      const route = result.routes.find((r) => r.driverId === driverId);
+      if (!token || !route) return null;
+      const n = route.stops.filter((s) => s.orderId).length;
+      const leave = route.plannedDepartureAt.getTime() <= now.getTime() + 60_000 ? "now" : `at ${fmtTime(route.plannedDepartureAt)}`;
+      return {
+        token,
+        title: `New tour: ${n} ${n === 1 ? "order" : "orders"}`,
+        body: `Leave ${leave} · back ~${fmtTime(route.plannedReturnAt)}`,
+        data: { type: "driver_route", driver_id: driverId },
+      };
+    })
+    .filter(Boolean) as { token: string; title: string; body: string; data: Record<string, string> }[];
+  if (messages.length > 0) {
+    await sendToTokens(supabase, messages, { androidChannelId: "driver_routes", androidTag: "driver_route" }).catch((e) =>
+      console.error("[plan-routes] push failed:", e)
     );
+  }
+
+  return { result, payload, applied };
+}
+
+// ============================================================
+// HTTP HANDLER
+// ============================================================
+
+serve(async (req: Request) => {
+  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+
+  const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+  const supabase = createClient(supabaseUrl, serviceKey);
+
+  let body: any = {};
+  try {
+    body = await req.json();
+  } catch {
+    // No body — manual run.
+  }
+  const triggerReason: string = body.trigger_reason ?? "manual";
+  const isDemo = body.is_demo === true || triggerReason === "demo_order_created" || triggerReason === "demo_reset";
+  const dryRun = body.dry_run === true;
+
+  try {
+    // Legacy driver-app path ("back at restaurant"): finish the tour as the calling driver.
+    if (body.complete_route_id) {
+      const userClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY") ?? "", {
+        global: { headers: { Authorization: req.headers.get("Authorization") ?? "" } },
+      });
+      const { error } = await userClient.rpc("driver_complete_route", { p_route_id: body.complete_route_id });
+      if (error) return json({ error: error.message }, 403);
+      // The route trigger schedules a re-plan.
+      return json({ message: "Tour completed." });
+    }
+
+    if (dryRun) {
+      const { result, payload } = await planOnce(supabase, { isDemo, triggerReason, dryRun: true });
+      return json({ dry_run: true, method: result.method, solver_time_ms: result.solverTimeMs, payload });
+    }
+
+    const mode = isDemo ? "demo" : "real";
+    const holder = crypto.randomUUID();
+    const { data: locked, error: lockErr } = await supabase.rpc("planner_try_lock", {
+      p_mode: mode,
+      p_holder: holder,
+      p_lease_secs: 45,
+    });
+    if (lockErr) throw lockErr;
+    if (!locked) return json({ message: "Planner busy; a follow-up run is queued.", queued: true }, 202);
+
+    let runs = 0;
+    let last: Awaited<ReturnType<typeof planOnce>> | null = null;
+    try {
+      while (true) {
+        runs++;
+        try {
+          last = await planOnce(supabase, { isDemo, triggerReason: runs === 1 ? triggerReason : `${triggerReason}+rerun`, dryRun: false });
+        } catch (e) {
+          if (!(e instanceof StalePlanError) || runs >= MAX_RUNS) throw e;
+          console.log(`[plan-routes] plan went stale (${e.message}), re-planning`);
+          continue;
+        }
+        const { data: again } = await supabase.rpc("planner_release", {
+          p_mode: mode,
+          p_holder: holder,
+          p_allow_rerun: runs < MAX_RUNS,
+          p_lease_secs: 45,
+        });
+        if (!again) break;
+      }
+    } catch (e) {
+      await supabase.rpc("planner_release", { p_mode: mode, p_holder: holder, p_allow_rerun: false });
+      throw e;
+    }
+
+    const r = last!.result;
+    return json({
+      message: "Plan created successfully.",
+      plan_version: r.planVersion,
+      routes_created: r.routes.length,
+      tours_planned: r.trips.length,
+      unassigned_orders: r.unassignedOrderIds.length,
+      cost: r.costBreakdown.totalCost,
+      solver_time_ms: r.solverTimeMs,
+      method: r.method,
+      runs,
+    });
   } catch (error) {
     console.error("Error in plan-routes:", error);
-    return new Response(
-      JSON.stringify({ error: error.message || "Unknown error" }),
-      {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-        status: 500,
-      }
-    );
+    return json({ error: (error as Error).message || "Unknown error" }, 500);
   }
 });

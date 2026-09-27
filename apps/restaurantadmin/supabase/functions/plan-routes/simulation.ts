@@ -4,7 +4,7 @@
 //
 // Run: deno run --allow-all simulation.ts
 
-import { solve, evaluatePlan, computeRouteTimeline } from "./solver.ts";
+import { solve } from "./solver.ts";
 import { buildTestMatrix } from "./travel_time.ts";
 import type {
   PlannerOrder,

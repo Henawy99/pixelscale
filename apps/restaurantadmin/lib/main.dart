@@ -33,6 +33,7 @@ import 'package:restaurantadmin/services/label_printer_service.dart'; // Import 
 import 'package:restaurantadmin/widgets/global_purchase_listener.dart';
 import 'package:restaurantadmin/widgets/global_order_listener.dart';
 import 'package:restaurantadmin/services/push_notification_service.dart'; // Import push notification service
+import 'package:restaurantadmin/services/location_foreground_service.dart';
 import 'package:firebase_messaging/firebase_messaging.dart'; // For background handler
 
 final GlobalKey<NavigatorState> appNavigatorKey = GlobalKey<NavigatorState>();
@@ -210,6 +211,8 @@ Future<void> main() async {
       url: supabaseUrl, // Use value from String.fromEnvironment
       anonKey: supabaseAnonKey, // Use value from String.fromEnvironment
     );
+    LocationForegroundService.supabaseUrl = supabaseUrl;
+    LocationForegroundService.supabaseAnonKey = supabaseAnonKey;
     
     // Note: Push notifications will be initialized after login for admin users only
 

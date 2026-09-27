@@ -30,6 +30,8 @@ android {
         versionCode = flutter.versionCode
         versionName = flutter.versionName
         multiDexEnabled = true
+        // The driver APK sets this via ORG_GRADLE_PROJECT_appLabel (see build_driver_apk.sh).
+        manifestPlaceholders["appLabel"] = (project.findProperty("appLabel") as String?) ?: "restaurantadmin"
     }
 
     buildTypes {

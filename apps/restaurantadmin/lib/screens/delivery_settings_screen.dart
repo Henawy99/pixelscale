@@ -20,6 +20,9 @@ class _DeliverySettingsScreenState extends State<DeliverySettingsScreen> {
   double _driveWeight = 0.5;
   double _idleWeight = 2;
   double _unassignedWeight = 50;
+  double _serviceWeight = 0.5;
+  double _reassignWeight = 30;
+  int _defaultPrepSecs = 900;
 
   // Timing parameters
   int _handoverTimeSecs = 300;
@@ -46,6 +49,7 @@ class _DeliverySettingsScreenState extends State<DeliverySettingsScreen> {
       final response = await _supabase
           .from('delivery_settings')
           .select('*')
+          .order('created_at') // same row the planner uses
           .limit(1);
 
       final list = response as List;
@@ -58,6 +62,9 @@ class _DeliverySettingsScreenState extends State<DeliverySettingsScreen> {
           _driveWeight = (s['drive_weight'] as num?)?.toDouble() ?? 0.5;
           _idleWeight = (s['idle_weight'] as num?)?.toDouble() ?? 2;
           _unassignedWeight = (s['unassigned_weight'] as num?)?.toDouble() ?? 50;
+          _serviceWeight = (s['service_weight'] as num?)?.toDouble() ?? 0.5;
+          _reassignWeight = (s['reassign_weight'] as num?)?.toDouble() ?? 30;
+          _defaultPrepSecs = (s['default_prep_secs'] as num?)?.toInt() ?? 900;
           _handoverTimeSecs = (s['handover_time_secs'] as num?)?.toInt() ?? 300;
           _earlyGraceSecs = (s['early_grace_secs'] as num?)?.toInt() ?? 600;
           _bundlingWaitSecs = (s['bundling_wait_secs'] as num?)?.toInt() ?? 240;
@@ -65,7 +72,7 @@ class _DeliverySettingsScreenState extends State<DeliverySettingsScreen> {
           _maxRouteDurationSecs = (s['max_route_duration_secs'] as num?)?.toInt() ?? 3600;
           _solverTimeLimitMs = (s['solver_time_limit_ms'] as num?)?.toInt() ?? 200;
           _exhaustiveThreshold = (s['exhaustive_threshold'] as num?)?.toInt() ?? 6;
-          _maxStopsPerRoute = (s['max_stops_per_route'] as num?)?.toInt() ?? 3;
+          _maxStopsPerRoute = ((s['max_stops_per_route'] as num?)?.toInt() ?? 10).clamp(1, 10);
           _autoAssignDelaySecs = (s['auto_assign_delay_secs'] as num?)?.toInt() ?? 60;
           _citySpeedKmh = (s['city_speed_kmh'] as num?)?.toDouble() ?? 25;
         });
@@ -90,6 +97,9 @@ class _DeliverySettingsScreenState extends State<DeliverySettingsScreen> {
             'drive_weight': _driveWeight,
             'idle_weight': _idleWeight,
             'unassigned_weight': _unassignedWeight,
+            'service_weight': _serviceWeight,
+            'reassign_weight': _reassignWeight,
+            'default_prep_secs': _defaultPrepSecs,
             'handover_time_secs': _handoverTimeSecs,
             'early_grace_secs': _earlyGraceSecs,
             'bundling_wait_secs': _bundlingWaitSecs,
@@ -232,8 +242,29 @@ class _DeliverySettingsScreenState extends State<DeliverySettingsScreen> {
                         color: Colors.blue,
                       ),
                       _buildSliderCard(
+                        'Food Freshness',
+                        'Per minute between food ready and handover. Higher = faster, fewer bundles',
+                        _serviceWeight,
+                        0,
+                        5,
+                        (v) => setState(() => _serviceWeight = v),
+                        icon: Icons.local_fire_department,
+                        color: Colors.deepOrange,
+                      ),
+                      _buildSliderCard(
+                        'Keep Assignments Stable',
+                        'Cost of moving an order to another driver after it was assigned',
+                        _reassignWeight,
+                        0,
+                        100,
+                        (v) => setState(() => _reassignWeight = v),
+                        icon: Icons.push_pin_outlined,
+                        color: Colors.indigo,
+                        decimals: 0,
+                      ),
+                      _buildSliderCard(
                         'Idle Time Penalty',
-                        'Higher = avoid drivers waiting at store',
+                        'Higher = ready food waits less at the store',
                         _idleWeight,
                         0,
                         20,
@@ -262,6 +293,17 @@ class _DeliverySettingsScreenState extends State<DeliverySettingsScreen> {
                         Colors.green,
                       ),
                       const SizedBox(height: 8),
+                      _buildIntCard(
+                        'Kitchen Prep Time',
+                        'Food is assumed ready this long after the order comes in',
+                        _defaultPrepSecs,
+                        300,
+                        2700,
+                        60,
+                        (v) => setState(() => _defaultPrepSecs = v),
+                        formatSuffix: 's',
+                        displayMinutes: true,
+                      ),
                       _buildIntCard(
                         'Handover Time',
                         'Time spent at each customer door (seconds)',
@@ -350,10 +392,10 @@ class _DeliverySettingsScreenState extends State<DeliverySettingsScreen> {
                       ),
                       _buildIntCard(
                         'Max Stops Per Route',
-                        'Maximum deliveries per route (food quality)',
+                        'Maximum deliveries per tour (bag size / food quality)',
                         _maxStopsPerRoute,
                         1,
-                        6,
+                        10,
                         1,
                         (v) => setState(() => _maxStopsPerRoute = v),
                         formatSuffix: ' stops',
