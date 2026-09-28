@@ -12,7 +12,7 @@
 set -e
 
 # Track current version (auto-updated by script)
-CURRENT_VERSION="1.0.15"
+CURRENT_VERSION="1.0.16"
 CURRENT_BUILD="1"
 
 # Colors
@@ -26,6 +26,10 @@ NC='\033[0m'
 BOLD='\033[1m'
 
 cd "$(dirname "$0")"
+
+# fastlane / xcpretty crash on non-ASCII build output without a UTF-8 locale.
+export LANG=en_US.UTF-8
+export LC_ALL=en_US.UTF-8
 
 echo -e "${BLUE}========================================${NC}"
 echo -e "${BLUE}🍔 Restaurant Admin - iOS Release${NC}"
@@ -81,6 +85,17 @@ echo -e "${GREEN}✅ Version updated in pubspec.yaml${NC}"
 # Update this script with new version for next time
 sed -i '' "s/^CURRENT_VERSION=\".*\"/CURRENT_VERSION=\"${NEW_VERSION}\"/" "$0"
 sed -i '' "s/^CURRENT_BUILD=\".*\"/CURRENT_BUILD=\"${NEW_BUILD}\"/" "$0"
+
+# ─────────────────────────────────────────
+# App config: pubspec bundles .env as an asset. Ship only what the app reads
+# (Supabase URL + anon key, Gemini key, listener flags), never the service-role key.
+# ─────────────────────────────────────────
+# Absolute paths: the upload step runs from fastlane/, and the restore must work from anywhere.
+APP_DIR="$(pwd)"
+ENV_BACKUP="$APP_DIR/ios-build-backup.env"
+cp "$APP_DIR/.env" "$ENV_BACKUP"
+trap 'mv "$ENV_BACKUP" "$APP_DIR/.env"' EXIT
+grep -E '^(SUPABASE_URL|SUPABASE_ANON_KEY|GEMINI_API_KEY|ENABLE_GLOBAL_ORDER_LISTENER|ENABLE_GLOBAL_PURCHASE_LISTENER)=' "$ENV_BACKUP" > "$APP_DIR/.env"
 
 # ─────────────────────────────────────────
 # Clean & Build
