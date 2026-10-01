@@ -13,12 +13,13 @@ if ! grep -q '^SUPABASE_URL=' .env || ! grep -q '^SUPABASE_ANON_KEY=' .env; then
   exit 1
 fi
 
-# pubspec.yaml bundles .env as an asset. Keep what the app reads (Supabase URL + anon key,
-# Gemini key, listener flags) but never ship the service-role key.
+# pubspec.yaml bundles .env as an asset, and anyone can unpack an APK. Ship only what the app
+# needs: the Supabase URL + anon key and the order-listener flag. Never the service-role key, and
+# no Gemini key either: invoices are read on the server (scan-expense), which has its own key.
 BACKUP="admin-build-backup.env"
 cp .env "$BACKUP"
 trap 'mv "$BACKUP" .env' EXIT
-grep -E '^(SUPABASE_URL|SUPABASE_ANON_KEY|GEMINI_API_KEY|ENABLE_GLOBAL_ORDER_LISTENER|ENABLE_GLOBAL_PURCHASE_LISTENER)=' "$BACKUP" > .env
+grep -E '^(SUPABASE_URL|SUPABASE_ANON_KEY|ENABLE_GLOBAL_ORDER_LISTENER)=' "$BACKUP" > .env
 
 VERSION=$(grep '^version:' pubspec.yaml | sed -E 's/version: *([0-9.]+).*/\1/')
 BUILD_NUMBER=$(date +%y%j%H%M) # yyDDDHHMM: always increasing, fits Android's versionCode

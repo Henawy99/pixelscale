@@ -87,15 +87,15 @@ sed -i '' "s/^CURRENT_VERSION=\".*\"/CURRENT_VERSION=\"${NEW_VERSION}\"/" "$0"
 sed -i '' "s/^CURRENT_BUILD=\".*\"/CURRENT_BUILD=\"${NEW_BUILD}\"/" "$0"
 
 # ─────────────────────────────────────────
-# App config: pubspec bundles .env as an asset. Ship only what the app reads
-# (Supabase URL + anon key, Gemini key, listener flags), never the service-role key.
+# App config: pubspec bundles .env as an asset. Ship only the Supabase URL + anon key and the
+# order-listener flag: never the service-role key, and no Gemini key (invoices are read on the server).
 # ─────────────────────────────────────────
 # Absolute paths: the upload step runs from fastlane/, and the restore must work from anywhere.
 APP_DIR="$(pwd)"
 ENV_BACKUP="$APP_DIR/ios-build-backup.env"
 cp "$APP_DIR/.env" "$ENV_BACKUP"
 trap 'mv "$ENV_BACKUP" "$APP_DIR/.env"' EXIT
-grep -E '^(SUPABASE_URL|SUPABASE_ANON_KEY|GEMINI_API_KEY|ENABLE_GLOBAL_ORDER_LISTENER|ENABLE_GLOBAL_PURCHASE_LISTENER)=' "$ENV_BACKUP" > "$APP_DIR/.env"
+grep -E '^(SUPABASE_URL|SUPABASE_ANON_KEY|ENABLE_GLOBAL_ORDER_LISTENER)=' "$ENV_BACKUP" > "$APP_DIR/.env"
 
 # ─────────────────────────────────────────
 # Clean & Build
