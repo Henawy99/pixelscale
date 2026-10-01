@@ -308,6 +308,7 @@ class _ExpenseReviewScreenState extends State<ExpenseReviewScreen> {
   Map<String, dynamic> _rawForStatus(String status) => {
     'id': _expense!.id,
     'created_at': _expense!.createdAt.toIso8601String(),
+    'updated_at': DateTime.now().toIso8601String(),
     'status': status,
     'document_paths': _expense!.documentPaths,
   };
@@ -334,7 +335,7 @@ class _ExpenseReviewScreenState extends State<ExpenseReviewScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF9FAFB),
       appBar: AppBar(
-        title: Text(e?.supplierName ?? 'Expense'),
+        title: Text(e?.supplierName ?? (e?.isAnalyzing == true ? 'Reading invoice' : 'Invoice')),
         actions: [
           if (e != null && !e.isAnalyzing)
             PopupMenuButton<String>(
@@ -373,7 +374,7 @@ class _ExpenseReviewScreenState extends State<ExpenseReviewScreen> {
           : e == null
           ? Center(child: Text(_error ?? 'Not found'))
           : e.isAnalyzing
-          ? _analyzing()
+          ? _ReadingView(urls: _urls, startedAt: e.updatedAt ?? e.createdAt)
           : LayoutBuilder(
               builder: (context, c) {
                 final wide = c.maxWidth >= 1000 && _urls.isNotEmpty;
@@ -397,57 +398,47 @@ class _ExpenseReviewScreenState extends State<ExpenseReviewScreen> {
     );
   }
 
-  Widget _analyzing() => const Center(
-    child: Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        SizedBox(width: 56, height: 56, child: CircularProgressIndicator(strokeWidth: 5)),
-        SizedBox(height: 20),
-        Text('Reading the invoice…', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
-        SizedBox(height: 6),
-        Text('This usually takes 10–20 seconds.', style: TextStyle(color: Color(0xFF6B7280))),
-      ],
-    ),
+  Widget _details(Expense e, {required bool showDocumentStrip}) => ListView(
+    padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+    children: [
+      if (showDocumentStrip && _urls.isNotEmpty) _documentStrip(e),
+      // Nothing was read: only the pages and what to do next.
+      if (e.isFailed) _failedCard(e) else ..._readContent(e),
+    ],
   );
 
-  Widget _details(Expense e, {required bool showDocumentStrip}) {
+  List<Widget> _readContent(Expense e) {
     final productLines = _lines.where((l) => _decisions[l.id]!.stock).toList();
     final ready = productLines.where((l) => _decisions[l.id]!.isReady).length;
     final attention = productLines.length - ready;
     final skipped = _lines.length - productLines.length;
-
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-      children: [
-        if (showDocumentStrip && _urls.isNotEmpty) _documentStrip(e),
-        if (e.isFailed) _failedCard(e),
-        _supplierCard(e),
-        for (final w in e.warnings) _warningCard(w),
-        _summaryCard(e),
-        if (_lines.isNotEmpty) ...[
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Text('Items (${_lines.length})', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-              const Spacer(),
-              if (!e.isBooked && !e.isRecorded) ...[
-                _countChip('$ready ready', const Color(0xFF059669)),
-                if (attention > 0) ...[
-                  const SizedBox(width: 6),
-                  _countChip('$attention to check', const Color(0xFFD97706)),
-                ],
-                if (skipped > 0) ...[
-                  const SizedBox(width: 6),
-                  _countChip('$skipped not stocked', const Color(0xFF6B7280)),
-                ],
+    return [
+      _supplierCard(e),
+      for (final w in e.warnings) _warningCard(w),
+      _summaryCard(e),
+      if (_lines.isNotEmpty) ...[
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            Text('Items (${_lines.length})', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+            const Spacer(),
+            if (!e.isBooked && !e.isRecorded) ...[
+              _countChip('$ready ready', const Color(0xFF059669)),
+              if (attention > 0) ...[
+                const SizedBox(width: 6),
+                _countChip('$attention to check', const Color(0xFFD97706)),
+              ],
+              if (skipped > 0) ...[
+                const SizedBox(width: 6),
+                _countChip('$skipped not stocked', const Color(0xFF6B7280)),
               ],
             ],
-          ),
-          const SizedBox(height: 8),
-          for (final l in _lines) _lineCard(e, l),
-        ],
+          ],
+        ),
+        const SizedBox(height: 8),
+        for (final l in _lines) _lineCard(e, l),
       ],
-    );
+    ];
   }
 
   Widget _countChip(String text, Color color) => Container(
@@ -511,20 +502,30 @@ class _ExpenseReviewScreenState extends State<ExpenseReviewScreen> {
               ),
             ],
           ),
-          if (e.error != null) ...[
+          if (e.failureMessage != null) ...[
             const SizedBox(height: 6),
             Text(
-              e.error!,
+              e.failureMessage!,
               maxLines: 4,
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(color: Color(0xFF991B1B)),
             ),
           ],
           const SizedBox(height: 10),
-          FilledButton.icon(
-            onPressed: _busy ? null : _reread,
-            icon: const Icon(Icons.refresh),
-            label: const Text('Read again'),
+          Wrap(
+            spacing: 8,
+            children: [
+              FilledButton.icon(
+                onPressed: _busy ? null : _reread,
+                icon: const Icon(Icons.refresh),
+                label: const Text('Read again'),
+              ),
+              TextButton(
+                onPressed: _busy ? null : _delete,
+                style: TextButton.styleFrom(foregroundColor: const Color(0xFF991B1B)),
+                child: const Text('Delete scan'),
+              ),
+            ],
           ),
         ],
       ),
@@ -553,7 +554,8 @@ class _ExpenseReviewScreenState extends State<ExpenseReviewScreen> {
     }
 
     final seen = e.detectedSupplier ?? const {};
-    final seenName = seen['name'] as String? ?? 'Unknown supplier';
+    final detectedName = seen['name'] as String?;
+    final seenName = detectedName ?? 'Supplier not readable';
     final address = [
       seen['address'],
       [seen['postcode'], seen['city']].whereType<String>().join(' '),
@@ -601,7 +603,7 @@ class _ExpenseReviewScreenState extends State<ExpenseReviewScreen> {
                   FilledButton.icon(
                     onPressed: _busy ? null : _createSupplier,
                     icon: const Icon(Icons.add),
-                    label: Text('Create “$seenName”'),
+                    label: Text(detectedName == null ? 'Create new supplier' : 'Create “$detectedName”'),
                   )
                 else
                   OutlinedButton(onPressed: _busy ? null : _createSupplier, child: const Text('Create new supplier')),
@@ -657,7 +659,7 @@ class _ExpenseReviewScreenState extends State<ExpenseReviewScreen> {
               children: [
                 cell('Invoice', e.invoiceNumber ?? '–'),
                 cell('Date', formatDate(e.date)),
-                cell('Status', expenseStatusStyle(e.status).label),
+                cell('Status', expenseStatusStyle(e.displayStatus).label),
               ],
             ),
             const Divider(height: 24),
@@ -680,7 +682,7 @@ class _ExpenseReviewScreenState extends State<ExpenseReviewScreen> {
     final details = [
       if (l.articleNumber != null) 'Art. ${l.articleNumber}',
       '${quantityText(l.quantity)} × ${l.unit ?? 'unit'}${l.unitPrice != null ? ' à ${formatMoney(l.unitPrice)}' : ''}',
-      if (l.vatRate != null) '${formatNumber(l.vatRate!, maxDecimals: 0)}% VAT',
+      if (l.vatRate != null) '${formatNumber(l.vatRate!, maxDecimals: 1)}% VAT',
     ].join(' · ');
 
     return Card(
@@ -968,4 +970,106 @@ class _ExpenseReviewScreenState extends State<ExpenseReviewScreen> {
     heightFactor: 1,
     child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 640), child: child),
   );
+}
+
+/// Shown while Gemini reads the invoice (usually well under a minute).
+class _ReadingView extends StatefulWidget {
+  final List<String> urls;
+  final DateTime startedAt;
+  const _ReadingView({required this.urls, required this.startedAt});
+
+  @override
+  State<_ReadingView> createState() => _ReadingViewState();
+}
+
+class _ReadingViewState extends State<_ReadingView> {
+  static const _steps = [
+    'Finding the supplier…',
+    'Reading every line…',
+    'Working out pack sizes…',
+    'Matching your materials…',
+  ];
+  late final Timer _tick = Timer.periodic(const Duration(seconds: 1), (_) => setState(() {}));
+
+  @override
+  void dispose() {
+    _tick.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final elapsed = DateTime.now().difference(widget.startedAt).inSeconds.clamp(0, 9999);
+    final step = _steps[(elapsed ~/ 4) % _steps.length];
+    final slow = elapsed > 60;
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(32),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (widget.urls.isNotEmpty) ...[
+                SizedBox(
+                  height: 120,
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    scrollDirection: Axis.horizontal,
+                    itemCount: widget.urls.length,
+                    separatorBuilder: (_, __) => const SizedBox(width: 10),
+                    itemBuilder: (_, i) => ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: Container(
+                        width: 86,
+                        color: Colors.white,
+                        child: Image.network(
+                          widget.urls[i],
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) =>
+                              const Icon(Icons.description_outlined, size: 36, color: Color(0xFF9CA3AF)),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 28),
+              ],
+              const SizedBox(width: 52, height: 52, child: CircularProgressIndicator(strokeWidth: 5)),
+              const SizedBox(height: 22),
+              const Text('Reading the invoice', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
+              const SizedBox(height: 6),
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 300),
+                child: Text(
+                  step,
+                  key: ValueKey(step),
+                  style: const TextStyle(fontSize: 15, color: Color(0xFF6B7280)),
+                ),
+              ),
+              const SizedBox(height: 18),
+              Text(
+                '${elapsed ~/ 60}:${(elapsed % 60).toString().padLeft(2, '0')}',
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF9CA3AF),
+                  fontFeatures: [FontFeature.tabularFigures()],
+                ),
+              ),
+              const SizedBox(height: 18),
+              Text(
+                slow
+                    ? 'Gemini is busy right now, so this takes a bit longer. '
+                          'You can go back — the invoice keeps reading and appears under Expenses.'
+                    : 'Usually under a minute. You can go back — the invoice keeps reading and appears under Expenses.',
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 13, color: Color(0xFF9CA3AF), height: 1.4),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }

@@ -2,6 +2,7 @@
 class Expense {
   final String id;
   final DateTime createdAt;
+  final DateTime? updatedAt;
   final String status; // analyzing | needs_review | booked | failed (older rows: pending_review | approved)
   final String? supplierId;
   final String? supplierName;
@@ -20,6 +21,7 @@ class Expense {
   const Expense({
     required this.id,
     required this.createdAt,
+    this.updatedAt,
     required this.status,
     this.supplierId,
     this.supplierName,
@@ -41,6 +43,7 @@ class Expense {
     return Expense(
       id: json['id'] as String,
       createdAt: DateTime.parse(json['created_at'] as String),
+      updatedAt: DateTime.tryParse(json['updated_at'] as String? ?? ''),
       status: json['status'] as String? ?? 'needs_review',
       supplierId: json['supplier_id'] as String?,
       supplierName: json['supplier_name'] as String?,
@@ -58,8 +61,28 @@ class Expense {
     );
   }
 
-  bool get isAnalyzing => status == 'analyzing';
-  bool get isFailed => status == 'failed';
+  /// Reading takes up to ~2.5 minutes. Still "analyzing" well after that means the server gave up
+  /// without saving a result: show it as failed so it can be read again.
+  static const Duration readingTimeout = Duration(minutes: 3);
+  bool get isStuck => status == 'analyzing' && DateTime.now().difference(updatedAt ?? createdAt) > readingTimeout;
+
+  bool get isAnalyzing => status == 'analyzing' && !isStuck;
+  bool get isFailed => status == 'failed' || isStuck;
+
+  /// Status for display: a stuck read shows as failed.
+  String get displayStatus => isStuck ? 'failed' : status;
+
+  /// Why reading failed, in words for the person scanning.
+  String? get failureMessage {
+    if (isStuck) return 'Reading took too long. Tap “Read again” to try once more.';
+    final e = error;
+    // Older failures saved Gemini's raw answer.
+    if (e != null && e.startsWith('Gemini could not read the document:')) {
+      return 'Gemini could not read it at that moment. Tap “Read again” to try once more.';
+    }
+    return e;
+  }
+
   bool get isBooked => status == 'booked' || status == 'approved';
   bool get needsReview => status == 'needs_review';
 

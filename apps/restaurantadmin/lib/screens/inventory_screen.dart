@@ -15,7 +15,7 @@ import 'package:restaurantadmin/screens/inventory_value_history_screen.dart';
 import 'package:restaurantadmin/screens/inventory_statistics_screen.dart';
 import 'package:restaurantadmin/screens/inventory_checker_screen.dart';
 import 'package:restaurantadmin/models/scan_type.dart';
-import 'package:restaurantadmin/screens/purchase_review_dialog.dart';
+import 'package:restaurantadmin/screens/expenses/expense_review_screen.dart';
 
 import 'package:restaurantadmin/screens/suppliers_screen.dart';
 
@@ -137,7 +137,6 @@ class _InventoryScreenState extends State<InventoryScreen>
   late Animation<double> _fadeAnimation;
 
   RealtimeChannel? _purchasesInsertChannel;
-  final Set<String> _recentOpenedPurchaseIds = {};
 
   @override
   void initState() {
@@ -160,120 +159,28 @@ class _InventoryScreenState extends State<InventoryScreen>
   }
 
   void _setupRealtimeSubscriptions() {
-    // Use Postgres INSERT listener to avoid duplicate events/popups
+    // New scans show up in the receipt list; reviewing them happens in the Expenses screens.
     _purchasesInsertChannel = Supabase.instance.client
         .channel('purchases-insert-listener')
         .onPostgresChanges(
           event: PostgresChangeEvent.insert,
           schema: 'public',
           table: 'purchases',
-          callback: (payload) async {
+          callback: (_) {
             if (!mounted) return;
-            final newRec = payload.newRecord;
-            final purchaseId = newRec['id'] as String?;
-            if (purchaseId != null &&
-                !_recentOpenedPurchaseIds.contains(purchaseId)) {
-              _recentOpenedPurchaseIds.add(purchaseId);
-              await Future.delayed(const Duration(milliseconds: 300));
-              if (!mounted) return;
-              await _openPurchaseReviewFor(purchaseId);
-              if (mounted) {
-                _fetchReceiptLogs(forceRefresh: true);
-                _calculateTotalInventoryValue();
-              }
-            }
+            _fetchReceiptLogs(forceRefresh: true);
           },
         )
         .subscribe();
   }
 
   Future<void> _openPurchaseReviewFor(String purchaseId) async {
-    try {
-      final supa = Supabase.instance.client;
-      final header = await supa
-          .from('purchases')
-          .select('supplier_name, receipt_date, total_amount')
-          .eq('id', purchaseId)
-          .maybeSingle();
-
-      // Poll for purchase_items in case the Edge Function inserts them after the header
-      List<dynamic> items = [];
-      for (int i = 0; i < 7; i++) {
-        final resp = await supa
-            .from('purchase_items')
-            .select(
-              'id, raw_name, brand_name, item_number, quantity, unit, unit_price, total_item_price, purchase_catalog_item_id(name, material_id, material_id(name, unit_of_measure), base_unit, conversion_ratio)',
-            )
-            .eq('purchase_id', purchaseId);
-        if (resp.isNotEmpty) {
-          items = resp;
-          break;
-        }
-        await Future.delayed(const Duration(milliseconds: 300));
-      }
-
-      final wholesalerName = header?['supplier_name'] as String?;
-      final dateStr = header?['receipt_date'] as String?;
-      final totalAmount = (header?['total_amount'] is num)
-          ? (header!['total_amount'] as num).toDouble()
-          : null;
-      final receiptDate = dateStr != null ? DateTime.tryParse(dateStr) : null;
-
-      final List<PurchaseLine> lines = [];
-      for (final row in items) {
-        final pci = row['purchase_catalog_item_id'] as Map<String, dynamic>?;
-        final mat = pci != null
-            ? pci['material_id'] as Map<String, dynamic>?
-            : null;
-        lines.add(
-          PurchaseLine(
-            purchaseItemId: row['id'] as String?,
-            rawName: (row['raw_name'] ?? '') as String,
-            brandName: row['brand_name'] as String?,
-            itemNumber: row['item_number'] as String?,
-            quantity: (row['quantity'] is num)
-                ? (row['quantity'] as num).toDouble()
-                : 0.0,
-            unit: (row['unit'] ?? '') as String,
-            unitPrice: (row['unit_price'] is num)
-                ? (row['unit_price'] as num).toDouble()
-                : null,
-            totalItemPrice: (row['total_item_price'] is num)
-                ? (row['total_item_price'] as num).toDouble()
-                : null,
-            materialId: (mat != null) ? mat['id'] as String? : null,
-            materialName: (mat != null) ? mat['name'] as String? : null,
-            baseUnit: (pci != null)
-                ? (pci['base_unit'] as String?) ??
-                      (mat != null ? mat['unit_of_measure'] as String? : null)
-                : null,
-            conversionRatio: (pci != null && pci['conversion_ratio'] is num)
-                ? (pci['conversion_ratio'] as num).toDouble()
-                : 1.0,
-          ),
-        );
-      }
-
-      if (!mounted) return;
-      await Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (ctx) => PurchaseReviewDialog(
-            wholesalerName: wholesalerName,
-            receiptDate: receiptDate,
-            totalAmount: totalAmount,
-            lines: lines,
-            receiptImageBytes: null,
-          ),
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to open purchase: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => ExpenseReviewScreen(expenseId: purchaseId)),
+    );
+    if (mounted) {
+      _fetchReceiptLogs(forceRefresh: true);
+      _calculateTotalInventoryValue();
     }
   }
 
@@ -748,89 +655,7 @@ class _InventoryScreenState extends State<InventoryScreen>
             ),
             child: InkWell(
               borderRadius: BorderRadius.circular(10),
-              onTap: () async {
-                try {
-                  final supa = Supabase.instance.client;
-                  final header = await supa
-                      .from('purchases')
-                      .select('supplier_name, receipt_date, total_amount')
-                      .eq('id', receiptItem.receiptId)
-                      .maybeSingle();
-                  final items = await supa
-                      .from('purchase_items')
-                      .select(
-                        'id, raw_name, brand_name, item_number, quantity, unit, unit_price, total_item_price, purchase_catalog_item_id(name, material_id, material_id(name, unit_of_measure), base_unit, conversion_ratio)',
-                      )
-                      .eq('purchase_id', receiptItem.receiptId);
-
-                  final wholesaler = header?['supplier_name'] as String?;
-                  final dateStr = header?['receipt_date'] as String?;
-                  final totalAmt = (header?['total_amount'] is num)
-                      ? (header!['total_amount'] as num).toDouble()
-                      : null;
-                  final dt = dateStr != null
-                      ? DateTime.tryParse(dateStr)
-                      : null;
-
-                  final List<PurchaseLine> lines = [];
-                  for (final row in (items as List)) {
-                    final pci =
-                        row['purchase_catalog_item_id']
-                            as Map<String, dynamic>?;
-                    final mat = pci != null
-                        ? pci['material_id'] as Map<String, dynamic>?
-                        : null;
-                    lines.add(
-                      PurchaseLine(
-                        purchaseItemId: row['id'] as String?,
-                        rawName: (row['raw_name'] ?? '') as String,
-                        brandName: row['brand_name'] as String?,
-                        itemNumber: row['item_number'] as String?,
-                        quantity: (row['quantity'] is num)
-                            ? (row['quantity'] as num).toDouble()
-                            : 0.0,
-                        unit: (row['unit'] ?? '') as String,
-                        unitPrice: (row['unit_price'] is num)
-                            ? (row['unit_price'] as num).toDouble()
-                            : null,
-                        totalItemPrice: (row['total_item_price'] is num)
-                            ? (row['total_item_price'] as num).toDouble()
-                            : null,
-                        materialId: (mat != null) ? mat['id'] as String? : null,
-                        materialName: (mat != null)
-                            ? mat['name'] as String?
-                            : null,
-                        baseUnit: (pci != null)
-                            ? (pci['base_unit'] as String?) ??
-                                  (mat != null
-                                      ? mat['unit_of_measure'] as String?
-                                      : null)
-                            : null,
-                        conversionRatio:
-                            (pci != null && pci['conversion_ratio'] is num)
-                            ? (pci['conversion_ratio'] as num).toDouble()
-                            : 1.0,
-                      ),
-                    );
-                  }
-
-                  await Navigator.of(context).push<bool>(
-                    MaterialPageRoute(
-                      fullscreenDialog: false,
-                      builder: (ctx) => PurchaseReviewDialog(
-                        wholesalerName: wholesaler,
-                        receiptDate: dt,
-                        totalAmount: totalAmt,
-                        lines: lines,
-                        receiptImageBytes: null,
-                      ),
-                    ),
-                  );
-                } catch (e) {
-                  if (!mounted) return;
-                  _showErrorSnackBar('Error loading purchase: $e');
-                }
-              },
+              onTap: () => _openPurchaseReviewFor(receiptItem.receiptId),
               child: Padding(
                 padding: const EdgeInsets.all(12.0),
                 child: Row(
@@ -1593,84 +1418,7 @@ class _InventoryScreenState extends State<InventoryScreen>
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
-        onTap: () async {
-          try {
-            final supa = Supabase.instance.client;
-            final header = await supa
-                .from('purchases')
-                .select('supplier_name, receipt_date, total_amount')
-                .eq('id', receiptItem.receiptId)
-                .maybeSingle();
-            final items = await supa
-                .from('purchase_items')
-                .select(
-                  'id, raw_name, brand_name, item_number, quantity, unit, unit_price, total_item_price, purchase_catalog_item_id(name, material_id, material_id(name, unit_of_measure), base_unit, conversion_ratio)',
-                )
-                .eq('purchase_id', receiptItem.receiptId);
-
-            final wholesaler = header?['supplier_name'] as String?;
-            final dateStr = header?['receipt_date'] as String?;
-            final totalAmt = (header?['total_amount'] is num)
-                ? (header!['total_amount'] as num).toDouble()
-                : null;
-            final dt = dateStr != null ? DateTime.tryParse(dateStr) : null;
-
-            final List<PurchaseLine> lines = [];
-            for (final row in (items as List)) {
-              final pci =
-                  row['purchase_catalog_item_id'] as Map<String, dynamic>?;
-              final mat = pci != null
-                  ? pci['material_id'] as Map<String, dynamic>?
-                  : null;
-              lines.add(
-                PurchaseLine(
-                  purchaseItemId: row['id'] as String?,
-                  rawName: (row['raw_name'] ?? '') as String,
-                  brandName: row['brand_name'] as String?,
-                  itemNumber: row['item_number'] as String?,
-                  quantity: (row['quantity'] is num)
-                      ? (row['quantity'] as num).toDouble()
-                      : 0.0,
-                  unit: (row['unit'] ?? '') as String,
-                  unitPrice: (row['unit_price'] is num)
-                      ? (row['unit_price'] as num).toDouble()
-                      : null,
-                  totalItemPrice: (row['total_item_price'] is num)
-                      ? (row['total_item_price'] as num).toDouble()
-                      : null,
-                  materialId: (mat != null) ? mat['id'] as String? : null,
-                  materialName: (mat != null) ? mat['name'] as String? : null,
-                  baseUnit: (pci != null)
-                      ? (pci['base_unit'] as String?) ??
-                            (mat != null
-                                ? mat['unit_of_measure'] as String?
-                                : null)
-                      : null,
-                  conversionRatio:
-                      (pci != null && pci['conversion_ratio'] is num)
-                      ? (pci['conversion_ratio'] as num).toDouble()
-                      : 1.0,
-                ),
-              );
-            }
-
-            await Navigator.of(context).push<bool>(
-              MaterialPageRoute(
-                fullscreenDialog: false,
-                builder: (ctx) => PurchaseReviewDialog(
-                  wholesalerName: wholesaler,
-                  receiptDate: dt,
-                  totalAmount: totalAmt,
-                  lines: lines,
-                  receiptImageBytes: null,
-                ),
-              ),
-            );
-          } catch (e) {
-            if (!mounted) return;
-            _showErrorSnackBar('Error loading purchase: $e');
-          }
-        },
+        onTap: () => _openPurchaseReviewFor(receiptItem.receiptId),
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Row(

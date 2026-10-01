@@ -198,10 +198,6 @@ class _ExpenseCaptureScreenState extends State<ExpenseCaptureScreen> {
                 style: const TextStyle(fontSize: 15, color: Color(0xFF6B7280)),
               ),
             ),
-            if (!uploading) ...[
-              const SizedBox(height: 20),
-              const Text('This usually takes 10–20 seconds.', style: TextStyle(fontSize: 13, color: Color(0xFF9CA3AF))),
-            ],
           ],
         ),
       ),

@@ -194,11 +194,26 @@ KNOWN SUPPLIERS (with notes on their documents):
 ${supplierLines}`;
 }
 
+/** One call to Gemini, kept with the expense so slow or failed reads can be explained. */
+export interface Attempt {
+  model: string;
+  status: number | "timeout" | "network";
+  ms: number;
+}
+
 export interface ExtractResult {
   doc: ExtractedDocument;
   model: string;
   ms: number;
   usage: unknown;
+  attempts: Attempt[];
+}
+
+/** All models failed. `message` is written for the person scanning; `attempts` has the details. */
+export class ExtractError extends Error {
+  constructor(message: string, readonly attempts: Attempt[], readonly details: string[]) {
+    super(message);
+  }
 }
 
 /**
@@ -207,12 +222,31 @@ export interface ExtractResult {
  */
 export const DEFAULT_MODELS = ["gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.6-flash", "gemini-3.5-flash", "gemini-2.5-flash"];
 
+/** Below this much time left, starting another model is pointless. */
+const MIN_ATTEMPT_MS = 15_000;
+
+function friendlyFailure(attempts: Attempt[]): string {
+  const has = (s: Attempt["status"]) => attempts.some((a) => a.status === s);
+  if (attempts.length > 0 && attempts.every((a) => a.status === 403 || a.status === 401)) {
+    return "The Gemini key on the server was rejected. The invoice was saved — ask your admin to renew the key, then tap Retry.";
+  }
+  if (has("timeout") || has(503) || has(500)) {
+    return "Gemini is very busy right now and the invoice could not be read in time. It was saved — tap Retry in a minute.";
+  }
+  if (has(429)) {
+    return "Today's Gemini limit is used up. The invoice was saved — tap Retry later.";
+  }
+  return "The invoice could not be read. It was saved — tap Retry, or scan it again with a sharper photo.";
+}
+
 export async function extractDocument(
   files: DocumentFile[],
   materials: MaterialRef[],
   suppliers: SupplierRef[],
   apiKey: string,
   models: string[] = DEFAULT_MODELS,
+  /** Absolute time (ms since epoch) by which a result is needed; later calls are not started. */
+  deadline = Date.now() + 135_000,
 ): Promise<ExtractResult> {
   const started = Date.now();
   const contents = [
@@ -226,45 +260,63 @@ export async function extractDocument(
   ];
 
   const errors: string[] = [];
-  for (const model of models) {
-    const body = {
-      contents,
-      generationConfig: {
-        temperature: 0,
-        responseMimeType: "application/json",
-        responseSchema: RESPONSE_SCHEMA,
-        maxOutputTokens: 32768,
-        // Reading a document needs little reasoning: "low" is ~3x faster with the same result.
-        ...(model.startsWith("gemini-3") ? { thinkingConfig: { thinkingLevel: "low" } } : {}),
-      },
-    };
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-    for (let attempt = 1; attempt <= 2; attempt++) {
-      const resp = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
+  const attempts: Attempt[] = [];
+  // An overloaded model (500/503) is skipped at once — the next one usually answers — and only
+  // tried again in a second round. Quota used up (429), key rejected or no answer: not again.
+  const busy = new Set<string>();
+  for (let round = 1; round <= 2; round++) {
+    const candidates = round === 1 ? models : models.filter((m) => busy.has(m));
+    if (round === 2 && candidates.length > 0) await new Promise((r) => setTimeout(r, 1500));
+    for (const model of candidates) {
+      const left = deadline - Date.now();
+      if (left < MIN_ATTEMPT_MS) break;
+      busy.delete(model);
+      const body = {
+        contents,
+        generationConfig: {
+          temperature: 0,
+          responseMimeType: "application/json",
+          responseSchema: RESPONSE_SCHEMA,
+          maxOutputTokens: 32768,
+          // Reading a document needs little reasoning: "low" is ~3x faster with the same result.
+          ...(model.startsWith("gemini-3") ? { thinkingConfig: { thinkingLevel: "low" } } : {}),
+        },
+      };
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+      const t0 = Date.now();
+      let resp: Response;
+      try {
+        resp = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+          signal: AbortSignal.timeout(left),
+        });
+      } catch (e) {
+        const timedOut = (e as Error).name === "TimeoutError" || (e as Error).name === "AbortError";
+        attempts.push({ model, status: timedOut ? "timeout" : "network", ms: Date.now() - t0 });
+        errors.push(`${model}: ${timedOut ? "no answer in time" : (e as Error).message}`);
+        continue;
+      }
       if (resp.ok) {
         const data = await resp.json();
+        attempts.push({ model, status: resp.status, ms: Date.now() - t0 });
         const text: string | undefined = data.candidates?.[0]?.content?.parts
           ?.map((p: { text?: string }) => p.text ?? "")
           .join("");
         if (!text) {
           errors.push(`${model}: no content (${data.candidates?.[0]?.finishReason ?? "unknown"})`);
-          break;
+          continue;
         }
         const doc = normalize(JSON.parse(text), materials);
-        return { doc, model, ms: Date.now() - started, usage: data.usageMetadata };
+        return { doc, model, ms: Date.now() - started, usage: data.usageMetadata, attempts };
       }
-      const detail = `${model}: ${resp.status} ${(await resp.text()).slice(0, 200)}`;
-      errors.push(detail);
-      // Overloaded: retry once, then move on. Quota used up (429): move on right away.
-      if (![500, 503].includes(resp.status)) break;
-      if (attempt === 1) await new Promise((r) => setTimeout(r, 1500));
+      attempts.push({ model, status: resp.status, ms: Date.now() - t0 });
+      errors.push(`${model}: ${resp.status} ${(await resp.text()).slice(0, 200)}`);
+      if ([500, 503].includes(resp.status)) busy.add(model);
     }
   }
-  throw new Error(`Gemini could not read the document: ${errors.join(" | ")}`);
+  throw new ExtractError(friendlyFailure(attempts), attempts, errors);
 }
 
 /** Clean up model output: known material ids only, signed returns, trimmed strings. */

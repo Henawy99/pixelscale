@@ -288,11 +288,13 @@ class _ExpenseTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final style = expenseStatusStyle(expense.status);
+    final style = expenseStatusStyle(expense.displayStatus);
     final name =
         expense.supplierName ??
         (expense.isAnalyzing
             ? 'Reading invoice…'
+            : expense.isFailed
+            ? 'Scanned invoice'
             : (expense.detectedSupplier?['name'] as String? ?? 'Unknown supplier'));
     final details = [
       if (expense.invoiceNumber != null) 'No. ${expense.invoiceNumber}',
@@ -311,9 +313,12 @@ class _ExpenseTile extends StatelessWidget {
             children: [
               CircleAvatar(
                 radius: 22,
-                backgroundColor: supplierColor(name).withValues(alpha: 0.12),
+                backgroundColor: (expense.isFailed && expense.supplierName == null ? style.color : supplierColor(name))
+                    .withValues(alpha: 0.12),
                 child: expense.isAnalyzing
                     ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                    : expense.isFailed && expense.supplierName == null
+                    ? Icon(Icons.description_outlined, color: style.color)
                     : Text(
                         initials(name),
                         style: TextStyle(color: supplierColor(name), fontWeight: FontWeight.w800, fontSize: 15),

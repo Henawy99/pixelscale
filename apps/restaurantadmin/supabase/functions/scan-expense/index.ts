@@ -6,16 +6,25 @@
 // Body: { paths: string[] }            new expense from uploaded pages (bucket "scanned-receipts")
 //    or { purchase_id: string }         read an existing expense again (e.g. after a failure)
 //    + { mode: "record" }               optional: history only — status "recorded", never offered for stock
+//    + { wait: true }                   optional: answer only when reading is done (scripts)
+//
+// By default it answers right away with { purchase_id, status: "analyzing" } and reads in the
+// background: Gemini can need longer than the 150 s a request may stay open. The app polls the
+// expense until it leaves "analyzing".
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.43.4";
+import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.43.4";
 import { encodeBase64 } from "https://deno.land/std@0.208.0/encoding/base64.ts";
 import { corsHeaders } from "../_shared/cors.ts";
-import { extractDocument, type DocumentFile, type ExtractedDocument } from "./extract.ts";
+import { extractDocument, ExtractError, type DocumentFile, type ExtractedDocument } from "./extract.ts";
 import { conversionFor, findCatalogEntry, matchSupplier, type CatalogRow, type SupplierRow } from "./matching.ts";
+
+declare const EdgeRuntime: { waitUntil(promise: Promise<unknown>): void } | undefined;
 
 const BUCKET = "scanned-receipts";
 const STAFF_ROLES = ["admin", "manager", "worker"];
+/** A function may run 150 s in total; leave room to save the result or the failure. */
+const BUDGET_MS = 138_000;
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -42,6 +51,7 @@ const money = (n: number) => `€${n.toFixed(2).replace(".", ",")}`;
 
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+  const deadline = Date.now() + BUDGET_MS;
 
   const admin = createClient(Deno.env.get("SUPABASE_URL") ?? "", Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "");
 
@@ -57,7 +67,7 @@ serve(async (req: Request) => {
     userId = user.id;
   }
 
-  let body: { paths?: string[]; purchase_id?: string; mode?: string } = {};
+  let body: { paths?: string[]; purchase_id?: string; mode?: string; wait?: boolean } = {};
   try {
     body = await req.json();
   } catch {
@@ -72,7 +82,10 @@ serve(async (req: Request) => {
     if (!existing) return json({ error: "Expense not found" }, 404);
     if (existing.status === "booked") return json({ error: "This expense is already in the inventory" }, 409);
     paths = existing.document_paths ?? [];
-    await admin.from("purchases").update({ status: "analyzing", error: null }).eq("id", purchaseId);
+    await admin
+      .from("purchases")
+      .update({ status: "analyzing", error: null, updated_at: new Date().toISOString() })
+      .eq("id", purchaseId);
   } else {
     paths = (body.paths ?? []).filter((p) => typeof p === "string" && p.length > 0);
     if (paths.length === 0) return json({ error: "No pages uploaded" }, 400);
@@ -86,6 +99,23 @@ serve(async (req: Request) => {
   }
   if (paths.length === 0) return json({ error: "This expense has no document pages" }, 400);
 
+  const work = readExpense(admin, purchaseId!, paths, body.mode === "record", deadline);
+  if (body.wait || typeof EdgeRuntime === "undefined") {
+    const result = await work;
+    return json(result, result.error ? 500 : 200);
+  }
+  EdgeRuntime.waitUntil(work);
+  return json({ purchase_id: purchaseId, status: "analyzing" });
+});
+
+/** Gemini → supplier and line matching → saved for review. Never throws: failures are saved on the expense. */
+async function readExpense(
+  admin: SupabaseClient,
+  purchaseId: string,
+  paths: string[],
+  recordOnly: boolean,
+  deadline: number,
+): Promise<{ purchase_id: string; status: string; error?: string }> {
   try {
     // 2. Pages from storage.
     const files: DocumentFile[] = [];
@@ -104,7 +134,14 @@ serve(async (req: Request) => {
 
     const apiKey = Deno.env.get("GEMINI_API_KEY");
     if (!apiKey) throw new Error("Gemini is not configured on the server");
-    const { doc, model, ms } = await extractDocument(files, materials ?? [], suppliers ?? [], apiKey);
+    const { doc, model, ms, attempts } = await extractDocument(
+      files,
+      materials ?? [],
+      suppliers ?? [],
+      apiKey,
+      undefined,
+      deadline,
+    );
 
     // 4. Supplier.
     const supplierMatch = matchSupplier(doc.supplier, (suppliers ?? []) as SupplierRow[]);
@@ -222,7 +259,7 @@ serve(async (req: Request) => {
     const { error: updErr } = await admin
       .from("purchases")
       .update({
-        status: body.mode === "record" ? "recorded" : "needs_review",
+        status: recordOnly ? "recorded" : "needs_review",
         error: null,
         supplier_id: supplierId,
         supplier_name: supplierName,
@@ -232,7 +269,7 @@ serve(async (req: Request) => {
         total_amount: gross ?? (doc.prices_include_vat ? linesSum : null),
         net_amount: doc.totals.net ?? (doc.prices_include_vat === false ? linesSum : null),
         vat_amount: doc.totals.vat,
-        analysis: { document: doc, warnings, supplier_match: supplierMatch, ms },
+        analysis: { document: doc, warnings, supplier_match: supplierMatch, ms, attempts },
         analysis_model: model,
         updated_at: new Date().toISOString(),
       })
@@ -243,13 +280,22 @@ serve(async (req: Request) => {
       `[scan-expense] ${purchaseId}: ${supplierName ?? "?"} #${doc.invoice_number ?? "?"}, ${items.length} lines, ` +
         `${items.filter((i) => i.material_id).length} matched, supplier ${supplierMatch.status}, ${model} ${ms}ms`
     );
-    return json({ purchase_id: purchaseId, status: body.mode === "record" ? "recorded" : "needs_review" });
+    return { purchase_id: purchaseId, status: recordOnly ? "recorded" : "needs_review" };
   } catch (e) {
     const message = (e as Error).message ?? String(e);
-    console.error(`[scan-expense] ${purchaseId} failed:`, message);
-    await admin.from("purchases").update({ status: "failed", error: message.slice(0, 1000) }).eq("id", purchaseId);
-    return json({ purchase_id: purchaseId, error: message }, 500);
+    const extractError = e instanceof ExtractError ? e : null;
+    console.error(`[scan-expense] ${purchaseId} failed:`, message, extractError?.details ?? "");
+    await admin
+      .from("purchases")
+      .update({
+        status: "failed",
+        error: message.slice(0, 1000),
+        analysis: extractError ? { attempts: extractError.attempts, details: extractError.details } : null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", purchaseId);
+    return { purchase_id: purchaseId, status: "failed", error: message };
   }
-});
+}
 
 export type { ExtractedDocument };
