@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -72,13 +73,62 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
     }
   }
 
+  bool get _isPhone =>
+      !kIsWeb &&
+      (Theme.of(context).platform == TargetPlatform.android || Theme.of(context).platform == TargetPlatform.iOS);
+
   Future<void> _scan() async {
-    final expenseId = await Navigator.of(
-      context,
-    ).push<String>(MaterialPageRoute(builder: (_) => ExpenseCaptureScreen(service: _service), fullscreenDialog: true));
+    // On a phone, ask where the invoice comes from: camera, photo library or a file (PDF).
+    CaptureSource? start;
+    if (_isPhone) {
+      start = await _chooseSource();
+      if (start == null || !mounted) return;
+    }
+    final expenseId = await Navigator.of(context).push<String>(
+      MaterialPageRoute(
+        builder: (_) => ExpenseCaptureScreen(service: _service, start: start),
+        fullscreenDialog: true,
+      ),
+    );
     await _load();
     if (expenseId != null && mounted) _open(expenseId);
   }
+
+  Future<CaptureSource?> _chooseSource() => showModalBottomSheet<CaptureSource>(
+    context: context,
+    showDragHandle: true,
+    builder: (ctx) {
+      Widget option(CaptureSource source, IconData icon, String title, String subtitle) => ListTile(
+        leading: CircleAvatar(
+          backgroundColor: const Color(0xFFEEF2FF),
+          child: Icon(icon, color: const Color(0xFF4F46E5)),
+        ),
+        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+        subtitle: Text(subtitle),
+        onTap: () => Navigator.pop(ctx, source),
+      );
+      return SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Padding(
+                padding: EdgeInsets.fromLTRB(20, 0, 20, 8),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text('Add an invoice', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+                ),
+              ),
+              option(CaptureSource.camera, Icons.photo_camera_rounded, 'Take photo', 'Photograph the invoice now'),
+              option(CaptureSource.photos, Icons.photo_library_rounded, 'Choose from Photos', 'Pick one or more pages'),
+              option(CaptureSource.files, Icons.upload_file_rounded, 'PDF or other file', 'From Files, e-mail downloads…'),
+            ],
+          ),
+        ),
+      );
+    },
+  );
 
   Future<void> _open(String expenseId) async {
     await Navigator.of(context).push(

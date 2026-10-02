@@ -8,11 +8,17 @@ import 'package:image_picker/image_picker.dart';
 
 import 'package:restaurantadmin/services/expense_service.dart';
 
-/// Photograph (or upload) every page of ONE invoice, then let Gemini read it.
+/// Where the first page comes from when the screen opens.
+enum CaptureSource { camera, photos, files }
+
+/// Photograph, pick from Photos or upload every page of ONE invoice, then let Gemini read it.
 /// Pops with the new expense id when the invoice was read.
 class ExpenseCaptureScreen extends StatefulWidget {
   final ExpenseService? service;
-  const ExpenseCaptureScreen({super.key, this.service});
+
+  /// Opened straight away (phones); null shows the page picker first.
+  final CaptureSource? start;
+  const ExpenseCaptureScreen({super.key, this.service, this.start});
 
   @override
   State<ExpenseCaptureScreen> createState() => _ExpenseCaptureScreenState();
@@ -55,12 +61,16 @@ class _ExpenseCaptureScreenState extends State<ExpenseCaptureScreen> {
   @override
   void initState() {
     super.initState();
-    // On a phone, go straight to the camera.
+    // Open the source chosen on the Expenses screen; nothing picked means the user changed their mind.
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      if (_isPhone) {
-        await _takePhoto();
-        if (mounted && _pages.isEmpty) Navigator.of(context).pop();
-      }
+      final start = widget.start;
+      if (start == null) return;
+      await switch (start) {
+        CaptureSource.camera => _takePhoto(),
+        CaptureSource.photos => _pickPhotos(),
+        CaptureSource.files => _pickFiles(),
+      };
+      if (mounted && _pages.isEmpty) Navigator.of(context).pop();
     });
   }
 
@@ -80,6 +90,18 @@ class _ExpenseCaptureScreenState extends State<ExpenseCaptureScreen> {
       _addPage(bytes, _ext(photo.name, fallback: 'jpg'), photo.name);
     } catch (e) {
       _showError('Could not open the camera: $e');
+    }
+  }
+
+  /// One or more pages from the phone's photo library.
+  Future<void> _pickPhotos() async {
+    try {
+      final photos = await _picker.pickMultiImage(maxWidth: 2400, imageQuality: 82);
+      for (final photo in photos) {
+        _addPage(await photo.readAsBytes(), _ext(photo.name, fallback: 'jpg'), photo.name);
+      }
+    } catch (e) {
+      _showError('Could not open your photos: $e');
     }
   }
 
@@ -256,9 +278,11 @@ class _ExpenseCaptureScreenState extends State<ExpenseCaptureScreen> {
                   onTap: _takePhoto,
                   primary: true,
                 ),
+                if (_isPhone)
+                  _addTile(icon: Icons.photo_library_rounded, label: 'From Photos', onTap: _pickPhotos),
                 _addTile(
                   icon: Icons.upload_file_rounded,
-                  label: kIsWeb ? 'Upload photos or PDF' : 'From files',
+                  label: kIsWeb ? 'Upload photos or PDF' : 'PDF / Files',
                   onTap: _pickFiles,
                 ),
               ],
