@@ -17,7 +17,15 @@ import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supa
 import { encodeBase64 } from "https://deno.land/std@0.208.0/encoding/base64.ts";
 import { corsHeaders } from "../_shared/cors.ts";
 import { extractDocument, ExtractError, type DocumentFile, type ExtractedDocument } from "./extract.ts";
-import { conversionFor, findCatalogEntry, matchSupplier, type CatalogRow, type SupplierRow } from "./matching.ts";
+import {
+  conversionFor,
+  findCatalogEntry,
+  matchSupplier,
+  priceRuleMaterials,
+  type CatalogRow,
+  type PriceRule,
+  type SupplierRow,
+} from "./matching.ts";
 
 declare const EdgeRuntime: { waitUntil(promise: Promise<unknown>): void } | undefined;
 
@@ -128,7 +136,7 @@ async function readExpense(
     // 3. What the model needs to know: current materials and suppliers.
     const [{ data: materials }, { data: suppliers }] = await Promise.all([
       admin.from("material").select("id, name, unit_of_measure, category").order("name"),
-      admin.from("suppliers").select("id, name, vat_id, aliases, ai_rules").order("name"),
+      admin.from("suppliers").select("id, name, vat_id, aliases, ai_rules, price_rule").order("name"),
     ]);
     const materialById = new Map((materials ?? []).map((m) => [m.id, m]));
 
@@ -165,14 +173,22 @@ async function readExpense(
       catalog = (data ?? []) as CatalogRow[];
     }
 
-    // 5. Lines: learned catalog entry first, then Gemini's suggestion.
-    const items = doc.lines.map((line) => {
+    // 5. Lines: the supplier's price rule, then the learned catalog entry, then Gemini's suggestion.
+    const priceRule = (matchedRow?.price_rule ?? null) as PriceRule | null;
+    const ruled = priceRule ? priceRuleMaterials(doc.lines, priceRule) : [];
+    const items = doc.lines.map((line, index) => {
       const learned = findCatalogEntry(line, catalog);
+      const ruleMaterial = ruled[index] && materialById.has(ruled[index]!) ? ruled[index]! : null;
       let materialId: string | null = null;
       let conversion: number | null = null;
       let source: string | null = null;
       let confidence: number | null = null;
-      if (learned?.material_id && materialById.has(learned.material_id)) {
+      if (ruleMaterial) {
+        materialId = ruleMaterial;
+        conversion = priceRule!.conversion;
+        source = "rule";
+        confidence = 1;
+      } else if (learned?.material_id && materialById.has(learned.material_id)) {
         materialId = learned.material_id;
         const unit = materialById.get(materialId)!.unit_of_measure;
         conversion = learned.conversion_ratio ?? conversionFor(line.content_per_unit, line.content_unit, unit);
@@ -195,7 +211,7 @@ async function readExpense(
         unit_price: line.unit_price,
         total_item_price: line.line_total,
         vat_rate: line.vat_rate,
-        kind: line.kind,
+        kind: ruleMaterial ? "product" : line.kind,
         content_per_unit: line.content_per_unit,
         content_unit: line.content_unit,
         material_id: materialId,
@@ -203,8 +219,8 @@ async function readExpense(
         base_unit: materialId ? materialById.get(materialId)!.unit_of_measure : null,
         match_source: source,
         match_confidence: confidence,
-        purchase_catalog_item_id: learned?.id ?? null,
-        stock: line.kind === "product" && !!materialId && !!conversion && conversion > 0,
+        purchase_catalog_item_id: ruleMaterial ? null : learned?.id ?? null,
+        stock: (!!ruleMaterial || line.kind === "product") && !!materialId && !!conversion && conversion > 0,
         suggestion: materialId
           ? null
           : line.kind === "product"

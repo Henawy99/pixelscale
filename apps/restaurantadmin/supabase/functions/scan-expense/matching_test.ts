@@ -1,6 +1,6 @@
 // Run: deno test supabase/functions/scan-expense/matching_test.ts
 import { assertEquals } from "https://deno.land/std@0.177.0/testing/asserts.ts";
-import { compactCompany, conversionFor, findCatalogEntry, matchSupplier } from "./matching.ts";
+import { compactCompany, conversionFor, findCatalogEntry, matchSupplier, priceRuleMaterials } from "./matching.ts";
 
 const suppliers = [
   { id: "sg", name: "S&G Import Export", vat_id: null, aliases: [] },
@@ -49,4 +49,28 @@ Deno.test("pack content converts into the material's unit", () => {
   assertEquals(conversionFor(108, "piece", "piece"), 108);
   assertEquals(conversionFor(875, "ml", "gram"), null);
   assertEquals(conversionFor(null, "g", "gram"), null);
+});
+
+const homsGate = { text: "Grundpreiseingabe", split: 8, low: "chicken", high: "minced", conversion: 1000 };
+const scale = (unit_price: number, quantity: number) => ({
+  description: "Grundpreiseingabe",
+  quantity,
+  unit_price,
+  line_total: Math.round(unit_price * quantity * 100) / 100,
+});
+
+Deno.test("price rule: a receipt with one price is matched by the split", () => {
+  assertEquals(priceRuleMaterials([scale(6, 9.025), scale(6, 10.88), scale(6, 10.03)], homsGate), ["chicken", "chicken", "chicken"]);
+  assertEquals(priceRuleMaterials([scale(10, 6.92), scale(10, 7.88)], homsGate), ["minced", "minced"]);
+});
+
+Deno.test("price rule: with two prices the dearer is always the high product", () => {
+  // Both above the split: still the cheaper one is chicken.
+  assertEquals(priceRuleMaterials([scale(9, 5), scale(11.5, 4)], homsGate), ["chicken", "minced"]);
+});
+
+Deno.test("price rule: other lines and lines without a price are left alone", () => {
+  const lines = [scale(6, 2), { description: "Tragetasche", quantity: 1, unit_price: 0.2, line_total: 0.2 },
+    { description: "Grundpreiseingabe", quantity: null, unit_price: null, line_total: null }];
+  assertEquals(priceRuleMaterials(lines, homsGate), ["chicken", null, null]);
 });

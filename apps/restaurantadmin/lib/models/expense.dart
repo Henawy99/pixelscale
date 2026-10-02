@@ -137,7 +137,7 @@ class ExpenseLine {
   final String? contentUnit; // g | ml | piece
   final String? materialId;
   final double? conversionRatio; // material units in ONE purchased unit
-  final String? matchSource; // catalog | ai | manual
+  final String? matchSource; // rule (supplier price rule) | catalog | ai | manual
   final double? matchConfidence;
   final bool stock;
   final bool booked;

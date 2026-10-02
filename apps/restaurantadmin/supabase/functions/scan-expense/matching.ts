@@ -133,3 +133,46 @@ export function conversionFor(
   if (contentUnit === "ml") return unit === "ml" ? content : unit === "l" ? content / 1000 : null;
   return unit === "piece" ? content : null;
 }
+
+/**
+ * For suppliers whose receipts carry no product name — e.g. a butcher's scale printing every line as
+ * "Grundpreiseingabe" — the product is told apart by its price per unit (suppliers.price_rule):
+ *   text        lines whose description contains this (any case); omitted = every line
+ *   split       price per unit between the cheaper and the dearer product
+ *   low, high   material ids of the cheaper and the dearer product
+ *   conversion  material units in one purchased unit (1 kg → 1000 g)
+ */
+export interface PriceRule {
+  text?: string | null;
+  split: number;
+  low: string;
+  high: string;
+  conversion: number;
+}
+
+interface PricedLine {
+  description: string;
+  quantity: number | null;
+  unit_price: number | null;
+  line_total: number | null;
+}
+
+/** Material id per line from the price rule; null where the rule does not apply. */
+export function priceRuleMaterials(lines: PricedLine[], rule: PriceRule): (string | null)[] {
+  const text = rule.text?.trim().toLowerCase();
+  const prices = lines.map((l) => {
+    if (text && !l.description.toLowerCase().includes(text)) return null;
+    const price = l.unit_price ?? (l.line_total && l.quantity ? l.line_total / l.quantity : null);
+    return price && price > 0 ? Math.round(price * 100) / 100 : null;
+  });
+  const distinct = [...new Set(prices.filter((p): p is number => p !== null))].sort((a, b) => a - b);
+  // Both products on one receipt: the cheapest is the low one, the dearest the high one, whatever the split.
+  const lowest = distinct.length >= 2 ? distinct[0] : null;
+  const highest = distinct.length >= 2 ? distinct[distinct.length - 1] : null;
+  return prices.map((p) => {
+    if (p === null) return null;
+    if (p === lowest) return rule.low;
+    if (p === highest) return rule.high;
+    return p < rule.split ? rule.low : rule.high;
+  });
+}

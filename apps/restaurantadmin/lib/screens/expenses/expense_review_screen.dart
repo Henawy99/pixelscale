@@ -830,6 +830,7 @@ class _ExpenseReviewScreenState extends State<ExpenseReviewScreen> {
         ? l.matchSource
         : 'manual') {
       'catalog' => 'learned',
+      'rule' => 'supplier rule',
       'ai' => 'suggested',
       _ => 'your choice',
     };
