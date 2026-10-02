@@ -31,6 +31,8 @@
 		<string>comgooglemaps</string>
 		<string>googlechromes</string>
 	</array>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>NSCameraUsageDescription</key>
 	<string>This app requires camera access to scan receipts and capture images of materials.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
