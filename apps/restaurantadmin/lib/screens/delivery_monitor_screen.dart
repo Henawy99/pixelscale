@@ -11,8 +11,6 @@ import 'dart:ui' as ui;
 import 'dart:math' as math;
 import 'package:restaurantadmin/models/driver.dart' as app_driver_model;
 import 'package:restaurantadmin/screens/delivery_settings_screen.dart';
-import 'package:restaurantadmin/screens/delivery_simulation_screen.dart';
-import 'package:restaurantadmin/screens/driver/driver_app_shell.dart';
 import 'package:restaurantadmin/models/order.dart' as app_order;
 import 'package:restaurantadmin/widgets/delivery_timeline_widget.dart';
 
@@ -2497,48 +2495,6 @@ class _DeliveryMonitorScreenState extends State<DeliveryMonitorScreen> with Tick
                 if (_showDispatchPanel) _fetchPlannedRoutes();
               },
               tooltip: 'Route Planner',
-            ),
-          ),
-          // Simulation Button
-          Padding(
-            padding: const EdgeInsets.only(right: 4),
-            child: IconButton(
-              icon: const Icon(
-                Icons.science,
-                color: Colors.white,
-                shadows: [Shadow(color: Colors.black45, blurRadius: 4)],
-              ),
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => DeliverySimulationScreen(
-                      supabaseClient: widget.supabaseClient,
-                    ),
-                  ),
-                );
-              },
-              tooltip: 'Route Simulation',
-            ),
-          ),
-          // Driver App View Button (for testing)
-          Padding(
-            padding: const EdgeInsets.only(right: 4),
-            child: IconButton(
-              icon: const Icon(
-                Icons.delivery_dining,
-                color: Colors.white,
-                shadows: [Shadow(color: Colors.black45, blurRadius: 4)],
-              ),
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const DriverAppShell(),
-                  ),
-                );
-              },
-              tooltip: 'Driver App View',
             ),
           ),
           // Coordinate Updates Button
