@@ -5,7 +5,7 @@ class AppNavService {
   static final AppNavService _instance = AppNavService._internal();
   factory AppNavService() => _instance;
 
-  // 0 = Orders, 1 = Inventory, 2 = Menus, 3 = Payments
+  // 0 = Orders, 1 = Inventory, 2 = Menus, 3 = Map, 4 = Expenses, 5 = Employees, 6 = Platforms
   final ValueNotifier<int> selectedTab = ValueNotifier<int>(0);
 
   // True when DeliveryMonitorScreen is currently in foreground
@@ -17,6 +17,10 @@ class AppNavService {
 
   void goToInventoryTab() {
     selectedTab.value = 1;
+  }
+
+  void goToExpensesTab() {
+    selectedTab.value = 4;
   }
 }
 

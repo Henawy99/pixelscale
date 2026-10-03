@@ -1,8 +1,13 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:restaurantadmin/main.dart' show appNavigatorKey;
+import 'package:restaurantadmin/screens/expenses/expense_review_screen.dart';
 import 'package:restaurantadmin/services/app_nav_service.dart';
 
 class PushNotificationService {
@@ -12,7 +17,12 @@ class PushNotificationService {
 
   final FirebaseMessaging _messaging = FirebaseMessaging.instance;
   final SupabaseClient _supabase = Supabase.instance.client;
-  
+
+  /// Android does not show a push while the app is open; this plugin does, on this channel.
+  final FlutterLocalNotificationsPlugin _local = FlutterLocalNotificationsPlugin();
+  static const String _channelId = 'admin_updates';
+  static const String _channelName = 'Orders, invoices and payouts';
+
   bool _initialized = false;
 
   /// Initialize push notifications and register device token
@@ -25,6 +35,12 @@ class PushNotificationService {
     try {
       debugPrint('[PushNotification] Starting initialization...');
       
+      // Android 13+ needs the notification permission too.
+      if (!kIsWeb && Platform.isAndroid) {
+        await _messaging.requestPermission(alert: true, badge: true, sound: true);
+        await _initLocalNotifications();
+      }
+
       // Request permission for iOS
       if (!kIsWeb && (Platform.isIOS || Platform.isMacOS)) {
         debugPrint('[PushNotification] Requesting notification permissions...');
@@ -115,21 +131,35 @@ class PushNotificationService {
 
         // Check if app was opened from a terminated notification
         final initialMessage = await _messaging.getInitialMessage();
-        if (initialMessage != null && initialMessage.data['type'] == 'order') {
-          AppNavService().goToOrdersTab();
-        }
+        if (initialMessage != null) _openFrom(initialMessage.data);
 
-        // Handle foreground messages
+        // Foreground: iOS shows the banner itself (see above); Android needs a local notification.
         FirebaseMessaging.onMessage.listen((RemoteMessage message) {
           debugPrint('[PushNotification] Foreground message received: ${message.notification?.title}');
+          final n = message.notification;
+          if (!kIsWeb && Platform.isAndroid && n != null) {
+            _local.show(
+              id: message.messageId.hashCode,
+              title: n.title,
+              body: n.body,
+              notificationDetails: const NotificationDetails(
+                android: AndroidNotificationDetails(
+                  _channelId,
+                  _channelName,
+                  importance: Importance.high,
+                  priority: Priority.high,
+                  styleInformation: BigTextStyleInformation(''),
+                ),
+              ),
+              payload: jsonEncode(message.data),
+            );
+          }
         });
 
         // Handle background messages (when app is in background but not terminated)
         FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
           debugPrint('[PushNotification] Background message opened: ${message.notification?.title}');
-          if (message.data['type'] == 'order') {
-            AppNavService().goToOrdersTab();
-          }
+          _openFrom(message.data);
         });
 
         _initialized = true;
@@ -138,6 +168,47 @@ class PushNotificationService {
         debugPrint('[PushNotification] Initialization error: $e');
       }
     }
+
+  Future<void> _initLocalNotifications() async {
+    await _local.initialize(
+      settings: const InitializationSettings(android: AndroidInitializationSettings('@mipmap/ic_launcher')),
+      onDidReceiveNotificationResponse: (response) {
+        final payload = response.payload;
+        if (payload == null || payload.isEmpty) return;
+        try {
+          _openFrom(Map<String, dynamic>.from(jsonDecode(payload) as Map));
+        } catch (_) {}
+      },
+    );
+    await _local
+        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+        ?.createNotificationChannel(
+          const AndroidNotificationChannel(
+            _channelId,
+            _channelName,
+            description: 'New orders, scanned invoices and Lieferando/Foodora payouts',
+            importance: Importance.high,
+          ),
+        );
+  }
+
+  /// Where a tapped notification leads: orders to the Orders tab, a scanned invoice to its review.
+  void _openFrom(Map<String, dynamic> data) {
+    switch (data['type']) {
+      case 'order':
+        AppNavService().goToOrdersTab();
+      case 'expense':
+        AppNavService().goToExpensesTab();
+        final id = data['expense_id'] as String?;
+        if (id != null && id.isNotEmpty) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            appNavigatorKey.currentState?.push(
+              MaterialPageRoute(builder: (_) => ExpenseReviewScreen(expenseId: id)),
+            );
+          });
+        }
+    }
+  }
 
   /// Register device token with Supabase
   Future<void> _registerToken(String token) async {

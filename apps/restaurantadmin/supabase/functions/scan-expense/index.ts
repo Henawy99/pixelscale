@@ -16,6 +16,7 @@ import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.43.4";
 import { encodeBase64 } from "https://deno.land/std@0.208.0/encoding/base64.ts";
 import { corsHeaders } from "../_shared/cors.ts";
+import { sendPushNotification } from "../_shared/fcm.ts";
 import { extractDocument, ExtractError, type DocumentFile, type ExtractedDocument } from "./extract.ts";
 import {
   conversionFor,
@@ -56,6 +57,15 @@ interface Warning {
 }
 
 const money = (n: number) => `€${n.toFixed(2).replace(".", ",")}`;
+
+/** Tells the admin phones that a scanned invoice is read (or could not be). Never throws. */
+async function notifyScan(admin: SupabaseClient, title: string, body: string, purchaseId: string) {
+  try {
+    await sendPushNotification(admin, { title, body, data: { type: "expense", expense_id: purchaseId } });
+  } catch (e) {
+    console.error("[scan-expense] push failed:", (e as Error).message);
+  }
+}
 
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -292,10 +302,22 @@ async function readExpense(
       .eq("id", purchaseId);
     if (updErr) throw new Error(updErr.message);
 
+    const matched = items.filter((i) => i.material_id).length;
     console.log(
       `[scan-expense] ${purchaseId}: ${supplierName ?? "?"} #${doc.invoice_number ?? "?"}, ${items.length} lines, ` +
-        `${items.filter((i) => i.material_id).length} matched, supplier ${supplierMatch.status}, ${model} ${ms}ms`
+        `${matched} matched, supplier ${supplierMatch.status}, ${model} ${ms}ms`
     );
+    // History imports stay quiet; a real scan is announced on the admin phones.
+    if (!recordOnly) {
+      const total = gross ?? (doc.prices_include_vat ? linesSum : null);
+      const body = [
+        warnings.some((w) => w.code === "duplicate") ? "Already scanned before!" : null,
+        doc.invoice_number ? `No. ${doc.invoice_number}` : null,
+        total !== null ? money(total) : null,
+        `${items.length} ${items.length === 1 ? "item" : "items"}, ${matched} matched`,
+      ].filter(Boolean).join(" · ") + (supplierId ? ". Tap to review." : ". Choose the supplier, then book.");
+      await notifyScan(admin, supplierId ? `Invoice read: ${supplierName}` : "Invoice read: new supplier?", body, purchaseId);
+    }
     return { purchase_id: purchaseId, status: recordOnly ? "recorded" : "needs_review" };
   } catch (e) {
     const message = (e as Error).message ?? String(e);
@@ -310,6 +332,7 @@ async function readExpense(
         updated_at: new Date().toISOString(),
       })
       .eq("id", purchaseId);
+    if (!recordOnly) await notifyScan(admin, "Invoice could not be read", message, purchaseId);
     return { purchase_id: purchaseId, status: "failed", error: message };
   }
 }
