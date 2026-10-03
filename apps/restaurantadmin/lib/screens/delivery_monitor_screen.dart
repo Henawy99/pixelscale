@@ -2,17 +2,19 @@ import 'dart:async';
 import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; // For Clipboard
+import 'package:flutter/services.dart'; // Clipboard
 import 'package:google_maps_flutter/google_maps_flutter.dart' as gmaps;
 import 'package:flutter_map/flutter_map.dart' as fmap;
 import 'package:latlong2/latlong.dart' as latlong;
+import 'package:pointer_interceptor/pointer_interceptor.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'dart:ui' as ui;
-import 'dart:math' as math;
+import 'package:url_launcher/url_launcher.dart';
 import 'package:restaurantadmin/models/driver.dart' as app_driver_model;
-import 'package:restaurantadmin/screens/delivery_settings_screen.dart';
 import 'package:restaurantadmin/models/order.dart' as app_order;
-import 'package:restaurantadmin/widgets/delivery_timeline_widget.dart';
+import 'package:restaurantadmin/screens/delivery_settings_screen.dart';
+import 'package:restaurantadmin/screens/map/map_icons.dart';
+import 'package:restaurantadmin/screens/map/tour_eta.dart';
+import 'package:restaurantadmin/screens/map/tour_panel.dart';
 
 /// Check if running on desktop platform
 bool get isDesktopPlatform {
@@ -20,18 +22,8 @@ bool get isDesktopPlatform {
   return Platform.isMacOS || Platform.isWindows || Platform.isLinux;
 }
 
-/// Employee colors for driver markers
-const List<Color> driverColors = [
-  Color(0xFFE53935), // Red
-  Color(0xFF8E24AA), // Purple
-  Color(0xFF3949AB), // Indigo
-  Color(0xFF1E88E5), // Blue
-  Color(0xFF00ACC1), // Cyan
-  Color(0xFF43A047), // Green
-  Color(0xFFFB8C00), // Orange
-  Color(0xFF6D4C41), // Brown
-];
-
+/// The Map tab: where every driver is, their tour with the time of each stop and when they
+/// are back at the restaurant, and the orders still waiting for a driver.
 class DeliveryMonitorScreen extends StatefulWidget {
   final SupabaseClient supabaseClient;
 
@@ -42,382 +34,1102 @@ class DeliveryMonitorScreen extends StatefulWidget {
 }
 
 class _DeliveryMonitorScreenState extends State<DeliveryMonitorScreen> with TickerProviderStateMixin {
-  List<app_driver_model.Driver> _onlineDrivers = [];
-  List<app_driver_model.Driver> _allDrivers = [];
-  List<app_order.Order> _deliveryOrders = [];
-  bool _isLoading = true;
-  bool _showDriversPanel = false;
+  SupabaseClient get _db => widget.supabaseClient;
 
-  // --- Planner dispatch panel state ---
-  bool _showDispatchPanel = false;
-  int _planVersion = 0;
-  DateTime? _lastPlanTime;
-  bool _isReplanning = false;
-  List<Map<String, dynamic>> _plannedRoutes = [];
-  List<Map<String, dynamic>> _planStops = [];
-  RealtimeChannel? _planSubscription;
-  RealtimeChannel? _planLogSubscription;
-  bool _showTimelinePanel = true;
-  Set<String> _highlightedStopIds = {};
-  Timer? _highlightClearTimer;
-  final Map<String, String> _previousStopDriverMap = {};
-  List<Map<String, dynamic>> _unassignedOrders = [];
-
-  // Track previous driver online states for notifications
-  final Map<String, bool> _previousDriverOnlineStates = {};
-  bool _initialLoadComplete = false;
-
-  // --- Smooth animation state ---
-  // Store previous positions for interpolation (WhatsApp-like smooth movement)
-  final Map<String, gmaps.LatLng> _previousPositions = {};
-  final Map<String, gmaps.LatLng> _targetPositions = {};
-  final Map<String, double> _previousHeadings = {};
-  final Map<String, double> _targetHeadings = {};
-  final Map<String, gmaps.LatLng> _animatedPositions = {}; // current interpolated position
-  final Map<String, double> _animatedHeadings = {};
-  AnimationController? _positionAnimController;
-  
-  // Google Maps controller (mobile only)
-  gmaps.GoogleMapController? _mapController;
-  Set<gmaps.Marker> _mapMarkers = {};
-
-  // Flutter Map controller (desktop only)
-  final fmap.MapController _flutterMapController = fmap.MapController();
-
-  // Restaurant Address: Minnesheimstraße 5, 5023 Salzburg
-  static const double _restaurantLat = 47.81328;
-  static const double _restaurantLng = 13.06882;
-  static final gmaps.LatLng _restaurantLocation = gmaps.LatLng(
-    _restaurantLat,
-    _restaurantLng,
-  );
-  static final latlong.LatLng _restaurantLocationDesktop = latlong.LatLng(
-    _restaurantLat,
-    _restaurantLng,
-  );
   static const String _restaurantAddress = 'Minnesheimstraße 5, 5023 Salzburg';
+  static const double _wideLayoutFrom = 720;
+  static const double _sheetStart = 0.42;
 
-  RealtimeChannel? _driversSubscription;
-  RealtimeChannel? _ordersSubscription;
-  Timer? _pollingTimer;
-  Timer? _driverPollingTimer;
-  int _lastOrderCount = 0;
+  static const String _orderColumns =
+      'id, daily_order_number, customer_name, customer_phone, customer_street, customer_postcode, customer_city, '
+      'delivery_latitude, delivery_longitude, status, delivery_status, total_price, payment_method, created_at, '
+      'estimated_delivery_time, requested_delivery_time, planned_arrival_at, delivery_route_id, fulfillment_type, '
+      'is_unassignable, unassignable_reason, order_type_name, '
+      'pay_method:platform_raw_data->payment->>method, pays_with:platform_raw_data->payment->>pays_with, '
+      'collect:platform_raw_data->payment->>collectAtDropoff, '
+      'transport_type:platform_raw_data->transport->>type';
+
+  // ── Data ──────────────────────────────────────────────────────────────────
+  List<app_driver_model.Driver> _drivers = [];
+  final Map<String, int> _colorByDriver = {};
+  List<Map<String, dynamic>> _routes = [];
+  List<Map<String, dynamic>> _stops = [];
+  List<Map<String, dynamic>> _recentOrders = [];
+  Map<String, Map<String, dynamic>> _ordersById = {};
+  EtaSettings _settings = const EtaSettings();
+  bool _driversLoaded = false;
+  bool _toursLoaded = false;
+  String? _driversProblem;
+  String? _toursProblem;
+  bool _planning = false;
+  bool _planAgain = false;
+  DateTime _now = DateTime.now().toUtc();
+
+  // ── Selection ─────────────────────────────────────────────────────────────
+  String? _selectedDriverId;
+  String? _selectedStopKey;
+
+  // ── Online/offline notices ────────────────────────────────────────────────
+  final Map<String, bool> _wasOnline = {};
+  bool _seenDrivers = false;
+
+  // ── Realtime and timers ───────────────────────────────────────────────────
+  // Unique channel names: the screen can be open twice (tab + pushed from Orders).
+  late final String _channelTag = '${identityHashCode(this)}';
+  RealtimeChannel? _driversChannel;
+  RealtimeChannel? _toursChannel;
+  Timer? _clock;
+  Timer? _driversPoll;
+  Timer? _toursPoll;
+  Timer? _toursDebounce;
+  bool _toursLoading = false;
+  bool _toursAgain = false;
+
+  // ── Map ───────────────────────────────────────────────────────────────────
+  gmaps.GoogleMapController? _gmap;
+  final fmap.MapController _fmap = fmap.MapController();
+  bool _fmapReady = false;
+  bool _fittedOnce = false;
+  final MapIcons _icons = MapIcons();
+  final Map<String, gmaps.BitmapDescriptor> _driverIcons = {};
+  final ValueNotifier<Set<gmaps.Marker>> _staticMarkers = ValueNotifier({});
+  final ValueNotifier<Map<String, gmaps.LatLng>> _driverPos = ValueNotifier({});
+  final Map<String, gmaps.LatLng> _fromPos = {};
+  final Map<String, gmaps.LatLng> _toPos = {};
+  late final AnimationController _move;
+  int _markerBuild = 0;
 
   @override
   void initState() {
     super.initState();
-    _positionAnimController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1500),
-    )..addListener(_onAnimationTick);
-    _fetchAllDrivers();
-    _fetchOnlineDrivers();
-    _fetchDeliveryOrders();
-    _fetchPlannedRoutes();
-    _setupRealtimeSubscription();
-    _setupPlanRealtimeSubscription();
-    _startPolling();
-    _startDriverPolling();
+    _move = AnimationController(vsync: this, duration: const Duration(milliseconds: 1200))..addListener(_onMoveTick);
+    _loadDrivers();
+    _loadTours();
+    _subscribe();
+    _clock = Timer.periodic(const Duration(seconds: 15), (_) {
+      if (!mounted) return;
+      setState(() => _now = DateTime.now().toUtc());
+      _refreshMarkers();
+      _maybeFitOnce();
+    });
+    // Back-ups for realtime. Orders are not in the realtime publication, so new orders
+    // waiting for a driver arrive with the tours poll (or the planner's plan_log insert).
+    _driversPoll = Timer.periodic(const Duration(seconds: 15), (_) => _loadDrivers());
+    _toursPoll = Timer.periodic(const Duration(seconds: 20), (_) => _loadTours());
   }
 
   @override
   void dispose() {
-    _positionAnimController?.removeListener(_onAnimationTick);
-    _positionAnimController?.dispose();
-    _pollingTimer?.cancel();
-    _driverPollingTimer?.cancel();
-    _driversSubscription?.unsubscribe();
-    _ordersSubscription?.unsubscribe();
-    _planSubscription?.unsubscribe();
-    _planLogSubscription?.unsubscribe();
-    _highlightClearTimer?.cancel();
-    _mapController?.dispose();
+    _clock?.cancel();
+    _driversPoll?.cancel();
+    _toursPoll?.cancel();
+    _toursDebounce?.cancel();
+    _driversChannel?.unsubscribe();
+    _toursChannel?.unsubscribe();
+    _move.dispose();
+    _staticMarkers.dispose();
+    _driverPos.dispose();
+    _gmap?.dispose();
     super.dispose();
   }
-  
-  /// Animation tick: interpolate all driver positions smoothly
-  void _onAnimationTick() {
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Data
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /// Stable across phone and web builds (String.hashCode is not).
+  static int _stableColor(String id) => id.codeUnits.fold<int>(7, (h, c) => (h * 31 + c) & 0x3fffffff) % kDriverColors.length;
+
+  int _colorOf(String driverId) => _colorByDriver[driverId] ?? _stableColor(driverId);
+
+  Future<void> _loadDrivers() async {
     if (!mounted) return;
-    final t = Curves.easeInOut.transform(_positionAnimController!.value);
-    bool changed = false;
-    
-    for (final driverId in _targetPositions.keys) {
-      final prev = _previousPositions[driverId];
-      final target = _targetPositions[driverId];
-      if (prev != null && target != null) {
-        final newLat = prev.latitude + (target.latitude - prev.latitude) * t;
-        final newLng = prev.longitude + (target.longitude - prev.longitude) * t;
-        _animatedPositions[driverId] = gmaps.LatLng(newLat, newLng);
-        changed = true;
-      }
-      
-      // Interpolate heading (shortest arc)
-      final prevH = _previousHeadings[driverId] ?? 0;
-      final targetH = _targetHeadings[driverId] ?? prevH;
-      double deltaH = targetH - prevH;
-      // Normalize to -180..180 for shortest rotation
-      while (deltaH > 180) { deltaH -= 360; }
-      while (deltaH < -180) { deltaH += 360; }
-      _animatedHeadings[driverId] = prevH + deltaH * t;
-    }
-    
-    if (changed) {
-      _rebuildMarkersFromAnimatedState();
-    }
-  }
-  
-  /// Trigger smooth animation from current to new driver positions
-  void _animateToNewPositions(List<app_driver_model.Driver> newDrivers) {
-    for (final driver in newDrivers) {
-      if (driver.currentLocation == null) continue;
-      final newPos = driver.currentLocation!;
-      final newHeading = driver.heading ?? 0;
-      
-      // Store previous animated position (or current if first time)
-      _previousPositions[driver.id] = _animatedPositions[driver.id] ?? newPos;
-      _targetPositions[driver.id] = newPos;
-      _previousHeadings[driver.id] = _animatedHeadings[driver.id] ?? newHeading;
-      _targetHeadings[driver.id] = newHeading;
-      
-      // If this is the first time seeing this driver, set immediately
-      if (!_animatedPositions.containsKey(driver.id)) {
-        _animatedPositions[driver.id] = newPos;
-        _animatedHeadings[driver.id] = newHeading;
-      }
-    }
-    
-    // Remove drivers that went offline
-    final activeIds = newDrivers
-        .where((d) => d.currentLocation != null)
-        .map((d) => d.id)
-        .toSet();
-    _previousPositions.removeWhere((k, _) => !activeIds.contains(k));
-    _targetPositions.removeWhere((k, _) => !activeIds.contains(k));
-    _animatedPositions.removeWhere((k, _) => !activeIds.contains(k));
-    _animatedHeadings.removeWhere((k, _) => !activeIds.contains(k));
-    _previousHeadings.removeWhere((k, _) => !activeIds.contains(k));
-    _targetHeadings.removeWhere((k, _) => !activeIds.contains(k));
-    
-    // Start smooth animation
-    _positionAnimController?.reset();
-    _positionAnimController?.forward();
-  }
-
-  /// Backup polling for driver locations every 5 seconds for WhatsApp-like real-time updates.
-  /// Realtime subscription handles instant updates; this is a safety net.
-  void _startDriverPolling() {
-    _driverPollingTimer = Timer.periodic(const Duration(seconds: 5), (
-      _,
-    ) async {
+    try {
+      final rows = await _db.from('drivers').select('*, employee:employees(color_index)').order('name', ascending: true);
       if (!mounted) return;
-
-      try {
-        await _fetchOnlineDrivers();
-        await _fetchAllDrivers();
-      } catch (e) {
-        print('[DeliveryMonitorScreen] Driver polling error: $e');
+      final list = <app_driver_model.Driver>[];
+      for (final r in rows as List) {
+        final m = Map<String, dynamic>.from(r as Map);
+        final employee = m['employee'];
+        final d = app_driver_model.Driver.fromJson(m);
+        final color = employee is Map ? (employee['color_index'] as num?)?.toInt() : null;
+        _colorByDriver[d.id] = color ?? _stableColor(d.id);
+        list.add(d);
       }
-    });
+      _noticeOnlineChanges(list);
+      setState(() {
+        _drivers = list;
+        _driversLoaded = true;
+        _driversProblem = null;
+      });
+      _onDriversMoved();
+      if (_driverIconMissing()) _refreshMarkers();
+      _maybeFitOnce();
+    } catch (e) {
+      _failed('drivers', e);
+    }
   }
 
-  /// Backup polling for orders every 30 seconds (realtime handles instant updates)
-  void _startPolling() {
-    _pollingTimer = Timer.periodic(const Duration(seconds: 30), (_) async {
-      if (!mounted) return;
+  /// A GPS ping from realtime: update that one driver without a round trip.
+  void _applyDriverRow(Map<String, dynamic> row) {
+    final id = row['id'] as String?;
+    if (id == null) return;
+    final i = _drivers.indexWhere((d) => d.id == id);
+    if (i < 0) {
+      _loadDrivers();
+      return;
+    }
+    final updated = app_driver_model.Driver.fromJson(row);
+    final list = [..._drivers]..[i] = updated;
+    _noticeOnlineChanges(list);
+    setState(() => _drivers = list);
+    _onDriversMoved();
+    if (_driverIconMissing()) _refreshMarkers();
+  }
 
-      try {
-        // Quick count check to see if there are new orders
-        final now = DateTime.now();
-        final todayStart = DateTime(now.year, now.month, now.day);
+  /// A driver who should have a marker but whose icon (online/stale look) is not painted yet.
+  bool _driverIconMissing() {
+    if (isDesktopPlatform) return false;
+    return _driversOnMap(_boards()).any((b) => !_driverIcons.containsKey('${b.driverId}:${b.gpsFresh(_now)}'));
+  }
 
-        final countResponse = await widget.supabaseClient
-            .from('orders')
-            .select('id')
-            .not('delivery_latitude', 'is', null)
-            .not('delivery_longitude', 'is', null)
-            .gte('created_at', todayStart.toIso8601String());
+  Future<void> _loadTours() async {
+    if (!mounted) return;
+    if (_toursLoading) {
+      _toursAgain = true;
+      return;
+    }
+    _toursLoading = true;
+    try {
+      final since = DateTime.now().toUtc().subtract(const Duration(hours: 12)).toIso8601String();
+      // No age limit: a tour left open in the driver app still counts for the planner.
+      final routeRows = await _db
+          .from('delivery_routes')
+          .select('id, assigned_driver_id, status, planned_departure_at, planned_return_at, started_at, '
+              'actual_departure_at, confirmed_at, created_at, total_estimated_duration_seconds')
+          .inFilter('status', ['assigned', 'in_progress'])
+          .order('created_at', ascending: true);
+      final routes = (routeRows as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
 
-        final newCount = (countResponse as List).length;
+      var stops = <Map<String, dynamic>>[];
+      if (routes.isNotEmpty) {
+        final stopRows = await _db
+            .from('route_stops')
+            .select('id, delivery_route_id, order_id, type, sequence_number, latitude, longitude, customer_name, '
+                'customer_address, estimated_arrival_time, planned_arrival_at, target_delivery_time, status, '
+                'actual_arrival_time, departure_time, estimated_travel_time_to_next_stop_seconds')
+            .inFilter('delivery_route_id', routes.map((r) => r['id'] as String).toList())
+            .order('sequence_number');
+        stops = (stopRows as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      }
 
-        // If count changed, refresh the orders
-        if (newCount != _lastOrderCount) {
-          final isNewOrder = newCount > _lastOrderCount;
-          _lastOrderCount = newCount;
-          await _fetchDeliveryOrders();
-
-          // Show notification for new orders
-          if (isNewOrder && mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Row(
-                  children: [
-                    const Icon(Icons.notifications_active, color: Colors.white),
-                    const SizedBox(width: 12),
-                    Text(
-                      'New delivery order received! (${_deliveryOrders.length} active)',
-                    ),
-                  ],
-                ),
-                backgroundColor: Colors.orange[700],
-                behavior: SnackBarBehavior.floating,
-                duration: const Duration(seconds: 3),
-                margin: const EdgeInsets.only(bottom: 80, left: 16, right: 16),
-              ),
-            );
-          }
+      final orderRows = await _db.from('orders').select(_orderColumns).eq('fulfillment_type', 'delivery').gte('created_at', since);
+      final orders = (orderRows as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      final byId = {for (final o in orders) o['id'] as String: o};
+      final missing = stops.map((s) => s['order_id'] as String?).whereType<String>().where((id) => !byId.containsKey(id)).toSet();
+      if (missing.isNotEmpty) {
+        final extra = await _db.from('orders').select(_orderColumns).inFilter('id', missing.toList());
+        for (final o in extra as List) {
+          final m = Map<String, dynamic>.from(o as Map);
+          byId[m['id'] as String] = m;
         }
-      } catch (e) {
-        // Ignore polling errors
       }
-    });
+
+      // The oldest row is the planner's.
+      final settingsRow =
+          await _db.from('delivery_settings').select().order('created_at', ascending: true).limit(1).maybeSingle();
+
+      if (!mounted) return;
+      setState(() {
+        _routes = routes;
+        _stops = stops;
+        _recentOrders = orders;
+        _ordersById = byId;
+        _settings = EtaSettings.fromRow(settingsRow);
+        _toursLoaded = true;
+        _toursProblem = null;
+        _now = DateTime.now().toUtc();
+      });
+      _refreshMarkers();
+      _maybeFitOnce();
+    } catch (e) {
+      _failed('tours', e);
+    } finally {
+      _toursLoading = false;
+      if (_toursAgain) {
+        _toursAgain = false;
+        _loadTours();
+      }
+    }
   }
 
-  void _setupRealtimeSubscription() {
-    _driversSubscription = widget.supabaseClient
-        .channel('public:drivers')
+  void _scheduleTours() {
+    _toursDebounce?.cancel();
+    _toursDebounce = Timer(const Duration(milliseconds: 700), _loadTours);
+  }
+
+  void _subscribe() {
+    _driversChannel = _db
+        .channel('map-drivers-$_channelTag')
         .onPostgresChanges(
           event: PostgresChangeEvent.all,
           schema: 'public',
           table: 'drivers',
           callback: (payload) {
-            if (mounted) {
-              _fetchOnlineDrivers();
-              _fetchAllDrivers();
+            if (!mounted) return;
+            if (payload.eventType == PostgresChangeEvent.update && payload.newRecord.isNotEmpty) {
+              _applyDriverRow(payload.newRecord);
+            } else {
+              _loadDrivers();
             }
           },
         )
         .subscribe();
 
-    _ordersSubscription = widget.supabaseClient
-        .channel('public:orders')
-        .onPostgresChanges(
-          event: PostgresChangeEvent.all,
-          schema: 'public',
-          table: 'orders',
-          callback: (payload) {
-            if (mounted) _fetchDeliveryOrders();
-          },
-        )
+    void tours(PostgresChangePayload _) {
+      if (mounted) _scheduleTours();
+    }
+
+    _toursChannel = _db
+        .channel('map-tours-$_channelTag')
+        .onPostgresChanges(event: PostgresChangeEvent.all, schema: 'public', table: 'delivery_routes', callback: tours)
+        .onPostgresChanges(event: PostgresChangeEvent.all, schema: 'public', table: 'route_stops', callback: tours)
+        .onPostgresChanges(event: PostgresChangeEvent.insert, schema: 'public', table: 'plan_log', callback: tours)
         .subscribe();
   }
 
-  Future<void> _fetchAllDrivers() async {
+  void _failed(String what, Object e) {
+    debugPrint('[Map] Loading $what failed: $e');
     if (!mounted) return;
-
-    try {
-      final response = await widget.supabaseClient
-          .from('drivers')
-          .select('*')
-          .order('name', ascending: true);
-
-      if (!mounted) return;
-
-      final List<app_driver_model.Driver> loadedDrivers = (response as List)
-          .map(
-            (data) =>
-                app_driver_model.Driver.fromJson(data as Map<String, dynamic>),
-          )
-          .toList();
-
-      if (mounted) {
-        // Detect online/offline status changes and notify
-        _detectAndNotifyStatusChanges(loadedDrivers);
-        
-        setState(() {
-          _allDrivers = loadedDrivers;
-        });
-      }
-    } catch (e) {
-      print('[DeliveryMonitorScreen] Error fetching all drivers: $e');
-    }
+    const text = 'Can\'t reach the server right now — showing the last known positions. Retrying…';
+    setState(() => what == 'drivers' ? _driversProblem = text : _toursProblem = text);
   }
 
-  /// Detect driver online/offline status changes and show notifications.
-  void _detectAndNotifyStatusChanges(List<app_driver_model.Driver> newDrivers) {
-    if (!_initialLoadComplete) {
-      // On first load, just record the states — don't fire notifications
-      for (var driver in newDrivers) {
-        _previousDriverOnlineStates[driver.id] = driver.isOnline;
+  void _noticeOnlineChanges(List<app_driver_model.Driver> drivers) {
+    if (!_seenDrivers) {
+      for (final d in drivers) {
+        _wasOnline[d.id] = d.isOnline;
       }
-      _initialLoadComplete = true;
+      _seenDrivers = true;
       return;
     }
-
-    for (var driver in newDrivers) {
-      final previousOnline = _previousDriverOnlineStates[driver.id];
-      
-      if (previousOnline != null && previousOnline != driver.isOnline) {
-        // Status changed!
-        _showDriverStatusNotification(driver.name, driver.isOnline);
-      }
-      
-      _previousDriverOnlineStates[driver.id] = driver.isOnline;
+    for (final d in drivers) {
+      final before = _wasOnline[d.id];
+      _wasOnline[d.id] = d.isOnline;
+      if (before == null || before == d.isOnline || !mounted) continue;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(d.isOnline ? '${d.name} is online in the driver app' : '${d.name} went offline'),
+          backgroundColor: d.isOnline ? const Color(0xFF059669) : const Color(0xFF4B5563),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 4),
+        ),
+      );
     }
   }
 
-  /// Show a prominent in-app notification when a driver goes online/offline.
-  void _showDriverStatusNotification(String driverName, bool isNowOnline) {
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Derived view
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  List<DriverInput> get _driverInputs => [
+        for (final d in _drivers)
+          DriverInput(
+            id: d.id,
+            name: d.name,
+            colorIndex: _colorOf(d.id),
+            isOnline: d.isOnline,
+            lastSeenAt: d.lastSeenAt,
+            position: d.currentLocation == null ? null : (lat: d.currentLocation!.latitude, lng: d.currentLocation!.longitude),
+            speedMs: d.speed,
+          ),
+      ];
+
+  List<DriverBoard> _boards() => buildDriverBoards(
+        drivers: _driverInputs,
+        routes: _routes,
+        stops: _stops,
+        ordersById: _ordersById,
+        settings: _settings,
+        now: _now,
+      );
+
+  List<Map<String, dynamic>> _waiting() => waitingOrders(_recentOrders, settings: _settings, now: _now);
+
+  /// Drivers worth a marker: on a tour or on shift, with a known position.
+  Iterable<DriverBoard> _driversOnMap(List<DriverBoard> boards) =>
+      boards.where((b) => b.position != null && (b.current != null || b.isOnline));
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Actions
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  void _toast(String text, {bool error = false}) {
     if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(text),
+      backgroundColor: error ? const Color(0xFFDC2626) : const Color(0xFF111827),
+      behavior: SnackBarBehavior.floating,
+      duration: Duration(seconds: error ? 6 : 3),
+    ));
+  }
 
-    // Clear any existing snackbars to avoid stacking
-    ScaffoldMessenger.of(context).clearSnackBars();
+  /// Runs the planner. A request while it is running queues one more run, so a change made
+  /// meanwhile (e.g. a second "Give to …") is not lost.
+  Future<void> _replan({bool quiet = false}) async {
+    if (_planning) {
+      _planAgain = true;
+      return;
+    }
+    setState(() => _planning = true);
+    try {
+      do {
+        _planAgain = false;
+        await _db.functions.invoke('plan-routes', body: {'trigger_reason': 'manual'});
+      } while (_planAgain && mounted);
+      await _loadTours();
+      if (!quiet) _toast('Tours planned again with the latest orders');
+    } catch (e) {
+      _toast('Could not plan the tours: $e', error: true);
+    } finally {
+      if (mounted) setState(() => _planning = false);
+    }
+  }
 
-    final now = DateTime.now();
-    final timeStr = '${now.hour.toString().padLeft(2, '0')}:'
-        '${now.minute.toString().padLeft(2, '0')}';
+  Future<void> _moveStop(TourStop stop, DriverBoard target) async {
+    try {
+      // The planner re-creates stop rows, so pin by order when we can.
+      final rows = stop.orderId != null
+          ? await _db.from('route_stops').update({'pinned_driver_id': target.driverId}).eq('order_id', stop.orderId!).select('id')
+          : await _db.from('route_stops').update({'pinned_driver_id': target.driverId}).eq('id', stop.id).select('id');
+      if ((rows as List).isEmpty) {
+        _toast('That tour was just re-planned — try again', error: true);
+        await _loadTours();
+        return;
+      }
+      _toast('${stop.name} goes to ${target.name} — re-planning…');
+      await _replan(quiet: true);
+    } catch (e) {
+      _toast('Could not move the order: $e', error: true);
+    }
+  }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.2),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                isNowOnline ? Icons.login : Icons.logout,
-                color: Colors.white,
-                size: 20,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    isNowOnline
-                        ? '$driverName is now ONLINE'
-                        : '$driverName went OFFLINE',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 15,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    'At $timeStr',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.white.withOpacity(0.8),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
+  Future<void> _startTour(Tour tour) async {
+    final driver = _drivers.where((d) => d.id == tour.driverId).firstOrNull;
+    final name = driver?.name ?? 'The driver';
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Start this tour?'),
+        content: Text(
+          'Only do this if $name has already left with the food and did not tap "Start tour" in the driver app.\n\n'
+          'The ${tour.stops.length} ${tour.stops.length == 1 ? 'order goes' : 'orders go'} out for delivery.',
         ),
-        backgroundColor: isNowOnline ? Colors.green[700] : Colors.red[700],
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 5),
-        margin: const EdgeInsets.only(bottom: 80, left: 16, right: 16),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Start tour')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await _db.rpc('driver_start_route', params: {'p_route_id': tour.routeId});
+      await _loadTours();
+      _toast('Tour started for $name');
+    } catch (e) {
+      _toast('Could not start the tour: $e', error: true);
+    }
+  }
+
+  Future<void> _call(String phone) async {
+    final uri = Uri(scheme: 'tel', path: phone.replaceAll(RegExp(r'[^\d+]'), ''));
+    if (!await launchUrl(uri)) _toast('Could not start a call to $phone', error: true);
+  }
+
+  Future<void> _openOrder(String orderId) async {
+    try {
+      final row = await _db.from('orders').select().eq('id', orderId).single();
+      if (!mounted) return;
+      _showOrderDetailsBottomSheet(app_order.Order.fromJson(row));
+    } catch (e) {
+      _toast('Could not load the order: $e', error: true);
+    }
+  }
+
+  void _selectDriver(DriverBoard b) {
+    final same = _selectedDriverId == b.driverId && _selectedStopKey == null;
+    setState(() {
+      _selectedDriverId = same ? null : b.driverId;
+      _selectedStopKey = null;
+    });
+    _refreshMarkers();
+    if (same) {
+      _fitAll();
+    } else {
+      _fitDriver(b);
+    }
+  }
+
+  void _selectStop(DriverBoard b, TourStop s) {
+    setState(() {
+      _selectedDriverId = b.driverId;
+      _selectedStopKey = s.key;
+    });
+    _refreshMarkers();
+    if (s.point != null) _focus(s.point!, 15);
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Camera
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  bool get _mapReady => isDesktopPlatform ? _fmapReady : _gmap != null;
+
+  /// Frame everyone once, as soon as the map is on screen with a real size. The tab is built
+  /// at app start while hidden (IndexedStack), so a fit at that point would hit a 0×0 map;
+  /// the 15 s clock retries until it works.
+  void _maybeFitOnce() {
+    if (_fittedOnce || !_mapReady || !_driversLoaded || !_toursLoaded) return;
+    _fittedOnce = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      if (!isDesktopPlatform) {
+        try {
+          final r = await _gmap!.getVisibleRegion();
+          if (r.northeast.latitude == r.southwest.latitude || r.northeast.longitude == r.southwest.longitude) {
+            _fittedOnce = false; // Not laid out yet.
+            return;
+          }
+        } catch (_) {
+          _fittedOnce = false;
+          return;
+        }
+      }
+      _fitAll();
+    });
+    WidgetsBinding.instance.scheduleFrame();
+  }
+
+  void _fitAll() {
+    final boards = _boards();
+    final pts = <GeoPoint>[_settings.store];
+    for (final b in _driversOnMap(boards)) {
+      pts.add(b.position!);
+    }
+    for (final b in boards) {
+      for (final t in [if (b.current != null) b.current!, ...b.upcoming]) {
+        pts.addAll(t.stops.where((s) => !s.isDone && s.point != null).map((s) => s.point!));
+      }
+    }
+    for (final o in _waiting()) {
+      final lat = (o['delivery_latitude'] as num?)?.toDouble();
+      final lng = (o['delivery_longitude'] as num?)?.toDouble();
+      if (lat != null && lng != null) pts.add((lat: lat, lng: lng));
+    }
+    _fit(pts);
+  }
+
+  void _fitDriver(DriverBoard b) {
+    final pts = <GeoPoint>[_settings.store];
+    if (b.position != null) pts.add(b.position!);
+    final tour = b.current ?? b.upcoming.firstOrNull;
+    if (tour != null) pts.addAll(tour.stops.where((s) => !s.isDone && s.point != null).map((s) => s.point!));
+    _fit(pts);
+  }
+
+  void _fit(List<GeoPoint> pts) {
+    if (pts.isEmpty || !_mapReady) return;
+    final b = boundsOf(pts);
+    try {
+      if (isDesktopPlatform) {
+        _fmap.fitCamera(fmap.CameraFit.bounds(
+          bounds: fmap.LatLngBounds(latlong.LatLng(b.south, b.west), latlong.LatLng(b.north, b.east)),
+          padding: const EdgeInsets.all(56),
+          maxZoom: 16,
+        ));
+      } else {
+        _gmap!.animateCamera(gmaps.CameraUpdate.newLatLngBounds(
+          gmaps.LatLngBounds(southwest: gmaps.LatLng(b.south, b.west), northeast: gmaps.LatLng(b.north, b.east)),
+          56,
+        ));
+      }
+    } catch (e) {
+      debugPrint('[Map] Camera fit failed: $e');
+    }
+  }
+
+  void _focus(GeoPoint p, double zoom) {
+    if (!_mapReady) return;
+    try {
+      if (isDesktopPlatform) {
+        _fmap.move(latlong.LatLng(p.lat, p.lng), zoom);
+      } else {
+        _gmap!.animateCamera(gmaps.CameraUpdate.newLatLngZoom(gmaps.LatLng(p.lat, p.lng), zoom));
+      }
+    } catch (e) {
+      debugPrint('[Map] Camera move failed: $e');
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Markers and lines
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /// Smoothly glide driver markers to their new position (phones only: on the web every
+  /// marker update re-uploads the icon, so markers jump there instead).
+  void _onDriversMoved() {
+    final targets = <String, gmaps.LatLng>{};
+    for (final d in _drivers) {
+      if (d.currentLocation != null) targets[d.id] = d.currentLocation!;
+    }
+    final shown = _driverPos.value;
+    final changed = targets.length != shown.length ||
+        targets.entries.any((e) => _toPos[e.key] == null || _toPos[e.key] != e.value);
+    if (!changed) return;
+    _fromPos
+      ..clear()
+      ..addAll({for (final e in targets.entries) e.key: shown[e.key] ?? e.value});
+    _toPos
+      ..clear()
+      ..addAll(targets);
+    if (kIsWeb || isDesktopPlatform) {
+      _driverPos.value = Map.of(targets);
+    } else {
+      _move.forward(from: 0);
+    }
+    _refreshMarkers();
+  }
+
+  void _onMoveTick() {
+    final t = Curves.easeInOut.transform(_move.value);
+    _driverPos.value = {
+      for (final e in _toPos.entries)
+        e.key: () {
+          final a = _fromPos[e.key] ?? e.value;
+          return gmaps.LatLng(a.latitude + (e.value.latitude - a.latitude) * t, a.longitude + (e.value.longitude - a.longitude) * t);
+        }(),
+    };
+  }
+
+  /// Rebuild the Google markers that do not move every frame (restaurant, stops, waiting
+  /// orders) and make sure every driver icon is painted.
+  Future<void> _refreshMarkers() async {
+    if (isDesktopPlatform || !mounted) return;
+    final build = ++_markerBuild;
+    final boards = _boards();
+    final waiting = _waiting();
+    final store = await _icons.store();
+    final waitingIcon = await _icons.waiting();
+    final markers = <gmaps.Marker>{
+      gmaps.Marker(
+        markerId: const gmaps.MarkerId('store'),
+        position: gmaps.LatLng(_settings.store.lat, _settings.store.lng),
+        icon: store,
+        anchor: const Offset(0.5, 0.5),
+        zIndexInt: 5,
+        infoWindow: const gmaps.InfoWindow(title: 'Restaurant', snippet: _restaurantAddress),
+      ),
+    };
+
+    for (final b in boards) {
+      final color = driverColor(b.colorIndex);
+      final dim = _selectedDriverId != null && _selectedDriverId != b.driverId;
+      final tours = [if (b.current != null) b.current!, ...b.upcoming];
+      var number = 0;
+      for (final tour in tours) {
+        for (var i = 0; i < tour.stops.length; i++) {
+          final s = tour.stops[i];
+          number++;
+          if (s.point == null) continue;
+          final style = s.isDone
+              ? 'done'
+              : !tour.live
+                  ? 'planned'
+                  : (s.state == StopState.next ? 'next' : 'live');
+          final selected = s.key == _selectedStopKey;
+          final icon = await _icons.stop(number: number, color: color, style: style, selected: selected);
+          final when = s.isDone
+              ? 'delivered ${clock(s.deliveredAt)}'
+              : '~${clock(s.eta)}${s.dueAt != null ? ' · due ${clock(s.dueAt)}' : ''}';
+          markers.add(gmaps.Marker(
+            markerId: gmaps.MarkerId('stop_${tour.routeId}_${s.key}'),
+            position: gmaps.LatLng(s.point!.lat, s.point!.lng),
+            icon: icon,
+            anchor: const Offset(0.5, 1),
+            alpha: dim ? 0.45 : 1,
+            zIndexInt: selected ? 6 : (s.isDone ? 1 : (tour.live ? 3 : 2)),
+            infoWindow: gmaps.InfoWindow(title: '$number. ${s.name} (${b.name})', snippet: when),
+            onTap: () => _selectStop(b, s),
+          ));
+        }
+      }
+      if (b.position != null && !_driverIcons.containsKey('${b.driverId}:${b.gpsFresh(_now)}')) {
+        _driverIcons['${b.driverId}:${b.gpsFresh(_now)}'] =
+            await _icons.driver(name: b.name, color: color, stale: !b.gpsFresh(_now));
+      }
+    }
+
+    for (final o in waiting) {
+      final lat = (o['delivery_latitude'] as num?)?.toDouble();
+      final lng = (o['delivery_longitude'] as num?)?.toDouble();
+      if (lat == null || lng == null) continue;
+      final due = dueAt(o);
+      markers.add(gmaps.Marker(
+        markerId: gmaps.MarkerId('wait_${o['id']}'),
+        position: gmaps.LatLng(lat, lng),
+        icon: waitingIcon,
+        anchor: const Offset(0.5, 1),
+        zIndexInt: 2,
+        infoWindow: gmaps.InfoWindow(
+          title: '${o['customer_name'] ?? 'Customer'} · waiting for a driver',
+          snippet: due == null ? null : 'due ${clock(due)}',
+        ),
+        onTap: () => _openOrder(o['id'] as String),
+      ));
+    }
+
+    if (!mounted || build != _markerBuild) return;
+    _staticMarkers.value = markers;
+  }
+
+  Set<gmaps.Marker> _driverMarkers(List<DriverBoard> boards, Map<String, gmaps.LatLng> positions) {
+    final out = <gmaps.Marker>{};
+    for (final b in _driversOnMap(boards)) {
+      final pos = positions[b.driverId] ?? gmaps.LatLng(b.position!.lat, b.position!.lng);
+      final icon = _driverIcons['${b.driverId}:${b.gpsFresh(_now)}'];
+      if (icon == null) continue;
+      final back = b.backAt;
+      out.add(gmaps.Marker(
+        markerId: gmaps.MarkerId('driver_${b.driverId}'),
+        position: pos,
+        icon: icon,
+        anchor: MapIcons.driverAnchor,
+        zIndexInt: 10,
+        infoWindow: gmaps.InfoWindow(
+          title: b.name,
+          snippet: back != null ? 'Back at the restaurant ~${clock(back)}' : null,
+        ),
+        onTap: () => _selectDriver(b),
+      ));
+    }
+    return out;
+  }
+
+  /// The points of each tour line: from the driver (or the restaurant) through the open
+  /// stops and back.
+  List<({String id, Color color, List<GeoPoint> points, bool live, bool dim})> _tourLines(List<DriverBoard> boards) {
+    final lines = <({String id, Color color, List<GeoPoint> points, bool live, bool dim})>[];
+    for (final b in boards) {
+      final color = driverColor(b.colorIndex);
+      final dim = _selectedDriverId != null && _selectedDriverId != b.driverId;
+      final cur = b.current;
+      if (cur != null) {
+        final start = b.position != null && b.gpsFresh(_now)
+            ? b.position!
+            : (cur.stops.where((s) => s.isDone && s.point != null).lastOrNull?.point ??
+                cur.stops.firstOrNull?.point ??
+                _settings.store);
+        final pts = <GeoPoint>[
+          start,
+          ...cur.remaining.where((s) => s.point != null).map((s) => s.point!),
+          _settings.store,
+        ];
+        lines.add((id: 'live_${cur.routeId}', color: color, points: pts, live: true, dim: dim));
+      }
+      for (final t in b.upcoming) {
+        final pts = <GeoPoint>[
+          _settings.store,
+          ...t.stops.where((s) => !s.isDone && s.point != null).map((s) => s.point!),
+          _settings.store,
+        ];
+        if (pts.length > 2) lines.add((id: 'plan_${t.routeId}', color: color, points: pts, live: false, dim: dim));
+      }
+    }
+    return lines;
+  }
+
+  Set<gmaps.Polyline> _googleLines(List<DriverBoard> boards) => {
+        for (final l in _tourLines(boards))
+          gmaps.Polyline(
+            polylineId: gmaps.PolylineId(l.id),
+            points: [for (final p in l.points) gmaps.LatLng(p.lat, p.lng)],
+            color: l.color.withValues(alpha: l.dim ? 0.2 : (l.live ? 0.85 : 0.45)),
+            width: l.live ? 5 : 3,
+            zIndex: l.live ? 2 : 1,
+            patterns: l.live ? const [] : [gmaps.PatternItem.dash(14), gmaps.PatternItem.gap(8)],
+            jointType: gmaps.JointType.round,
+            startCap: gmaps.Cap.roundCap,
+            endCap: gmaps.Cap.roundCap,
+          ),
+      };
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Build
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  @override
+  Widget build(BuildContext context) {
+    final boards = _boards();
+    final waiting = _waiting();
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF9FAFB),
+      appBar: AppBar(
+        title: const Text('Map'),
+        actions: [
+          IconButton(
+            tooltip: 'Show everyone',
+            icon: const Icon(Icons.zoom_out_map_rounded),
+            onPressed: () {
+              setState(() {
+                _selectedDriverId = null;
+                _selectedStopKey = null;
+              });
+              _refreshMarkers();
+              _fitAll();
+            },
+          ),
+          TextButton.icon(
+            onPressed: _planning ? null : _replan,
+            icon: _planning
+                ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                : const Icon(Icons.autorenew_rounded, size: 20),
+            label: Text(_planning ? 'Planning…' : 'Re-plan'),
+          ),
+          PopupMenuButton<String>(
+            tooltip: 'More',
+            onSelected: (v) {
+              switch (v) {
+                case 'drivers':
+                  _showManageDrivers();
+                case 'settings':
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => const DeliverySettingsScreen()));
+                case 'gps':
+                  _showAllDriversCoordinateLogsDialog();
+              }
+            },
+            itemBuilder: (_) => const [
+              PopupMenuItem(value: 'drivers', child: _MenuRow(icon: Icons.people_outline_rounded, text: 'Manage drivers')),
+              PopupMenuItem(value: 'settings', child: _MenuRow(icon: Icons.tune_rounded, text: 'Planner settings')),
+              PopupMenuItem(value: 'gps', child: _MenuRow(icon: Icons.gps_fixed_rounded, text: 'GPS log')),
+            ],
+          ),
+          const SizedBox(width: 4),
+        ],
+      ),
+      body: LayoutBuilder(
+        builder: (context, c) {
+          Widget panel({ScrollController? controller, Widget? header}) => TourPanel(
+                boards: boards,
+                waiting: waiting,
+                ordersById: _ordersById,
+                now: _now,
+                selectedDriverId: _selectedDriverId,
+                selectedStopId: _selectedStopKey,
+                loading: !_driversLoaded || !_toursLoaded,
+                planning: _planning,
+                problem: _toursProblem ?? _driversProblem,
+                scrollController: controller,
+                header: header,
+                onDriverTap: _selectDriver,
+                onStopTap: _selectStop,
+                onOrderDetails: _openOrder,
+                onCall: _call,
+                onStartTour: _startTour,
+                onMoveStop: _moveStop,
+                onPlanNow: _replan,
+              );
+
+          if (c.maxWidth >= _wideLayoutFrom) {
+            final panelWidth = (c.maxWidth * 0.38).clamp(340.0, 440.0);
+            return Row(
+              children: [
+                SizedBox(width: panelWidth, child: ColoredBox(color: const Color(0xFFF9FAFB), child: panel())),
+                const VerticalDivider(width: 1),
+                Expanded(child: _buildMap(boards, bottomPadding: 0)),
+              ],
+            );
+          }
+
+          // Phones and narrow windows.
+          if (kIsWeb) {
+            // Flutter widgets drawn over the web map do not get taps, so stack them instead.
+            return Column(
+              children: [
+                SizedBox(height: c.maxHeight * 0.42, child: _buildMap(boards, bottomPadding: 0)),
+                const Divider(height: 1),
+                Expanded(child: panel()),
+              ],
+            );
+          }
+          return Stack(
+            children: [
+              Positioned.fill(child: _buildMap(boards, bottomPadding: c.maxHeight * _sheetStart)),
+              DraggableScrollableSheet(
+                initialChildSize: _sheetStart,
+                minChildSize: 0.16,
+                maxChildSize: 0.94,
+                snap: true,
+                snapSizes: const [0.16, _sheetStart, 0.94],
+                builder: (context, controller) => Material(
+                  color: const Color(0xFFF9FAFB),
+                  elevation: 8,
+                  shadowColor: Colors.black26,
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
+                  clipBehavior: Clip.antiAlias,
+                  child: panel(controller: controller, header: const _SheetHandle()),
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
+
+  Widget _buildMap(List<DriverBoard> boards, {required double bottomPadding}) {
+    if (isDesktopPlatform) return _buildDesktopMap(boards);
+    final map = _buildGoogleMap(boards, bottomPadding);
+    if (!kIsWeb) return map;
+    // On the web the map's HTML element swallows clicks meant for menus, dialogs and sheets
+    // drawn over it. While one is open, cover the map with an interceptor.
+    final covered = !(ModalRoute.of(context)?.isCurrent ?? true);
+    return Stack(
+      children: [
+        Positioned.fill(child: map),
+        if (covered) Positioned.fill(child: PointerInterceptor(child: const SizedBox.expand())),
+      ],
+    );
+  }
+
+  /// Google Maps on phones and the web.
+  Widget _buildGoogleMap(List<DriverBoard> boards, double bottomPadding) {
+    final lines = _googleLines(boards);
+    return ValueListenableBuilder<Set<gmaps.Marker>>(
+      valueListenable: _staticMarkers,
+      builder: (context, statics, _) => ValueListenableBuilder<Map<String, gmaps.LatLng>>(
+        valueListenable: _driverPos,
+        builder: (context, positions, _) => gmaps.GoogleMap(
+          onMapCreated: (controller) {
+            _gmap = controller;
+            _maybeFitOnce();
+          },
+          initialCameraPosition: gmaps.CameraPosition(target: gmaps.LatLng(_settings.store.lat, _settings.store.lng), zoom: 13),
+          style: kCleanMapStyle,
+          markers: {...statics, ..._driverMarkers(boards, positions)},
+          polylines: lines,
+          padding: EdgeInsets.only(bottom: bottomPadding),
+          zoomControlsEnabled: kIsWeb,
+          mapToolbarEnabled: false,
+          myLocationEnabled: false,
+          myLocationButtonEnabled: false,
+          compassEnabled: false,
+          onTap: (_) {
+            if (_selectedDriverId == null && _selectedStopKey == null) return;
+            setState(() {
+              _selectedDriverId = null;
+              _selectedStopKey = null;
+            });
+            _refreshMarkers();
+          },
+        ),
+      ),
+    );
+  }
+
+  /// OpenStreetMap on macOS/Windows/Linux, with widget markers.
+  Widget _buildDesktopMap(List<DriverBoard> boards) {
+    final store = latlong.LatLng(_settings.store.lat, _settings.store.lng);
+    final markers = <fmap.Marker>[];
+
+    for (final b in boards) {
+      final color = driverColor(b.colorIndex);
+      final dim = _selectedDriverId != null && _selectedDriverId != b.driverId;
+      var number = 0;
+      for (final tour in [if (b.current != null) b.current!, ...b.upcoming]) {
+        for (var i = 0; i < tour.stops.length; i++) {
+          final s = tour.stops[i];
+          final n = ++number;
+          if (s.point == null) continue;
+          markers.add(fmap.Marker(
+            point: latlong.LatLng(s.point!.lat, s.point!.lng),
+            width: 30,
+            height: 30,
+            child: Opacity(
+              opacity: dim ? 0.45 : 1,
+              child: Tooltip(
+                message: '$n. ${s.name} · ${s.isDone ? 'delivered ${clock(s.deliveredAt)}' : '~${clock(s.eta)}'}',
+                child: GestureDetector(
+                  onTap: () => _selectStop(b, s),
+                  child: _StopDot(
+                    number: n,
+                    color: color,
+                    done: s.isDone,
+                    filled: tour.live && !s.isDone,
+                    selected: s.key == _selectedStopKey,
+                  ),
+                ),
+              ),
+            ),
+          ));
+        }
+      }
+    }
+    for (final o in _waiting()) {
+      final lat = (o['delivery_latitude'] as num?)?.toDouble();
+      final lng = (o['delivery_longitude'] as num?)?.toDouble();
+      if (lat == null || lng == null) continue;
+      markers.add(fmap.Marker(
+        point: latlong.LatLng(lat, lng),
+        width: 30,
+        height: 30,
+        child: GestureDetector(
+          onTap: () => _openOrder(o['id'] as String),
+          child: const _StopDot(icon: Icons.hourglass_top_rounded, color: Color(0xFFD97706), filled: true),
+        ),
+      ));
+    }
+    markers.add(fmap.Marker(
+      point: store,
+      width: 40,
+      height: 40,
+      child: const Tooltip(
+        message: 'Restaurant · $_restaurantAddress',
+        child: _StopDot(icon: Icons.storefront_rounded, color: Color(0xFF111827), filled: true, size: 36),
+      ),
+    ));
+    return ValueListenableBuilder<Map<String, gmaps.LatLng>>(
+      valueListenable: _driverPos,
+      builder: (context, positions, _) {
+        final drivers = [
+          for (final b in _driversOnMap(boards))
+            fmap.Marker(
+              point: () {
+                final p = positions[b.driverId];
+                return p != null ? latlong.LatLng(p.latitude, p.longitude) : latlong.LatLng(b.position!.lat, b.position!.lng);
+              }(),
+              width: 96,
+              height: 60,
+              child: GestureDetector(
+                onTap: () => _selectDriver(b),
+                child: _DriverBadge(name: b.name, color: b.gpsFresh(_now) ? driverColor(b.colorIndex) : const Color(0xFF9CA3AF)),
+              ),
+            ),
+        ];
+        return fmap.FlutterMap(
+          mapController: _fmap,
+          options: fmap.MapOptions(
+            initialCenter: store,
+            initialZoom: 13,
+            onMapReady: () {
+              _fmapReady = true;
+              _maybeFitOnce();
+            },
+          ),
+          children: [
+            fmap.TileLayer(
+              urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+              userAgentPackageName: 'com.restaurantadmin.app',
+            ),
+            fmap.PolylineLayer(polylines: [
+              for (final l in _tourLines(boards))
+                fmap.Polyline(
+                  points: [for (final p in l.points) latlong.LatLng(p.lat, p.lng)],
+                  color: l.color.withValues(alpha: l.dim ? 0.2 : (l.live ? 0.85 : 0.45)),
+                  strokeWidth: l.live ? 5 : 3,
+                  isDotted: !l.live,
+                ),
+            ]),
+            fmap.MarkerLayer(markers: [...markers, ...drivers]),
+          ],
+        );
+      },
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Drivers: manage, info
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  void _showManageDrivers() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      backgroundColor: Colors.white,
+      builder: (ctx) => SafeArea(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: MediaQuery.of(ctx).size.height * 0.8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 12, 8),
+                child: Row(
+                  children: [
+                    const Expanded(
+                      child: Text('Drivers', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+                    ),
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                        _showAddDriverDialog();
+                      },
+                      icon: const Icon(Icons.person_add_alt_1_rounded, size: 18),
+                      label: const Text('Add driver'),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              Flexible(
+                child: _drivers.isEmpty
+                    ? const Padding(padding: EdgeInsets.all(32), child: Center(child: Text('No drivers yet')))
+                    : ListView(
+                        shrinkWrap: true,
+                        children: [
+                          for (final d in _drivers)
+                            ListTile(
+                              leading: CircleAvatar(
+                                backgroundColor: d.isOnline ? driverColor(_colorOf(d.id)) : const Color(0xFF9CA3AF),
+                                child: Text(
+                                  d.name.isNotEmpty ? d.name[0].toUpperCase() : '?',
+                                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+                                ),
+                              ),
+                              title: Text(d.name, style: const TextStyle(fontWeight: FontWeight.w600)),
+                              subtitle: Text(
+                                !d.isOnline
+                                    ? 'Offline'
+                                    : _isLocationStale(d.lastSeenAt)
+                                        ? 'Online · no GPS signal (${_formatLastSeen(d.lastSeenAt)})'
+                                        : 'Online · GPS ${_formatLastSeen(d.lastSeenAt).toLowerCase()}',
+                              ),
+                              onTap: () {
+                                Navigator.pop(ctx);
+                                _showDriverInfoDialog(d);
+                              },
+                              trailing: IconButton(
+                                tooltip: 'Delete driver',
+                                icon: const Icon(Icons.delete_outline_rounded, color: Color(0xFFDC2626)),
+                                onPressed: () {
+                                  Navigator.pop(ctx);
+                                  _deleteDriver(d);
+                                },
+                              ),
+                            ),
+                        ],
+                      ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Color _driverColorFor(app_driver_model.Driver d) => driverColor(_colorOf(d.id));
 
   Future<void> _addDriver(String name, String email, String password) async {
     if (!mounted) return;
@@ -486,7 +1198,7 @@ class _DeliveryMonitorScreenState extends State<DeliveryMonitorScreen> with Tick
           ),
         );
 
-        _fetchAllDrivers();
+        _loadDrivers();
       }
     } catch (e) {
       if (mounted) {
@@ -549,7 +1261,7 @@ class _DeliveryMonitorScreenState extends State<DeliveryMonitorScreen> with Tick
           _showCopyableError(
             'Driver not found in database. It may have already been deleted.',
           );
-          await _fetchAllDrivers();
+          await _loadDrivers();
         }
         return;
       }
@@ -596,8 +1308,7 @@ class _DeliveryMonitorScreenState extends State<DeliveryMonitorScreen> with Tick
       if (mounted) {
         // Immediately remove from local list for instant UI feedback
         setState(() {
-          _allDrivers.removeWhere((d) => d.id == driver.id);
-          _onlineDrivers.removeWhere((d) => d.id == driver.id);
+          _drivers.removeWhere((d) => d.id == driver.id);
         });
 
         ScaffoldMessenger.of(context).showSnackBar(
@@ -608,15 +1319,14 @@ class _DeliveryMonitorScreenState extends State<DeliveryMonitorScreen> with Tick
         );
 
         // Also refresh from database to ensure consistency
-        await _fetchAllDrivers();
-        await _fetchOnlineDrivers();
+        await _loadDrivers();
       }
     } catch (e) {
       print('[DeliveryMonitorScreen] Error deleting driver: $e');
       if (mounted) {
         _showCopyableError('Error deleting driver: $e');
         // Refresh to restore the list if delete failed
-        await _fetchAllDrivers();
+        await _loadDrivers();
       }
     }
   }
@@ -787,2157 +1497,6 @@ class _DeliveryMonitorScreenState extends State<DeliveryMonitorScreen> with Tick
     );
   }
 
-  Widget _buildDriversPanel() {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 300),
-      width: _showDriversPanel ? 320 : 0,
-      child: _showDriversPanel
-          ? Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
-                    blurRadius: 8,
-                    offset: const Offset(-2, 0),
-                  ),
-                ],
-              ),
-              child: Column(
-                children: [
-                  // Header
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.grey[50],
-                      border: Border(
-                        bottom: BorderSide(color: Colors.grey[200]!),
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(Icons.people, color: Colors.blue[600]),
-                        const SizedBox(width: 8),
-                        const Text(
-                          'Manage Drivers',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const Spacer(),
-                        IconButton(
-                          icon: const Icon(Icons.close),
-                          onPressed: () =>
-                              setState(() => _showDriversPanel = false),
-                          tooltip: 'Close',
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  // Add Driver Button
-                  Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue[600],
-                        foregroundColor: Colors.white,
-                        minimumSize: const Size(double.infinity, 44),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                      onPressed: _showAddDriverDialog,
-                      icon: const Icon(Icons.person_add, size: 20),
-                      label: const Text('Add New Driver'),
-                    ),
-                  ),
-
-                  // Drivers List
-                  Expanded(
-                    child: _allDrivers.isEmpty
-                        ? Center(
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  Icons.no_accounts,
-                                  size: 48,
-                                  color: Colors.grey[400],
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  'No drivers yet',
-                                  style: TextStyle(color: Colors.grey[600]),
-                                ),
-                              ],
-                            ),
-                          )
-                        : ListView.builder(
-                            padding: const EdgeInsets.symmetric(horizontal: 12),
-                            itemCount: _allDrivers.length,
-                            itemBuilder: (context, index) {
-                              final driver = _allDrivers[index];
-                              final Color driverColor = driverColors[driver.colorIndex % driverColors.length];
-                              final bool isStale = _isLocationStale(driver.lastSeenAt);
-                              final bool isActive = driver.isOnline && !isStale;
-                              
-                              // Determine status color and text
-                              Color statusColor;
-                              String statusText;
-                              if (!driver.isOnline) {
-                                statusColor = Colors.grey;
-                                statusText = 'Offline';
-                              } else if (isStale) {
-                                statusColor = Colors.orange;
-                                statusText = 'Online • No signal';
-                              } else {
-                                statusColor = Colors.green;
-                                statusText = 'Active';
-                              }
-                              
-                              return Card(
-                                margin: const EdgeInsets.only(bottom: 8),
-                                elevation: isActive ? 2 : 0,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(10),
-                                  side: BorderSide(
-                                    color: isActive ? driverColor.withOpacity(0.3) : Colors.grey[200]!,
-                                    width: isActive ? 2 : 1,
-                                  ),
-                                ),
-                                child: InkWell(
-                                  onTap: () => _showDriverInfoDialog(driver),
-                                  borderRadius: BorderRadius.circular(10),
-                                  child: Padding(
-                                    padding: const EdgeInsets.all(12),
-                                    child: Row(
-                                      children: [
-                                        // Avatar with status ring
-                                        Stack(
-                                          children: [
-                                            CircleAvatar(
-                                              radius: 22,
-                                              backgroundColor: isStale && driver.isOnline
-                                                  ? Colors.grey
-                                                  : driverColor,
-                                              child: Text(
-                                                driver.name.isNotEmpty
-                                                    ? driver.name[0].toUpperCase()
-                                                    : 'D',
-                                                style: const TextStyle(
-                                                  color: Colors.white,
-                                                  fontWeight: FontWeight.bold,
-                                                  fontSize: 16,
-                                                ),
-                                              ),
-                                            ),
-                                            // Status indicator dot
-                                            Positioned(
-                                              right: 0,
-                                              bottom: 0,
-                                              child: Container(
-                                                width: 14,
-                                                height: 14,
-                                                decoration: BoxDecoration(
-                                                  color: statusColor,
-                                                  shape: BoxShape.circle,
-                                                  border: Border.all(color: Colors.white, width: 2),
-                                                ),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                        const SizedBox(width: 12),
-                                        // Name and status
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                driver.name,
-                                                style: const TextStyle(
-                                                  fontWeight: FontWeight.w600,
-                                                  fontSize: 15,
-                                                ),
-                                              ),
-                                              const SizedBox(height: 3),
-                                              Row(
-                                                children: [
-                                                  Container(
-                                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                                    decoration: BoxDecoration(
-                                                      color: statusColor.withOpacity(0.1),
-                                                      borderRadius: BorderRadius.circular(4),
-                                                    ),
-                                                    child: Text(
-                                                      statusText,
-                                                      style: TextStyle(
-                                                        color: statusColor,
-                                                        fontSize: 11,
-                                                        fontWeight: FontWeight.w600,
-                                                      ),
-                                                    ),
-                                                  ),
-                                                  if (driver.isOnline && driver.lastSeenAt != null) ...[
-                                                    const SizedBox(width: 8),
-                                                    Text(
-                                                      _formatLastSeen(driver.lastSeenAt),
-                                                      style: TextStyle(
-                                                        color: Colors.grey[500],
-                                                        fontSize: 10,
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ],
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                        // Actions
-                                        PopupMenuButton<String>(
-                                          icon: Icon(Icons.more_vert, color: Colors.grey[400]),
-                                          onSelected: (value) {
-                                            if (value == 'delete') {
-                                              _deleteDriver(driver);
-                                            } else if (value == 'view') {
-                                              _showDriverInfoDialog(driver);
-                                            }
-                                          },
-                                          itemBuilder: (context) => [
-                                            const PopupMenuItem(
-                                              value: 'view',
-                                              child: Row(
-                                                children: [
-                                                  Icon(Icons.visibility, color: Colors.blue, size: 20),
-                                                  SizedBox(width: 8),
-                                                  Text('View Details'),
-                                                ],
-                                              ),
-                                            ),
-                                            const PopupMenuItem(
-                                              value: 'delete',
-                                              child: Row(
-                                                children: [
-                                                  Icon(Icons.delete, color: Colors.red, size: 20),
-                                                  SizedBox(width: 8),
-                                                  Text('Delete Driver', style: TextStyle(color: Colors.red)),
-                                                ],
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-                  ),
-
-                  // Summary
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.grey[50],
-                      border: Border(top: BorderSide(color: Colors.grey[200]!)),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceAround,
-                      children: [
-                        _buildSummaryItem(
-                          '${_allDrivers.length}',
-                          'Total Drivers',
-                          Colors.blue[700]!,
-                        ),
-                        Container(width: 1, height: 30, color: Colors.grey[300]),
-                        _buildSummaryItem(
-                          '${_onlineDrivers.where((d) => !_isLocationStale(d.lastSeenAt)).length}',
-                          'Active',
-                          Colors.green[700]!,
-                        ),
-                        Container(width: 1, height: 30, color: Colors.grey[300]),
-                        _buildSummaryItem(
-                          '${_onlineDrivers.where((d) => _isLocationStale(d.lastSeenAt)).length}',
-                          'No Signal',
-                          Colors.orange[700]!,
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            )
-          : const SizedBox.shrink(),
-    );
-  }
-
-  Future<void> _fetchOnlineDrivers() async {
-    if (!mounted) return;
-
-    // Don't set loading on refresh polls, only on initial load
-    if (_onlineDrivers.isEmpty) {
-      setState(() => _isLoading = true);
-    }
-
-    try {
-      final response = await widget.supabaseClient
-          .from('drivers')
-          .select('*')
-          .eq('is_online', true);
-
-      if (!mounted) return;
-
-      final List<app_driver_model.Driver> loadedDrivers = (response as List)
-          .map(
-            (data) =>
-                app_driver_model.Driver.fromJson(data as Map<String, dynamic>),
-          )
-          .toList();
-
-      if (mounted) {
-        // Trigger smooth position animation before setting state
-        _animateToNewPositions(loadedDrivers);
-        
-        setState(() {
-          _onlineDrivers = loadedDrivers;
-          _isLoading = false;
-        });
-        await _updateMapMarkers();
-      }
-    } catch (e) {
-      print('[DeliveryMonitorScreen] Error fetching drivers: $e');
-      if (mounted) {
-        _showCopyableError('Error fetching driver data: $e');
-        setState(() => _isLoading = false);
-      }
-    }
-  }
-
-  Future<void> _fetchDeliveryOrders() async {
-    if (!mounted) return;
-
-    try {
-      // Get today's date range (00:00:00 to 23:59:59)
-      final now = DateTime.now();
-      final todayStart = DateTime(now.year, now.month, now.day);
-      final todayEnd = todayStart.add(const Duration(days: 1));
-
-      // Fetch ALL delivery orders with coordinates (not just specific statuses)
-      // This ensures new orders show up immediately
-      final response = await widget.supabaseClient
-          .from('orders')
-          .select(
-            'id, order_number, daily_order_number, customer_name, customer_street, customer_postcode, customer_city, delivery_latitude, delivery_longitude, status, total_price, created_at, fulfillment_type, payment_method',
-          )
-          .not('delivery_latitude', 'is', null)
-          .not('delivery_longitude', 'is', null)
-          .gte('created_at', todayStart.toIso8601String())
-          .lt('created_at', todayEnd.toIso8601String())
-          .order('created_at', ascending: false)
-          .limit(100);
-
-      if (!mounted) return;
-
-      final List<app_order.Order> loadedOrders = (response as List)
-          .map((data) => app_order.Order.fromJson(data as Map<String, dynamic>))
-          .toList();
-
-      // Filter out delivered/cancelled orders for map display
-      final activeOrders = loadedOrders.where((order) {
-        final status = order.status.toLowerCase();
-        return !status.contains('delivered') &&
-            !status.contains('cancelled') &&
-            !status.contains('completed');
-      }).toList();
-
-      if (mounted) {
-        setState(() {
-          _deliveryOrders = activeOrders;
-        });
-        await _updateMapMarkers();
-      }
-    } catch (e) {
-      print('[DeliveryMonitorScreen] Error fetching delivery orders: $e');
-       if (mounted) {
-        _showCopyableError('Error fetching order data: $e');
-      }
-    }
-  }
-
-  Future<gmaps.BitmapDescriptor> _createCustomDriverMarker(
-    String driverName,
-    int colorIndex,
-  ) async {
-    final String initial = driverName.isNotEmpty
-        ? driverName[0].toUpperCase()
-        : 'D';
-    final Color driverColor = driverColors[colorIndex % driverColors.length];
-
-    final ui.PictureRecorder pictureRecorder = ui.PictureRecorder();
-    final Canvas canvas = Canvas(pictureRecorder);
-    const double size = 100;
-    const double centerX = size / 2;
-    const double centerY = size / 2;
-
-    // Car dimensions - top-down view of a car
-    const double carLength = 70;
-    const double carWidth = 36;
-
-    // Shadow
-    final Paint shadowPaint = Paint()
-      ..color = Colors.black.withOpacity(0.3)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5);
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromCenter(
-          center: Offset(centerX + 2, centerY + 3),
-          width: carWidth,
-          height: carLength,
-        ),
-        const Radius.circular(12),
-      ),
-      shadowPaint,
-    );
-
-    // Main car body (employee color)
-    final Paint bodyPaint = Paint()
-      ..style = PaintingStyle.fill
-      ..color = driverColor;
-
-    // Car body - elongated rounded rectangle (top-down view)
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromCenter(
-          center: Offset(centerX, centerY),
-          width: carWidth,
-          height: carLength,
-        ),
-        const Radius.circular(10),
-      ),
-      bodyPaint,
-    );
-
-    // Front of car (hood) - slightly rounded
-    final Paint hoodPaint = Paint()
-      ..style = PaintingStyle.fill
-      ..color = Color.lerp(driverColor, Colors.black, 0.15)!;
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(
-          centerX - carWidth / 2 + 3,
-          centerY - carLength / 2 + 2,
-          carWidth - 6,
-          18,
-        ),
-        const Radius.circular(8),
-      ),
-      hoodPaint,
-    );
-
-    // Windshield (dark)
-    final Paint windshieldPaint = Paint()
-      ..style = PaintingStyle.fill
-      ..color = const Color(0xFF2D3748);
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(
-          centerX - carWidth / 2 + 5,
-          centerY - carLength / 2 + 18,
-          carWidth - 10,
-          12,
-        ),
-        const Radius.circular(3),
-      ),
-      windshieldPaint,
-    );
-
-    // Roof / cabin area (slightly darker)
-    final Paint roofPaint = Paint()
-      ..style = PaintingStyle.fill
-      ..color = Color.lerp(driverColor, Colors.black, 0.1)!;
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromCenter(
-          center: Offset(centerX, centerY + 2),
-          width: carWidth - 8,
-          height: 20,
-        ),
-        const Radius.circular(4),
-      ),
-      roofPaint,
-    );
-
-    // Rear windshield
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(
-          centerX - carWidth / 2 + 5,
-          centerY + carLength / 2 - 26,
-          carWidth - 10,
-          10,
-        ),
-        const Radius.circular(3),
-      ),
-      windshieldPaint,
-    );
-
-    // Trunk
-    final Paint trunkPaint = Paint()
-      ..style = PaintingStyle.fill
-      ..color = Color.lerp(driverColor, Colors.black, 0.12)!;
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(
-          centerX - carWidth / 2 + 3,
-          centerY + carLength / 2 - 16,
-          carWidth - 6,
-          14,
-        ),
-        const Radius.circular(6),
-      ),
-      trunkPaint,
-    );
-
-    // Headlights (front)
-    final Paint lightPaint = Paint()
-      ..style = PaintingStyle.fill
-      ..color = const Color(0xFFFFF9C4); // Light yellow
-    canvas.drawCircle(
-      Offset(centerX - carWidth / 2 + 8, centerY - carLength / 2 + 8),
-      4,
-      lightPaint,
-    );
-    canvas.drawCircle(
-      Offset(centerX + carWidth / 2 - 8, centerY - carLength / 2 + 8),
-      4,
-      lightPaint,
-    );
-
-    // Taillights (rear) - red
-    final Paint tailLightPaint = Paint()
-      ..style = PaintingStyle.fill
-      ..color = const Color(0xFFEF5350);
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(
-          centerX - carWidth / 2 + 4,
-          centerY + carLength / 2 - 6,
-          6,
-          4,
-        ),
-        const Radius.circular(2),
-      ),
-      tailLightPaint,
-    );
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(
-          centerX + carWidth / 2 - 10,
-          centerY + carLength / 2 - 6,
-          6,
-          4,
-        ),
-        const Radius.circular(2),
-      ),
-      tailLightPaint,
-    );
-
-    // Side mirrors
-    final Paint mirrorPaint = Paint()
-      ..style = PaintingStyle.fill
-      ..color = driverColor;
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(centerX - carWidth / 2 - 5, centerY - 8, 6, 8),
-        const Radius.circular(2),
-      ),
-      mirrorPaint,
-    );
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(centerX + carWidth / 2 - 1, centerY - 8, 6, 8),
-        const Radius.circular(2),
-      ),
-      mirrorPaint,
-    );
-
-    // White border around entire car
-    final Paint borderPaint = Paint()
-      ..color = Colors.white
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 3;
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromCenter(
-          center: Offset(centerX, centerY),
-          width: carWidth,
-          height: carLength,
-        ),
-        const Radius.circular(10),
-      ),
-      borderPaint,
-    );
-
-    // Driver initial badge (circle on roof)
-    final Paint badgePaint = Paint()
-      ..style = PaintingStyle.fill
-      ..color = Colors.white;
-    canvas.drawCircle(Offset(centerX, centerY + 2), 12, badgePaint);
-
-    // Initial letter
-    final TextPainter textPainter = TextPainter(
-      text: TextSpan(
-        text: initial,
-        style: TextStyle(
-          color: driverColor,
-          fontSize: 14,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
-      textDirection: ui.TextDirection.ltr,
-    );
-    textPainter.layout();
-    textPainter.paint(
-      canvas,
-      Offset(
-        centerX - textPainter.width / 2,
-        centerY + 2 - textPainter.height / 2,
-      ),
-    );
-
-    final ui.Image image = await pictureRecorder.endRecording().toImage(
-      size.toInt(),
-      size.toInt(),
-    );
-    final ByteData? byteData = await image.toByteData(
-      format: ui.ImageByteFormat.png,
-    );
-    return gmaps.BitmapDescriptor.fromBytes(byteData!.buffer.asUint8List());
-  }
-
-  Future<gmaps.BitmapDescriptor> _createCustomOrderMarker(
-    int dailyOrderNumber,
-  ) async {
-    final String orderText = dailyOrderNumber.toString();
-    final ui.PictureRecorder pictureRecorder = ui.PictureRecorder();
-    final Canvas canvas = Canvas(pictureRecorder);
-    const double size = 52;
-    const double centerX = size / 2;
-    const double bagTop = 14.0;
-    const double bagHeight = size - bagTop - 4;
-    const double bagWidth = size - 8;
-
-    // Draw bag body (coral/red color like the icon)
-    final Paint bagPaint = Paint()
-      ..style = PaintingStyle.fill
-      ..color = const Color(0xFFE57373); // Coral red
-
-    // Bag body - rounded rectangle
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(4, bagTop, bagWidth, bagHeight),
-        const Radius.circular(8),
-      ),
-      bagPaint,
-    );
-
-    // Draw bag handle (dark gray arc on top)
-    final Paint handlePaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..color =
-          const Color(0xFF4A4A4A) // Dark gray
-      ..strokeWidth = 5
-      ..strokeCap = StrokeCap.round;
-
-    // Draw handle as an arc
-    final Path handlePath = Path();
-    handlePath.moveTo(centerX - 10, bagTop + 2);
-    handlePath.quadraticBezierTo(centerX - 10, 4, centerX, 4);
-    handlePath.quadraticBezierTo(centerX + 10, 4, centerX + 10, bagTop + 2);
-    canvas.drawPath(handlePath, handlePaint);
-
-    // Draw the daily order number in the center of the bag
-    final double fontSize = orderText.length > 2
-        ? 14.0
-        : (orderText.length > 1 ? 18.0 : 22.0);
-    final TextPainter textPainter = TextPainter(
-      text: TextSpan(
-        text: orderText,
-        style: TextStyle(
-          color: Colors.white,
-          fontSize: fontSize,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
-      textDirection: ui.TextDirection.ltr,
-    );
-    textPainter.layout();
-
-    // Center the text in the bag body
-    final double bagCenterY = bagTop + bagHeight / 2;
-    textPainter.paint(
-      canvas,
-      Offset(
-        centerX - textPainter.width / 2,
-        bagCenterY - textPainter.height / 2,
-      ),
-    );
-
-    final ui.Image image = await pictureRecorder.endRecording().toImage(
-      size.toInt(),
-      size.toInt(),
-    );
-    final ByteData? byteData = await image.toByteData(
-      format: ui.ImageByteFormat.png,
-    );
-    return gmaps.BitmapDescriptor.fromBytes(byteData!.buffer.asUint8List());
-  }
-
-  Future<gmaps.BitmapDescriptor> _createRestaurantMarker() async {
-    final ui.PictureRecorder pictureRecorder = ui.PictureRecorder();
-    final Canvas canvas = Canvas(pictureRecorder);
-    const double size = 70;
-    const double circleRadius = 25;
-
-    // Draw drop shadow
-    final Paint shadowPaint = Paint()
-      ..color = Colors.black.withOpacity(0.3)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
-    canvas.drawCircle(
-      const Offset(size / 2 + 1, size / 2 + 2),
-      circleRadius,
-      shadowPaint,
-    );
-
-    // Draw white background circle
-    final Paint whitePaint = Paint()
-      ..color = Colors.white
-      ..style = PaintingStyle.fill;
-    canvas.drawCircle(
-      const Offset(size / 2, size / 2),
-      circleRadius,
-      whitePaint,
-    );
-
-    // Draw green inner circle
-    final Paint greenPaint = Paint()
-      ..color = const Color(0xFF4CAF50)
-      ..style = PaintingStyle.fill;
-    canvas.drawCircle(
-      const Offset(size / 2, size / 2),
-      circleRadius - 3,
-      greenPaint,
-    );
-
-    // Draw house icon - BIGGER
-    final double centerX = size / 2;
-    final double centerY = size / 2;
-
-    // House body (white rectangle)
-    final Paint housePaint = Paint()
-      ..color = Colors.white
-      ..style = PaintingStyle.fill;
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromCenter(
-          center: Offset(centerX, centerY + 4),
-          width: 22,
-          height: 16,
-        ),
-        const Radius.circular(2),
-      ),
-      housePaint,
-    );
-
-    // Roof (white triangle)
-    final Path roofPath = Path();
-    roofPath.moveTo(centerX - 14, centerY - 4);
-    roofPath.lineTo(centerX + 14, centerY - 4);
-    roofPath.lineTo(centerX, centerY - 14);
-    roofPath.close();
-    canvas.drawPath(roofPath, housePaint);
-
-    // Door (green rectangle)
-    final Paint doorPaint = Paint()
-      ..color = const Color(0xFF4CAF50)
-      ..style = PaintingStyle.fill;
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromCenter(
-          center: Offset(centerX, centerY + 6),
-          width: 6,
-          height: 10,
-        ),
-        const Radius.circular(1),
-      ),
-      doorPaint,
-    );
-
-    final ui.Image image = await pictureRecorder.endRecording().toImage(
-      size.toInt(),
-      size.toInt(),
-    );
-    final ByteData? byteData = await image.toByteData(
-      format: ui.ImageByteFormat.png,
-    );
-    return gmaps.BitmapDescriptor.fromBytes(byteData!.buffer.asUint8List());
-  }
-
-  // Cache driver marker icons to avoid regenerating every animation frame
-  final Map<String, gmaps.BitmapDescriptor> _cachedDriverIcons = {};
-  // Static markers (restaurant + orders) that don't animate
-  Set<gmaps.Marker> _staticMarkers = {};
-  
-  Future<void> _updateMapMarkers() async {
-    if (!mounted) return;
-
-    // Skip marker generation on desktop (uses _buildDesktopMarkers instead)
-    if (isDesktopPlatform) {
-      if (mounted) setState(() {});
-      return;
-    }
-
-    final Set<gmaps.Marker> staticMarkers = {};
-
-    // Add restaurant marker (green store icon)
-    final gmaps.BitmapDescriptor restaurantIcon =
-        await _createRestaurantMarker();
-    staticMarkers.add(
-      gmaps.Marker(
-        markerId: const gmaps.MarkerId('restaurant'),
-        position: _restaurantLocation,
-        icon: restaurantIcon,
-        infoWindow: gmaps.InfoWindow(
-          title: '🏪 Restaurant',
-          snippet: _restaurantAddress,
-        ),
-        zIndex: 1, // Keep restaurant on top
-      ),
-    );
-
-    // Pre-generate driver marker icons (cache them to avoid regenerating during animation)
-    for (var driver in _onlineDrivers) {
-      if (driver.currentLocation != null && !_cachedDriverIcons.containsKey(driver.id)) {
-        _cachedDriverIcons[driver.id] = await _createCustomDriverMarker(driver.name, driver.colorIndex);
-      }
-    }
-    // Remove cached icons for drivers that are no longer online
-    _cachedDriverIcons.removeWhere((id, _) => !_onlineDrivers.any((d) => d.id == id));
-
-    // Add order markers (orange with daily order number)
-    for (var order in _deliveryOrders) {
-      if (order.deliveryLatitude != null && order.deliveryLongitude != null) {
-        final int dailyNumber = order.dailyOrderNumber ?? 0;
-        final gmaps.BitmapDescriptor orderIcon = await _createCustomOrderMarker(
-          dailyNumber > 0 ? dailyNumber : (_deliveryOrders.indexOf(order) + 1),
-        );
-
-        // Build comprehensive info for the marker
-        final String customerName = order.customerName ?? 'Unknown Customer';
-        final String street = order.customerStreet ?? '';
-        final String postcode = order.customerPostcode ?? '';
-        final String city = order.customerCity ?? '';
-
-        // Build full address
-        String fullAddress = street;
-        if (postcode.isNotEmpty || city.isNotEmpty) {
-          fullAddress += fullAddress.isNotEmpty ? ', ' : '';
-          fullAddress += '$postcode $city'.trim();
-        }
-        if (fullAddress.isEmpty) {
-          fullAddress = 'Address not available';
-        }
-
-        // Build status and payment info
-        final String statusText = order.status
-            .replaceAll('_', ' ')
-            .toUpperCase();
-        final String paymentText = order.paymentMethod.toUpperCase();
-
-        staticMarkers.add(
-          gmaps.Marker(
-            markerId: gmaps.MarkerId('order_${order.id}'),
-            position: gmaps.LatLng(
-              order.deliveryLatitude!,
-              order.deliveryLongitude!,
-            ),
-            icon: orderIcon,
-            infoWindow: gmaps.InfoWindow(
-              title:
-                  '🛵 $customerName • €${order.totalPrice.toStringAsFixed(2)}',
-              snippet: '$fullAddress\n[$statusText] - $paymentText',
-            ),
-            onTap: () => _showOrderDetailsBottomSheet(order),
-          ),
-        );
-      }
-    }
-
-    _staticMarkers = staticMarkers;
-    
-    // Build full marker set with animated driver positions
-    _rebuildMarkersFromAnimatedState();
-  }
-  
-  /// Rebuild the marker set using current animated positions.
-  /// This is called on every animation tick for smooth driver movement.
-  void _rebuildMarkersFromAnimatedState() {
-    if (!mounted) return;
-    
-    final Set<gmaps.Marker> allMarkers = Set.from(_staticMarkers);
-    
-    // Add driver markers at their current animated positions
-    for (var driver in _onlineDrivers) {
-      if (driver.currentLocation == null) continue;
-      
-      final animatedPos = _animatedPositions[driver.id] ?? driver.currentLocation!;
-      final heading = _animatedHeadings[driver.id] ?? driver.heading ?? 0;
-      final icon = _cachedDriverIcons[driver.id];
-      
-      if (icon != null) {
-        allMarkers.add(
-          gmaps.Marker(
-            markerId: gmaps.MarkerId('driver_${driver.id}'),
-            position: animatedPos,
-            icon: icon,
-            rotation: heading, // Rotate car marker to match heading direction
-            anchor: const Offset(0.5, 0.5),
-            flat: true, // Flat marker rotates with heading nicely
-            zIndex: 2, // Drivers on top of orders
-            onTap: () => _showDriverInfoDialog(driver),
-          ),
-        );
-      }
-    }
-    
-    if (mounted) setState(() => _mapMarkers = allMarkers);
-  }
-
-  // ============================================================
-  // PLANNER DISPATCH PANEL
-  // ============================================================
-
-  Future<void> _fetchPlannedRoutes() async {
-    if (!mounted) return;
-    try {
-      final response = await widget.supabaseClient
-          .from('delivery_routes')
-          .select('id, assigned_driver_id, status, plan_version, planned_departure_at, planned_return_at, total_estimated_duration_seconds')
-          .inFilter('status', ['assigned', 'in_progress'])
-          .order('created_at', ascending: false)
-          .limit(10);
-
-      final List<Map<String, dynamic>> routes = (response as List)
-          .map((e) => Map<String, dynamic>.from(e as Map))
-          .toList();
-
-      // Fetch route stops for these routes
-      final routeIds = routes.map((r) => r['id'] as String).toList();
-      List<Map<String, dynamic>> stops = [];
-      if (routeIds.isNotEmpty) {
-        final stopsResponse = await widget.supabaseClient
-            .from('route_stops')
-            .select('id, delivery_route_id, order_id, type, sequence_number, latitude, longitude, customer_name, customer_address, estimated_arrival_time, planned_arrival_at, target_delivery_time, status, pinned_driver_id')
-            .inFilter('delivery_route_id', routeIds)
-            .order('sequence_number', ascending: true);
-        stops = (stopsResponse as List)
-            .map((e) => Map<String, dynamic>.from(e as Map))
-            .toList();
-
-        // Enrich stops with order target times if not stored on route_stops
-        final orderIds = stops
-            .where((s) => s['order_id'] != null)
-            .map((s) => s['order_id'] as String)
-            .toSet()
-            .toList();
-        if (orderIds.isNotEmpty) {
-          final ordersResponse = await widget.supabaseClient
-              .from('orders')
-              .select('id, estimated_delivery_time, requested_delivery_time, payment_method, total_price')
-              .inFilter('id', orderIds);
-          final ordersMap = <String, Map<String, dynamic>>{};
-          for (final o in (ordersResponse as List)) {
-            final om = Map<String, dynamic>.from(o as Map);
-            ordersMap[om['id'] as String] = om;
-          }
-          // Attach target time to each stop
-          for (var i = 0; i < stops.length; i++) {
-            final oid = stops[i]['order_id'] as String?;
-            if (oid != null && ordersMap.containsKey(oid)) {
-              final orderData = ordersMap[oid]!;
-              stops[i]['_target_time'] = orderData['requested_delivery_time'] ?? orderData['estimated_delivery_time'];
-              stops[i]['_payment_method'] = orderData['payment_method'];
-              stops[i]['_total_price'] = orderData['total_price'];
-            }
-          }
-        }
-      }
-
-      // Fetch unassigned / preparing delivery orders
-      final unassignedResponse = await widget.supabaseClient
-          .from('orders')
-          .select('id, customer_name, customer_street, customer_postcode, customer_city, delivery_status, estimated_pickup_time, requested_delivery_time, estimated_delivery_time, is_unassignable, unassignable_reason')
-          .eq('fulfillment_type', 'delivery')
-          .isFilter('delivery_route_id', null)
-          .inFilter('delivery_status', ['preparing', 'ready_to_deliver'])
-          .order('estimated_pickup_time', ascending: true)
-          .limit(20);
-
-      final List<Map<String, dynamic>> unassignedList = (unassignedResponse as List)
-          .map((e) => Map<String, dynamic>.from(e as Map))
-          .toList();
-
-      // Detect stop assignment shifts across plan versions
-      final newHighlightIds = <String>{};
-      final routeDriverMap = <String, String>{};
-      for (final r in routes) {
-        final rId = r['id'] as String?;
-        final dId = r['assigned_driver_id'] as String?;
-        if (rId != null && dId != null) {
-          routeDriverMap[rId] = dId;
-        }
-      }
-
-      for (final s in stops) {
-        final sId = s['id'] as String?;
-        final rId = s['delivery_route_id'] as String?;
-        if (sId != null && rId != null && routeDriverMap.containsKey(rId)) {
-          final currentDriver = routeDriverMap[rId]!;
-          if (_previousStopDriverMap.containsKey(sId) &&
-              _previousStopDriverMap[sId] != currentDriver) {
-            newHighlightIds.add(sId);
-          }
-          _previousStopDriverMap[sId] = currentDriver;
-        }
-      }
-
-      if (newHighlightIds.isNotEmpty) {
-        _highlightClearTimer?.cancel();
-        _highlightClearTimer = Timer(const Duration(seconds: 3), () {
-          if (mounted) setState(() => _highlightedStopIds = {});
-        });
-      }
-
-      // Get latest plan version
-      final logResponse = await widget.supabaseClient
-          .from('plan_log')
-          .select('plan_version, created_at')
-          .order('plan_version', ascending: false)
-          .limit(1);
-      final logList = logResponse as List;
-
-      if (mounted) {
-        setState(() {
-          _plannedRoutes = routes;
-          _planStops = stops;
-          _unassignedOrders = unassignedList;
-          if (newHighlightIds.isNotEmpty) {
-            _highlightedStopIds = newHighlightIds;
-          }
-          if (logList.isNotEmpty) {
-            _planVersion = (logList[0]['plan_version'] as num?)?.toInt() ?? 0;
-            _lastPlanTime = DateTime.tryParse(logList[0]['created_at'] as String? ?? '');
-          }
-        });
-      }
-    } catch (e) {
-      print('[DeliveryMonitorScreen] Error fetching planned routes: $e');
-    }
-  }
-
-  void _setupPlanRealtimeSubscription() {
-    _planSubscription = widget.supabaseClient
-        .channel('plan-updates')
-        .onPostgresChanges(
-          event: PostgresChangeEvent.all,
-          schema: 'public',
-          table: 'delivery_routes',
-          callback: (payload) {
-            if (mounted) _fetchPlannedRoutes();
-          },
-        )
-        .subscribe();
-
-    _planLogSubscription = widget.supabaseClient
-        .channel('plan-log-channel')
-        .onPostgresChanges(
-          event: PostgresChangeEvent.insert,
-          schema: 'public',
-          table: 'plan_log',
-          callback: (payload) {
-            final newRec = payload.newRecord;
-            final newVer = (newRec['plan_version'] as num?)?.toInt();
-            if (mounted) {
-              if (newVer != null) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Row(
-                      children: [
-                        const Icon(Icons.route, color: Colors.amberAccent, size: 18),
-                        const SizedBox(width: 8),
-                        Text('Plan updated (v$newVer)', style: const TextStyle(fontWeight: FontWeight.bold)),
-                      ],
-                    ),
-                    backgroundColor: const Color(0xFF1E222D),
-                    behavior: SnackBarBehavior.floating,
-                    duration: const Duration(seconds: 2),
-                  ),
-                );
-              }
-              _fetchPlannedRoutes();
-              _fetchAllDrivers();
-            }
-          },
-        )
-        .subscribe();
-  }
-
-  Future<void> _reassignStopToDriver(String stopId, String targetDriverId) async {
-    try {
-      await widget.supabaseClient
-          .from('route_stops')
-          .update({'pinned_driver_id': targetDriverId})
-          .eq('id', stopId);
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Stop pinned to driver. Replanning...'),
-            backgroundColor: Colors.indigo,
-            duration: Duration(seconds: 2),
-          ),
-        );
-      }
-
-      await _triggerReplan();
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error pinning stop: $e'), backgroundColor: Colors.red),
-        );
-      }
-    }
-  }
-
-  Future<void> _triggerReplan() async {
-    if (_isReplanning) return;
-    setState(() => _isReplanning = true);
-
-    try {
-      final response = await widget.supabaseClient.functions.invoke(
-        'plan-routes',
-        body: {'trigger_reason': 'manual'},
-      );
-
-      if (mounted) {
-        final data = response.data;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Plan v${data?['plan_version'] ?? '?'} created • '
-              '${data?['routes_created'] ?? 0} routes • '
-              '${data?['solver_time_ms'] ?? 0}ms',
-            ),
-            backgroundColor: Colors.green[700],
-            duration: const Duration(seconds: 3),
-          ),
-        );
-        await _fetchPlannedRoutes();
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Replan failed: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _isReplanning = false);
-    }
-  }
-
-  Future<void> _confirmRoute(String routeId, String? driverId) async {
-    try {
-      final now = DateTime.now().toUtc().toIso8601String();
-
-      // 1. Update route status to in_progress
-      await widget.supabaseClient
-          .from('delivery_routes')
-          .update({
-            'status': 'in_progress',
-            'confirmed_at': now,
-            'actual_departure_at': now,
-          })
-          .eq('id', routeId);
-
-      // 2. Update driver's current_route_id
-      if (driverId != null) {
-        await widget.supabaseClient
-            .from('drivers')
-            .update({'current_route_id': routeId})
-            .eq('id', driverId);
-      }
-
-      // 3. Update all orders in this route to out_for_delivery
-      final stopsResponse = await widget.supabaseClient
-          .from('route_stops')
-          .select('order_id')
-          .eq('delivery_route_id', routeId)
-          .eq('type', 'customer_delivery');
-
-      final orderIds = (stopsResponse as List)
-          .map((s) => (s as Map)['order_id'] as String?)
-          .where((id) => id != null)
-          .toList();
-
-      for (final oid in orderIds) {
-        if (oid == null) continue;
-        await widget.supabaseClient
-            .from('orders')
-            .update({
-              'delivery_status': 'out_for_delivery',
-              'assigned_driver_id': driverId,
-            })
-            .eq('id', oid);
-      }
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                const Icon(Icons.check_circle, color: Colors.white),
-                const SizedBox(width: 8),
-                Text('Route confirmed! ${orderIds.length} orders dispatched.'),
-              ],
-            ),
-            backgroundColor: Colors.green[700],
-            duration: const Duration(seconds: 3),
-          ),
-        );
-        await _fetchPlannedRoutes();
-        await _fetchDeliveryOrders();
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error confirming route: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
-
-  Widget _buildDispatchPanel() {
-    if (!_showDispatchPanel) return const SizedBox.shrink();
-
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 300),
-      width: 360,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: const BorderRadius.only(
-          topLeft: Radius.circular(16),
-          bottomLeft: Radius.circular(16),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.15),
-            blurRadius: 12,
-            offset: const Offset(-4, 0),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          // Header
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Colors.indigo[700]!, Colors.indigo[500]!],
-              ),
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(16),
-              ),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.route, color: Colors.white, size: 22),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Route Planner',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
-                      ),
-                      Text(
-                        _lastPlanTime != null
-                            ? 'Plan v$_planVersion • ${_formatTimeAgo(_lastPlanTime!)}'
-                            : 'No plan yet',
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(0.8),
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                ElevatedButton.icon(
-                  onPressed: _isReplanning ? null : _triggerReplan,
-                  icon: _isReplanning
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : const Icon(Icons.autorenew, size: 18),
-                  label: Text(_isReplanning ? 'Planning...' : 'Replan'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.white.withOpacity(0.2),
-                    foregroundColor: Colors.white,
-                    elevation: 0,
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 4),
-                IconButton(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const DeliverySettingsScreen(),
-                      ),
-                    );
-                  },
-                  icon: const Icon(Icons.settings, color: Colors.white70, size: 20),
-                  tooltip: 'Planner Settings',
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                ),
-              ],
-            ),
-          ),
-          // Route list
-          Expanded(
-            child: _plannedRoutes.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.route, size: 48, color: Colors.grey[300]),
-                        const SizedBox(height: 12),
-                        Text(
-                          'No active routes',
-                          style: TextStyle(color: Colors.grey[500], fontSize: 14),
-                        ),
-                        const SizedBox(height: 8),
-                        ElevatedButton.icon(
-                          onPressed: _triggerReplan,
-                          icon: const Icon(Icons.play_arrow, size: 18),
-                          label: const Text('Create Plan'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.indigo,
-                            foregroundColor: Colors.white,
-                          ),
-                        ),
-                      ],
-                    ),
-                  )
-                : ListView.builder(
-                    padding: const EdgeInsets.all(8),
-                    itemCount: _plannedRoutes.length,
-                    itemBuilder: (context, index) {
-                      final route = _plannedRoutes[index];
-                      final driverId = route['assigned_driver_id'] as String?;
-                      final driver = _allDrivers.cast<app_driver_model.Driver?>().firstWhere(
-                        (d) => d?.id == driverId,
-                        orElse: () => null,
-                      );
-                      final routeStops = _planStops
-                          .where((s) => s['delivery_route_id'] == route['id'])
-                          .toList();
-                      final driverColor = driver != null
-                          ? driverColors[driver.colorIndex % driverColors.length]
-                          : Colors.grey;
-
-                      return Card(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          side: BorderSide(color: driverColor.withOpacity(0.3), width: 2),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // Route header
-                            Container(
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: driverColor.withOpacity(0.1),
-                                borderRadius: const BorderRadius.only(
-                                  topLeft: Radius.circular(12),
-                                  topRight: Radius.circular(12),
-                                ),
-                              ),
-                              child: Row(
-                                children: [
-                                  Container(
-                                    width: 32,
-                                    height: 32,
-                                    decoration: BoxDecoration(
-                                      color: driverColor,
-                                      shape: BoxShape.circle,
-                                    ),
-                                    child: Center(
-                                      child: Text(
-                                        driver?.name.isNotEmpty == true
-                                            ? driver!.name[0].toUpperCase()
-                                            : '?',
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          driver?.name ?? 'Unknown Driver',
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 14,
-                                          ),
-                                        ),
-                                        Text(
-                                          '${routeStops.where((s) => s['type'] == 'customer_delivery').length} stops • '
-                                          '${((route['total_estimated_duration_seconds'] as num? ?? 0) / 60).toStringAsFixed(0)} min',
-                                          style: TextStyle(
-                                            color: Colors.grey[600],
-                                            fontSize: 12,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                    decoration: BoxDecoration(
-                                      color: route['status'] == 'in_progress'
-                                          ? Colors.blue
-                                          : Colors.orange,
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: Text(
-                                      route['status'] == 'in_progress' ? 'ACTIVE' : 'PLANNED',
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            // Stops with target vs projected times
-                            ...routeStops
-                                .where((s) => s['type'] == 'customer_delivery')
-                                .map((stop) {
-                              final plannedTime = DateTime.tryParse(
-                                  stop['planned_arrival_at'] as String? ?? '');
-                              final targetTimeStr = stop['_target_time'] as String? ?? stop['target_delivery_time'] as String?;
-                              final targetTime = targetTimeStr != null ? DateTime.tryParse(targetTimeStr) : null;
-                              final now = DateTime.now();
-                              final isProjectedLate = plannedTime != null &&
-                                  targetTime != null &&
-                                  plannedTime.isAfter(targetTime);
-                              final isOverdue = plannedTime != null &&
-                                  plannedTime.isBefore(now) &&
-                                  stop['status'] == 'pending';
-                              final isCash = (stop['_payment_method'] as String?) == 'cash';
-
-                              return Padding(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 12, vertical: 4),
-                                child: Container(
-                                  padding: const EdgeInsets.all(8),
-                                  decoration: BoxDecoration(
-                                    color: stop['status'] == 'completed'
-                                        ? Colors.green.withOpacity(0.05)
-                                        : isProjectedLate || isOverdue
-                                            ? Colors.red.withOpacity(0.05)
-                                            : Colors.transparent,
-                                    borderRadius: BorderRadius.circular(8),
-                                    border: isProjectedLate || isOverdue
-                                        ? Border.all(color: Colors.red.withOpacity(0.3))
-                                        : null,
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Container(
-                                        width: 24,
-                                        height: 24,
-                                        decoration: BoxDecoration(
-                                          color: stop['status'] == 'completed'
-                                              ? Colors.green
-                                              : isProjectedLate || isOverdue
-                                                  ? Colors.red
-                                                  : driverColor,
-                                          shape: BoxShape.circle,
-                                        ),
-                                        child: Center(
-                                          child: stop['status'] == 'completed'
-                                              ? const Icon(Icons.check,
-                                                  color: Colors.white, size: 14)
-                                              : Text(
-                                                  '${stop['sequence_number']}',
-                                                  style: const TextStyle(
-                                                    color: Colors.white,
-                                                    fontSize: 11,
-                                                    fontWeight: FontWeight.bold,
-                                                  ),
-                                                ),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            Row(
-                                              children: [
-                                                Expanded(
-                                                  child: Text(
-                                                    stop['customer_name'] as String? ?? 'Unknown',
-                                                    style: const TextStyle(
-                                                      fontSize: 13,
-                                                      fontWeight: FontWeight.w500,
-                                                    ),
-                                                    overflow: TextOverflow.ellipsis,
-                                                  ),
-                                                ),
-                                                if (isCash)
-                                                  Container(
-                                                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                                                    decoration: BoxDecoration(
-                                                      color: Colors.amber[100],
-                                                      borderRadius: BorderRadius.circular(4),
-                                                    ),
-                                                    child: Text('CASH', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.amber[900])),
-                                                  ),
-                                              ],
-                                            ),
-                                            if (stop['customer_address'] != null)
-                                              Text(
-                                                stop['customer_address'] as String,
-                                                style: TextStyle(
-                                                  fontSize: 11,
-                                                  color: Colors.grey[600],
-                                                ),
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
-                                              ),
-                                          ],
-                                        ),
-                                      ),
-                                      const SizedBox(width: 4),
-                                      // Time columns: Target | Projected
-                                      Column(
-                                        crossAxisAlignment: CrossAxisAlignment.end,
-                                        children: [
-                                          if (targetTime != null)
-                                            Text(
-                                              '🎯 ${targetTime.toLocal().hour.toString().padLeft(2, '0')}:${targetTime.toLocal().minute.toString().padLeft(2, '0')}',
-                                              style: TextStyle(
-                                                fontSize: 10,
-                                                color: Colors.grey[500],
-                                              ),
-                                            ),
-                                          if (plannedTime != null)
-                                            Container(
-                                              padding: const EdgeInsets.symmetric(
-                                                  horizontal: 4, vertical: 1),
-                                              decoration: BoxDecoration(
-                                                color: isProjectedLate || isOverdue
-                                                    ? Colors.red.withOpacity(0.15)
-                                                    : Colors.green.withOpacity(0.15),
-                                                borderRadius: BorderRadius.circular(4),
-                                              ),
-                                              child: Text(
-                                                '${isProjectedLate ? '⚠️ ' : ''}${plannedTime.toLocal().hour.toString().padLeft(2, '0')}:${plannedTime.toLocal().minute.toString().padLeft(2, '0')}',
-                                                style: TextStyle(
-                                                  fontSize: 11,
-                                                  fontWeight: FontWeight.bold,
-                                                  color: isProjectedLate || isOverdue
-                                                      ? Colors.red[700]
-                                                      : Colors.green[700],
-                                                ),
-                                              ),
-                                            ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              );
-                            }),
-                            // Confirm / Start Route button
-                            if (route['status'] == 'assigned')
-                              Padding(
-                                padding: const EdgeInsets.all(12),
-                                child: SizedBox(
-                                  width: double.infinity,
-                                  child: ElevatedButton.icon(
-                                    onPressed: () => _confirmRoute(route['id'] as String, route['assigned_driver_id'] as String?),
-                                    icon: const Icon(Icons.check_circle, size: 18),
-                                    label: const Text('Confirm & Start Route'),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.green[600],
-                                      foregroundColor: Colors.white,
-                                      padding: const EdgeInsets.symmetric(vertical: 10),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              )
-                            else
-                              const SizedBox(height: 8),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  String _formatTimeAgo(DateTime time) {
-    final diff = DateTime.now().difference(time);
-    if (diff.inSeconds < 60) return '${diff.inSeconds}s ago';
-    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
-    return '${diff.inHours}h ago';
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      extendBodyBehindAppBar: true,
-      backgroundColor: Colors.grey[50],
-      appBar: AppBar(
-        title: const Text(
-          'Delivery Monitor',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-            shadows: [Shadow(color: Colors.black45, blurRadius: 4)],
-          ),
-        ),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        centerTitle: true,
-        iconTheme: const IconThemeData(color: Colors.white),
-        actions: [
-          // Timeline Panel Toggle Button
-          Padding(
-            padding: const EdgeInsets.only(right: 4),
-            child: IconButton(
-              icon: Icon(
-                Icons.view_timeline,
-                color: _showTimelinePanel ? Colors.amber : Colors.white,
-                shadows: const [Shadow(color: Colors.black45, blurRadius: 4)],
-              ),
-              onPressed: () {
-                setState(() => _showTimelinePanel = !_showTimelinePanel);
-                if (_showTimelinePanel) _fetchPlannedRoutes();
-              },
-              tooltip: 'Driver Timeline',
-            ),
-          ),
-          // Route Planner Panel Button
-          Padding(
-            padding: const EdgeInsets.only(right: 4),
-            child: IconButton(
-              icon: Icon(
-                Icons.route,
-                color: _showDispatchPanel ? Colors.amber : Colors.white,
-                shadows: const [Shadow(color: Colors.black45, blurRadius: 4)],
-              ),
-              onPressed: () {
-                setState(() => _showDispatchPanel = !_showDispatchPanel);
-                if (_showDispatchPanel) _fetchPlannedRoutes();
-              },
-              tooltip: 'Route Planner',
-            ),
-          ),
-          // Coordinate Updates Button
-          Padding(
-            padding: const EdgeInsets.only(right: 4),
-            child: IconButton(
-              icon: const Icon(
-                Icons.gps_fixed,
-                color: Colors.white,
-                shadows: [Shadow(color: Colors.black45, blurRadius: 4)],
-              ),
-              onPressed: _showAllDriversCoordinateLogsDialog,
-              tooltip: 'Coordinate Updates',
-            ),
-          ),
-          // Manage Drivers Button
-          Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: IconButton(
-              icon: Icon(
-                Icons.people,
-                color: _showDriversPanel ? Colors.amber : Colors.white,
-                shadows: const [Shadow(color: Colors.black45, blurRadius: 4)],
-              ),
-              onPressed: () =>
-                  setState(() => _showDriversPanel = !_showDriversPanel),
-              tooltip: 'Manage Drivers',
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: Center(
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.blue[600]!.withOpacity(0.9),
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 4)],
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.drive_eta, color: Colors.white, size: 18),
-                    const SizedBox(width: 6),
-                    Text(
-                      '${_onlineDrivers.length}',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.only(right: 16),
-            child: Center(
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.orange[600]!.withOpacity(0.9),
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 4)],
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(
-                      Icons.shopping_bag,
-                      color: Colors.white,
-                      size: 18,
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      '${_deliveryOrders.length}',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          IconButton(
-            icon: const Icon(
-              Icons.refresh,
-              shadows: [Shadow(color: Colors.black45, blurRadius: 4)],
-            ),
-            onPressed: () {
-              _fetchAllDrivers();
-              _fetchOnlineDrivers();
-              _fetchDeliveryOrders();
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    'Refreshed: ${_onlineDrivers.length} drivers online, ${_deliveryOrders.length} orders',
-                  ),
-                  backgroundColor: Colors.blue,
-                  duration: const Duration(seconds: 2),
-                ),
-              );
-            },
-            tooltip: 'Refresh',
-          ),
-        ],
-      ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : Row(
-              children: [
-                // Map - Full screen behind AppBar with Docked Timeline Panel
-                Expanded(
-                  child: Stack(
-                    children: [
-                      Positioned.fill(
-                        child: isDesktopPlatform
-                            ? _buildDesktopMap()
-                            : _buildMobileMap(),
-                      ),
-                      if (_showTimelinePanel)
-                        Positioned(
-                          left: 16,
-                          right: 16,
-                          bottom: 16,
-                          child: DeliveryTimelineWidget(
-                            drivers: _allDrivers.where((d) => d.isOnline).toList().isNotEmpty
-                                ? _allDrivers.where((d) => d.isOnline).toList()
-                                : _allDrivers,
-                            routes: _plannedRoutes,
-                            stops: _planStops,
-                            unassignedOrders: _unassignedOrders,
-                            highlightedStopIds: _highlightedStopIds,
-                            onReassignStop: _reassignStopToDriver,
-                            onReplanRequested: _triggerReplan,
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-
-                // Route Planner Dispatch Panel
-                _buildDispatchPanel(),
-
-                // Drivers Panel (slides in from right)
-                _buildDriversPanel(),
-              ],
-            ),
-    );
-  }
-
-  /// Build Google Maps for mobile (Android/iOS)
-  Widget _buildMobileMap() {
-    return gmaps.GoogleMap(
-      onMapCreated: (gmaps.GoogleMapController controller) =>
-          _mapController = controller,
-      initialCameraPosition: gmaps.CameraPosition(
-        target: _restaurantLocation,
-        zoom: 13,
-      ),
-      markers: _mapMarkers,
-      zoomControlsEnabled: true,
-      mapToolbarEnabled: true,
-      myLocationEnabled: false,
-      myLocationButtonEnabled: false,
-    );
-  }
-
-  /// Build Flutter Map for desktop (macOS/Windows/Linux) using OpenStreetMap
-  Widget _buildDesktopMap() {
-    return fmap.FlutterMap(
-      mapController: _flutterMapController,
-      options: fmap.MapOptions(
-        initialCenter: _restaurantLocationDesktop,
-        initialZoom: 13,
-      ),
-      children: [
-        // OpenStreetMap tile layer
-        fmap.TileLayer(
-          urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-          userAgentPackageName: 'com.restaurantadmin.app',
-        ),
-        // Markers layer
-        fmap.MarkerLayer(markers: _buildDesktopMarkers()),
-      ],
-    );
-  }
-
-  /// Build markers for desktop flutter_map
-  List<fmap.Marker> _buildDesktopMarkers() {
-    final List<fmap.Marker> markers = [];
-
-    // Restaurant marker
-    markers.add(
-      fmap.Marker(
-        point: _restaurantLocationDesktop,
-        width: 50,
-        height: 50,
-        child: GestureDetector(
-          onTap: () => _showInfoDialog('🏪 Restaurant', _restaurantAddress),
-          child: Container(
-            decoration: BoxDecoration(
-              color: Colors.green,
-              shape: BoxShape.circle,
-              border: Border.all(color: Colors.white, width: 3),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black26,
-                  blurRadius: 4,
-                  offset: Offset(0, 2),
-                ),
-              ],
-            ),
-            child: const Icon(Icons.store, color: Colors.white, size: 28),
-          ),
-        ),
-      ),
-    );
-
-    // Driver markers (with employee color - car shape, animated positions)
-    for (var driver in _onlineDrivers) {
-      if (driver.currentLocation != null) {
-        final Color driverColor =
-            driverColors[driver.colorIndex % driverColors.length];
-        // Use animated position if available, otherwise use current
-        final animPos = _animatedPositions[driver.id];
-        final heading = _animatedHeadings[driver.id] ?? driver.heading ?? 0;
-        final markerLat = animPos?.latitude ?? driver.currentLocation!.latitude;
-        final markerLng = animPos?.longitude ?? driver.currentLocation!.longitude;
-        markers.add(
-          fmap.Marker(
-            point: latlong.LatLng(markerLat, markerLng),
-            width: 50,
-            height: 80,
-            child: GestureDetector(
-              onTap: () => _showDriverInfoDialog(driver),
-              child: Transform.rotate(
-                angle: heading * math.pi / 180, // Convert degrees to radians
-                child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Car body (top-down view)
-                  Container(
-                    width: 36,
-                    height: 60,
-                    decoration: BoxDecoration(
-                      color: driverColor,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: Colors.white, width: 2),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black26,
-                          blurRadius: 4,
-                          offset: Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: Stack(
-                      children: [
-                        // Windshield
-                        Positioned(
-                          top: 10,
-                          left: 4,
-                          right: 4,
-                          child: Container(
-                            height: 10,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF2D3748),
-                              borderRadius: BorderRadius.circular(3),
-                            ),
-                          ),
-                        ),
-                        // Rear windshield
-                        Positioned(
-                          bottom: 12,
-                          left: 4,
-                          right: 4,
-                          child: Container(
-                            height: 8,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF2D3748),
-                              borderRadius: BorderRadius.circular(3),
-                            ),
-                          ),
-                        ),
-                        // Initial badge
-                        Positioned.fill(
-                          child: Center(
-                            child: Container(
-                              width: 20,
-                              height: 20,
-                              decoration: const BoxDecoration(
-                                color: Colors.white,
-                                shape: BoxShape.circle,
-                              ),
-                              child: Center(
-                                child: Text(
-                                  driver.name.isNotEmpty
-                                      ? driver.name[0].toUpperCase()
-                                      : 'D',
-                                  style: TextStyle(
-                                    color: driverColor,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                        // Headlights
-                        Positioned(
-                          top: 3,
-                          left: 5,
-                          child: Container(
-                            width: 6,
-                            height: 4,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFFFF9C4),
-                              borderRadius: BorderRadius.circular(2),
-                            ),
-                          ),
-                        ),
-                        Positioned(
-                          top: 3,
-                          right: 5,
-                          child: Container(
-                            width: 6,
-                            height: 4,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFFFF9C4),
-                              borderRadius: BorderRadius.circular(2),
-                            ),
-                          ),
-                        ),
-                        // Taillights
-                        Positioned(
-                          bottom: 3,
-                          left: 5,
-                          child: Container(
-                            width: 5,
-                            height: 3,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFEF5350),
-                              borderRadius: BorderRadius.circular(1),
-                            ),
-                          ),
-                        ),
-                        Positioned(
-                          bottom: 3,
-                          right: 5,
-                          child: Container(
-                            width: 5,
-                            height: 3,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFEF5350),
-                              borderRadius: BorderRadius.circular(1),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              ), // Transform.rotate
-            ),
-          ),
-        );
-      }
-    }
-
-    // Order markers
-    for (var order in _deliveryOrders) {
-      if (order.deliveryLatitude != null && order.deliveryLongitude != null) {
-        final int dailyNumber =
-            order.dailyOrderNumber ?? (_deliveryOrders.indexOf(order) + 1);
-        markers.add(
-          fmap.Marker(
-            point: latlong.LatLng(
-              order.deliveryLatitude!,
-              order.deliveryLongitude!,
-            ),
-            width: 45,
-            height: 55,
-            child: GestureDetector(
-              onTap: () => _showOrderDetailsBottomSheet(order),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFE57373),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.white, width: 2),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black26,
-                          blurRadius: 4,
-                          offset: Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: Center(
-                      child: Text(
-                        '$dailyNumber',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
-                      ),
-                    ),
-                  ),
-                  Container(
-                    width: 2,
-                    height: 10,
-                    color: const Color(0xFFE57373),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      }
-    }
-
-    return markers;
-  }
-
   /// Check if driver location is stale (more than 2 minutes old).
   /// Uses a 2-minute window to account for network delays and timer intervals.
   bool _isLocationStale(DateTime? lastSeenAt) {
@@ -2949,28 +1508,6 @@ class _DeliveryMonitorScreenState extends State<DeliveryMonitorScreen> with Tick
     final difference = now.difference(lastSeen);
     
     return difference.inSeconds > 120; // Stale if > 2 minutes
-  }
-  
-  Widget _buildSummaryItem(String value, String label, Color color) {
-    return Column(
-      children: [
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: color,
-          ),
-        ),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 10,
-            color: Colors.grey[600],
-          ),
-        ),
-      ],
-    );
   }
 
   /// Format last seen time for display
@@ -3002,7 +1539,7 @@ class _DeliveryMonitorScreenState extends State<DeliveryMonitorScreen> with Tick
   void _showDriverInfoDialog(app_driver_model.Driver driver) {
     if (!mounted) return;
     
-    final Color driverColor = driverColors[driver.colorIndex % driverColors.length];
+    final Color driverColor = _driverColorFor(driver);
     final bool isStale = _isLocationStale(driver.lastSeenAt);
     final String lastSeenText = _formatLastSeen(driver.lastSeenAt);
     
@@ -3287,7 +1824,7 @@ class _DeliveryMonitorScreenState extends State<DeliveryMonitorScreen> with Tick
   void _showCoordinateHistoryDialog(app_driver_model.Driver driver) {
     if (!mounted) return;
     
-    final Color driverColor = driverColors[driver.colorIndex % driverColors.length];
+    final Color driverColor = _driverColorFor(driver);
     
     showDialog(
       context: context,
@@ -3308,67 +1845,10 @@ class _DeliveryMonitorScreenState extends State<DeliveryMonitorScreen> with Tick
       context: context,
       barrierDismissible: false,
       builder: (ctx) => _AllDriversCoordinateLogsDialog(
-        allDrivers: _allDrivers,
-        onlineDrivers: _onlineDrivers,
+        colorFor: _driverColorFor,
+        allDrivers: _drivers,
+        onlineDrivers: _drivers.where((d) => d.isOnline).toList(),
         supabaseClient: widget.supabaseClient,
-      ),
-    );
-  }
-
-  /// Show info dialog for restaurant marker
-  void _showInfoDialog(String title, String message) {
-    if (!mounted) return;
-    showDialog(
-      context: context,
-      builder: (ctx) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: Container(
-          width: 280,
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 50,
-                height: 50,
-                decoration: const BoxDecoration(
-                  color: Colors.green,
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.store, color: Colors.white, size: 26),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                title.replaceAll('🏪 ', '').replaceAll('🚗 ', ''),
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                message,
-                style: TextStyle(color: Colors.grey[600]),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                child: TextButton(
-                  style: TextButton.styleFrom(
-                    backgroundColor: Colors.grey[100],
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
-                  onPressed: () => Navigator.pop(ctx),
-                  child: const Text('Close'),
-                ),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }
@@ -3634,6 +2114,121 @@ class _DeliveryMonitorScreenState extends State<DeliveryMonitorScreen> with Tick
           },
         ),
       ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Small widgets
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _MenuRow extends StatelessWidget {
+  final IconData icon;
+  final String text;
+  const _MenuRow({required this.icon, required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(children: [Icon(icon, size: 20, color: const Color(0xFF6B7280)), const SizedBox(width: 12), Text(text)]);
+  }
+}
+
+class _SheetHandle extends StatelessWidget {
+  const _SheetHandle();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Container(
+        margin: const EdgeInsets.only(top: 10, bottom: 2),
+        width: 40,
+        height: 4,
+        decoration: BoxDecoration(color: const Color(0xFFD1D5DB), borderRadius: BorderRadius.circular(2)),
+      ),
+    );
+  }
+}
+
+/// Desktop map marker for a stop, the restaurant or a waiting order.
+class _StopDot extends StatelessWidget {
+  final int? number;
+  final IconData? icon;
+  final Color color;
+  final bool done;
+  final bool filled;
+  final bool selected;
+  final double size;
+
+  const _StopDot({
+    this.number,
+    this.icon,
+    required this.color,
+    this.done = false,
+    this.filled = false,
+    this.selected = false,
+    this.size = 26,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final fill = done ? const Color(0xFF9CA3AF) : (filled ? color : Colors.white);
+    final fg = done || filled ? Colors.white : color;
+    return Center(
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          color: fill,
+          shape: BoxShape.circle,
+          border: Border.all(color: selected ? const Color(0xFF111827) : (filled || done ? Colors.white : color), width: selected ? 3 : 2),
+          boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 3, offset: Offset(0, 1))],
+        ),
+        child: Center(
+          child: done
+              ? const Icon(Icons.check_rounded, size: 15, color: Colors.white)
+              : icon != null
+                  ? Icon(icon, size: size * 0.55, color: fg)
+                  : Text('$number', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: fg)),
+        ),
+      ),
+    );
+  }
+}
+
+/// Desktop map marker for a driver: badge with the initial and the name.
+class _DriverBadge extends StatelessWidget {
+  final String name;
+  final Color color;
+  const _DriverBadge({required this.name, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 32,
+          height: 32,
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.white, width: 3),
+            boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(0, 2))],
+          ),
+          child: Center(
+            child: Text(
+              name.isNotEmpty ? name[0].toUpperCase() : '?',
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 14),
+            ),
+          ),
+        ),
+        const SizedBox(height: 3),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+          decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(8)),
+          child: Text(name, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)),
+        ),
+      ],
     );
   }
 }
@@ -4078,7 +2673,10 @@ class _AllDriversCoordinateLogsDialog extends StatefulWidget {
   final List<app_driver_model.Driver> onlineDrivers;
   final SupabaseClient supabaseClient;
   
+  final Color Function(app_driver_model.Driver driver) colorFor;
+
   const _AllDriversCoordinateLogsDialog({
+    required this.colorFor,
     required this.allDrivers,
     required this.onlineDrivers,
     required this.supabaseClient,
@@ -4367,7 +2965,7 @@ class _AllDriversCoordinateLogsDialogState extends State<_AllDriversCoordinateLo
                   final isSelected = driver.id == _selectedDriverId;
                   final isOnline = driver.isOnline;
                   final updateCount = _driverUpdates[driver.id]?.length ?? 0;
-                  final driverColor = driverColors[driver.colorIndex % driverColors.length];
+                  final driverColor = widget.colorFor(driver);
                   
                   return Padding(
                     padding: const EdgeInsets.only(right: 8),
@@ -4518,7 +3116,7 @@ class _AllDriversCoordinateLogsDialogState extends State<_AllDriversCoordinateLo
                           itemBuilder: (context, index) {
                             final update = selectedUpdates[index];
                             final isLatest = index == selectedUpdates.length - 1;
-                            final driverColor = driverColors[selectedDriver.colorIndex % driverColors.length];
+                            final driverColor = widget.colorFor(selectedDriver);
                             
                             return Container(
                               margin: const EdgeInsets.only(bottom: 4),

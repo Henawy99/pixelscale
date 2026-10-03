@@ -49,7 +49,7 @@ class _DeliverySettingsScreenState extends State<DeliverySettingsScreen> {
       final response = await _supabase
           .from('delivery_settings')
           .select('*')
-          .order('created_at') // same row the planner uses
+          .order('created_at', ascending: true) // the oldest row is the one the planner uses
           .limit(1);
 
       final list = response as List;

@@ -73,6 +73,7 @@ dependencies:
   html: ^0.15.6
   flutter_local_notifications: ^20.1.0
   flutter_inappwebview: ^6.1.5
+  pointer_interceptor: ^0.10.1+2 # Lets clicks reach menus and dialogs drawn over the web map
 
 dev_dependencies:
   flutter_test:
