@@ -12,7 +12,7 @@
 set -e
 
 # Track current version (auto-updated by script)
-CURRENT_VERSION="1.0.23"
+CURRENT_VERSION="1.0.24"
 CURRENT_BUILD="1"
 
 # Colors
