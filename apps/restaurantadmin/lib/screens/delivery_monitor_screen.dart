@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
@@ -13,6 +14,7 @@ import 'package:restaurantadmin/models/driver.dart' as app_driver_model;
 import 'package:restaurantadmin/models/order.dart' as app_order;
 import 'package:restaurantadmin/screens/delivery_settings_screen.dart';
 import 'package:restaurantadmin/screens/map/map_icons.dart';
+import 'package:restaurantadmin/screens/map/route_lines.dart';
 import 'package:restaurantadmin/screens/map/tour_eta.dart';
 import 'package:restaurantadmin/screens/map/tour_panel.dart';
 
@@ -99,6 +101,12 @@ class _DeliveryMonitorScreenState extends State<DeliveryMonitorScreen> with Tick
   late final AnimationController _move;
   int _markerBuild = 0;
 
+  // ── Street geometry for the tour lines ────────────────────────────────────
+  final RoadCache _roads = RoadCache();
+  final Map<String, DriverRoad> _driverRoads = {};
+  final Map<String, DateTime> _driverRoadAskedAt = {};
+  bool _roadsBusy = false;
+
   @override
   void initState() {
     super.initState();
@@ -111,6 +119,7 @@ class _DeliveryMonitorScreenState extends State<DeliveryMonitorScreen> with Tick
       setState(() => _now = DateTime.now().toUtc());
       _refreshMarkers();
       _maybeFitOnce();
+      _ensureRoads();
     });
     // Back-ups for realtime. Orders are not in the realtime publication, so new orders
     // waiting for a driver arrive with the tours poll (or the planner's plan_log insert).
@@ -252,6 +261,7 @@ class _DeliveryMonitorScreenState extends State<DeliveryMonitorScreen> with Tick
       });
       _refreshMarkers();
       _maybeFitOnce();
+      _ensureRoads();
     } catch (e) {
       _failed('tours', e);
     } finally {
@@ -598,6 +608,7 @@ class _DeliveryMonitorScreenState extends State<DeliveryMonitorScreen> with Tick
       _move.forward(from: 0);
     }
     _refreshMarkers();
+    _ensureRoads();
   }
 
   void _onMoveTick() {
@@ -715,38 +726,85 @@ class _DeliveryMonitorScreenState extends State<DeliveryMonitorScreen> with Tick
     return out;
   }
 
-  /// The points of each tour line: from the driver (or the restaurant) through the open
-  /// stops and back.
-  List<({String id, Color color, List<GeoPoint> points, bool live, bool dim})> _tourLines(List<DriverBoard> boards) {
-    final lines = <({String id, Color color, List<GeoPoint> points, bool live, bool dim})>[];
-    for (final b in boards) {
-      final color = driverColor(b.colorIndex);
-      final dim = _selectedDriverId != null && _selectedDriverId != b.driverId;
-      final cur = b.current;
-      if (cur != null) {
-        final start = b.position != null && b.gpsFresh(_now)
-            ? b.position!
-            : (cur.stops.where((s) => s.isDone && s.point != null).lastOrNull?.point ??
-                cur.stops.firstOrNull?.point ??
-                _settings.store);
-        final pts = <GeoPoint>[
-          start,
-          ...cur.remaining.where((s) => s.point != null).map((s) => s.point!),
-          _settings.store,
-        ];
-        lines.add((id: 'live_${cur.routeId}', color: color, points: pts, live: true, dim: dim));
+  /// Each tour line along the streets (straight where no road is known yet), starting at the
+  /// driver on a tour that is on the road.
+  List<({String id, Color color, List<GeoPoint> points, bool live, bool dim})> _tourLines(List<DriverBoard> boards) => [
+        for (final l in tourLines(boards, _settings.store, _now))
+          (
+            id: l.id,
+            color: driverColor(l.colorIndex),
+            points: composeLine(l, _roads, driverRoad: _driverRoads[l.driverId]),
+            live: l.live,
+            dim: _selectedDriverId != null && _selectedDriverId != l.driverId,
+          ),
+      ];
+
+  /// Fetches the street geometry the tour lines still need: once per leg (cached on the
+  /// server too), plus a road from the driver to the next stop when the driver left the
+  /// planned leg, at most once a minute per driver.
+  Future<void> _ensureRoads() async {
+    if (_roadsBusy || !mounted || !_toursLoaded) return;
+    _roadsBusy = true;
+    var again = false;
+    try {
+      final now = DateTime.now().toUtc();
+      final lines = tourLines(_boards(), _settings.store, _now);
+      final wanted = <(GeoPoint, GeoPoint)>[for (final l in lines) ...l.legs];
+      final driverWanted = <String, (GeoPoint, GeoPoint)>{};
+      for (final l in lines.where((l) => l.live)) {
+        final need = driverLegNeeded(l, _roads, driverRoad: _driverRoads[l.driverId]);
+        if (need == null) continue;
+        final cached = _roads.road(need.$1, need.$2);
+        if (cached != null) {
+          _driverRoads[l.driverId] = (to: need.$2, points: cached);
+          continue;
+        }
+        final asked = _driverRoadAskedAt[l.driverId];
+        if (asked == null || now.difference(asked) > const Duration(seconds: 60)) driverWanted[l.driverId] = need;
       }
-      for (final t in b.upcoming) {
-        final pts = <GeoPoint>[
-          _settings.store,
-          ...t.stops.where((s) => !s.isDone && s.point != null).map((s) => s.point!),
-          _settings.store,
-        ];
-        if (pts.length > 2) lines.add((id: 'plan_${t.routeId}', color: color, points: pts, live: false, dim: dim));
+      final missing = _roads.missing([...wanted, ...driverWanted.values], now);
+      if (missing.isEmpty) return;
+      for (final id in driverWanted.keys) {
+        _driverRoadAskedAt[id] = now;
       }
+
+      for (var i = 0; i < missing.length; i += 40) {
+        final batch = missing.sublist(i, math.min(i + 40, missing.length));
+        try {
+          final res = await _db.functions.invoke('route-lines', body: {
+            'legs': [
+              for (final (a, b) in batch)
+                {
+                  'from': {'lat': a.lat, 'lng': a.lng},
+                  'to': {'lat': b.lat, 'lng': b.lng},
+                },
+            ],
+          }).timeout(const Duration(seconds: 25));
+          final data = res.data;
+          final legs = data is Map && data['legs'] is List ? data['legs'] as List : const [];
+          if (legs.length != batch.length) throw StateError('route-lines answered ${legs.length} of ${batch.length} legs');
+          _roads.putAnswers(batch, legs, DateTime.now().toUtc());
+          // Once the planned legs are in, a road from the driver may be needed: ask right away.
+          if (driverWanted.isEmpty) again = true;
+          if (mounted) setState(() {});
+        } catch (e) {
+          debugPrint('[Map] Street lines failed: $e');
+          _roads.failed(batch, DateTime.now().toUtc());
+        }
+      }
+      for (final e in driverWanted.entries) {
+        final road = _roads.road(e.value.$1, e.value.$2);
+        if (road != null) _driverRoads[e.key] = (to: e.value.$2, points: road);
+      }
+      if (mounted) setState(() {});
+    } finally {
+      _roadsBusy = false;
     }
-    return lines;
+    if (again && mounted) unawaited(_ensureRoads());
   }
+
+  /// One instance, so unchanged dashed lines compare equal and aren't re-sent to the map.
+  static final List<gmaps.PatternItem> _dashed = [gmaps.PatternItem.dash(14), gmaps.PatternItem.gap(8)];
 
   Set<gmaps.Polyline> _googleLines(List<DriverBoard> boards) => {
         for (final l in _tourLines(boards))
@@ -756,7 +814,7 @@ class _DeliveryMonitorScreenState extends State<DeliveryMonitorScreen> with Tick
             color: l.color.withValues(alpha: l.dim ? 0.2 : (l.live ? 0.85 : 0.45)),
             width: l.live ? 5 : 3,
             zIndex: l.live ? 2 : 1,
-            patterns: l.live ? const [] : [gmaps.PatternItem.dash(14), gmaps.PatternItem.gap(8)],
+            patterns: l.live ? const [] : _dashed,
             jointType: gmaps.JointType.round,
             startCap: gmaps.Cap.roundCap,
             endCap: gmaps.Cap.roundCap,
