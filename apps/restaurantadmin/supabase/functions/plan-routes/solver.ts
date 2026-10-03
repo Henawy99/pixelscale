@@ -41,6 +41,16 @@ import type {
 
 const UNASSIGNED_PENALTY = 100_000;
 const HARD_PENALTY = 1_000_000;
+/**
+ * An order this far past its promised time when planning is "overdue": it is delivered before
+ * every order that is not late yet (same driver), and it is never dropped to make room for one.
+ * Orders that are not late yet are still ordered purely by route efficiency.
+ */
+const OVERDUE_MS = 10 * 60_000;
+/** Per order on time that the driver serves before an overdue order. */
+const OVERDUE_ORDER_PENALTY = 20_000;
+/** Leaving an overdue order out costs this many times more than leaving a fresh one out. */
+const OVERDUE_UNASSIGNED_FACTOR = 3;
 const EPS = 1e-6;
 
 /** Tours of one driver, each an ordered list of problem-order indices. */
@@ -63,6 +73,8 @@ export interface Problem {
   ready: Float64Array; // epoch ms
   target: Float64Array; // epoch ms
   isPre: Uint8Array;
+  overdue: Uint8Array; // 1 = already past its promise by OVERDUE_MS when planning
+  unassignedPenalty: Float64Array; // cost of leaving each order out
   pinned: Int32Array; // driver index or -1
   current: Int32Array; // driver index the order is currently committed to, or -1
   avail: Float64Array; // epoch ms the driver can leave the restaurant
@@ -138,12 +150,16 @@ export function buildProblem(
   const isPre = new Uint8Array(n);
   const pinned = new Int32Array(n).fill(-1);
   const current = new Int32Array(n).fill(-1);
+  const overdue = new Uint8Array(n);
+  const unassignedPenalty = new Float64Array(n);
 
   for (let i = 0; i < n; i++) {
     const o = orders[i];
     ready[i] = readyTimeMs(o, nowMs);
     target[i] = (o.requestedDeliveryTime ?? o.targetDeliveryTime).getTime();
     isPre[i] = o.requestedDeliveryTime ? 1 : 0;
+    overdue[i] = nowMs - target[i] > OVERDUE_MS ? 1 : 0;
+    unassignedPenalty[i] = UNASSIGNED_PENALTY * (overdue[i] ? OVERDUE_UNASSIGNED_FACTOR : 1);
     // Pins to a driver who is not available are ignored rather than stranding the order.
     if (o.pinnedDriverId && driverIdx.has(o.pinnedDriverId)) pinned[i] = driverIdx.get(o.pinnedDriverId)!;
     if (o.currentDriverId && o.deliveryStatus === "assigned_to_route" && driverIdx.has(o.currentDriverId)) {
@@ -168,6 +184,8 @@ export function buildProblem(
     ready,
     target,
     isPre,
+    overdue,
+    unassignedPenalty,
     pinned,
     current,
     avail,
@@ -209,6 +227,7 @@ export function driverCost(p: Problem, k: number, trips: Trips): number {
   let t = p.avail[k];
   let cost = 0;
   let driveSecs = 0;
+  let onTimeServed = 0; // orders not late yet, delivered before the current position
 
   for (let j = 0; j < trips.length; j++) {
     const trip = trips[j];
@@ -230,6 +249,9 @@ export function driverCost(p: Problem, k: number, trips: Trips): number {
 
       if (p.pinned[o] >= 0 && p.pinned[o] !== k) cost += HARD_PENALTY;
       if (p.current[o] >= 0 && p.current[o] !== k) cost += p.reassignW;
+      // Overdue orders go first: every order that isn't late yet served before one is penalised.
+      if (p.overdue[o]) cost += OVERDUE_ORDER_PENALTY * onTimeServed;
+      else onTimeServed++;
     }
     const back = p.dur[prev * N];
     cur += back * 1000;
@@ -243,9 +265,15 @@ export function driverCost(p: Problem, k: number, trips: Trips): number {
   return cost + p.driveW * driveSecs / 60;
 }
 
+function unassignedCost(p: Problem, unassigned: number[]): number {
+  let c = 0;
+  for (const o of unassigned) c += p.unassignedPenalty[o];
+  return c;
+}
+
 function makeState(p: Problem, sched: Trips[], unassigned: number[]): State {
   const costs = new Float64Array(p.m);
-  let total = unassigned.length * UNASSIGNED_PENALTY;
+  let total = unassignedCost(p, unassigned);
   for (let k = 0; k < p.m; k++) {
     costs[k] = driverCost(p, k, sched[k]);
     total += costs[k];
@@ -369,9 +397,9 @@ function construct(p: Problem, orders: PlannerOrder[], useSeed: boolean): State 
 
     const o = pending[pickIdx];
     pending.splice(pickIdx, 1);
-    if (pickK < 0 || !pickTrips || pickDelta >= UNASSIGNED_PENALTY) {
+    if (pickK < 0 || !pickTrips || pickDelta >= p.unassignedPenalty[o]) {
       st.unassigned.push(o);
-      st.total += UNASSIGNED_PENALTY;
+      st.total += p.unassignedPenalty[o];
       continue;
     }
     st.total += pickDelta;
@@ -404,7 +432,7 @@ function polish(p: Problem, st: State, deadline: number): State {
         srcCost = driverCost(p, loc.k, srcTrips);
         baseDelta = srcCost - st.costs[loc.k];
       } else {
-        baseDelta = -UNASSIGNED_PENALTY;
+        baseDelta = -p.unassignedPenalty[o];
       }
 
       let bestDelta = -EPS;
@@ -431,7 +459,7 @@ function polish(p: Problem, st: State, deadline: number): State {
         if (loc.k < 0) st.unassigned.splice(loc.s, 1);
         st.sched[bestK] = bestTrips;
         st.costs[bestK] = driverCost(p, bestK, bestTrips);
-        st.total = recomputeTotal(st);
+        st.total = recomputeTotal(p, st);
         improved = true;
       }
     }
@@ -457,8 +485,8 @@ function polish(p: Problem, st: State, deadline: number): State {
   return st;
 }
 
-function recomputeTotal(st: State): number {
-  let t = st.unassigned.length * UNASSIGNED_PENALTY;
+function recomputeTotal(p: Problem, st: State): number {
+  let t = unassignedCost(p, st.unassigned);
   for (let k = 0; k < st.costs.length; k++) t += st.costs[k];
   return t;
 }
@@ -633,6 +661,7 @@ function anneal(p: Problem, start: State, deadline: number, seed: number): { bes
     let ta: Trips | null = null;
     let tb: Trips | null = null;
     let newUnassigned: number[] | null = null;
+    let freedPenalty = 0; // penalty no longer paid for an order taken off the unassigned list
 
     if (r < 0.45 || p.n < 2) {
       // Relocate a random order to a random slot.
@@ -647,6 +676,7 @@ function anneal(p: Problem, start: State, deadline: number, seed: number): { bes
       } else {
         newUnassigned = cur.unassigned.slice();
         newUnassigned.splice(loc.s, 1);
+        freedPenalty = p.unassignedPenalty[o];
       }
       let dst: Trips = target === ka ? ta! : cloneTrips(cur.sched[target]);
       const slots = dst.reduce((acc, t) => acc + t.length + 1, 0) + dst.length + 1;
@@ -738,7 +768,7 @@ function anneal(p: Problem, start: State, deadline: number, seed: number): { bes
       cb = driverCost(p, kb, tb!);
       delta += cb - cur.costs[kb];
     }
-    if (newUnassigned) delta -= UNASSIGNED_PENALTY;
+    if (newUnassigned) delta -= freedPenalty;
 
     if (delta < 0 || rand() < Math.exp(-delta / T)) {
       if (ka >= 0) {
@@ -849,9 +879,9 @@ function exact(p: Problem): { state: State; evaluations: number } {
   const bestAssign = new Int32Array(p.n).fill(-1);
   const assign = new Int32Array(p.n);
   const masks = new Int32Array(p.m);
-  const rec = (i: number, unassigned: number) => {
+  const rec = (i: number, unassignedPenalty: number) => {
     if (i === p.n) {
-      let c = unassigned * UNASSIGNED_PENALTY;
+      let c = unassignedPenalty;
       for (let k = 0; k < p.m; k++) c += bestCost[k][masks[k]];
       if (c < best - EPS) {
         best = c;
@@ -864,11 +894,11 @@ function exact(p: Problem): { state: State; evaluations: number } {
         if (p.pinned[i] >= 0 && p.pinned[i] !== k) continue;
         assign[i] = k;
         masks[k] |= 1 << i;
-        rec(i + 1, unassigned);
+        rec(i + 1, unassignedPenalty);
         masks[k] &= ~(1 << i);
       } else {
         assign[i] = -1;
-        rec(i + 1, unassigned + 1);
+        rec(i + 1, unassignedPenalty + p.unassignedPenalty[i]);
       }
     }
   };

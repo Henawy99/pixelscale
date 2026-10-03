@@ -319,3 +319,63 @@ Deno.test("no drivers: nothing planned, actionable orders reported unassigned", 
   assertEquals(res.routes, []);
   assertEquals(res.unassignedOrderIds, ["A"]);
 });
+
+// ============================================================
+// OVERDUE ORDERS FIRST
+// ============================================================
+
+Deno.test("only one order fits before the shift ends: the overdue order is kept, the fresh one waits", () => {
+  // A was promised 20 min ago (overdue), B is fresh. Together they would end the shift late.
+  const orders = [order("A", SOUTH_C, -20, { readyMin: 0 }), order("B", NORTH_A, 40, { readyMin: 0 })];
+  const drivers = [driver("Only", { shiftEndAt: new Date(NOW.getTime() + 30 * 60_000) })];
+  const res = solve(orders, drivers, matrixFor(orders), settings({ shiftEndGraceMinutes: 0 }), NOW, 0);
+  assertEquals(res.unassignedOrderIds, ["B"]);
+  assert(tourOf(res, "A"), "the overdue order is planned");
+});
+
+Deno.test("an overdue order is delivered before a fresh order, even when the fresh one is on the way", () => {
+  // store→A 15 min, store→B 2 min, A↔B 14 min. A is 11 min overdue, B is due in 10 min.
+  // On cost alone B first is cheaper (B on time, A a bit later); the rule puts A first.
+  const orders = [order("A", WEST_D, -11, { readyMin: 0 }), order("B", EAST_E, 10, { readyMin: 0 })];
+  const m = matrixMinutes([
+    [0, 15, 2],
+    [15, 0, 14],
+    [2, 14, 0],
+  ]);
+  const res = solve(orders, [driver("D")], m, settings(), NOW, 0);
+  const trip = tourOf(res, "A")!;
+  assertEquals(trip.stops.filter((s) => s.orderId).map((s) => s.orderId), ["A", "B"]);
+});
+
+Deno.test("orders that are not late yet keep the efficient order (no seniority)", () => {
+  // Same layout, but A is due in 5 min (not late): delivering the close order B first is fine.
+  const orders = [order("A", WEST_D, 5, { readyMin: 0 }), order("B", EAST_E, 10, { readyMin: 0 })];
+  const m = matrixMinutes([
+    [0, 15, 2],
+    [15, 0, 14],
+    [2, 14, 0],
+  ]);
+  const p = __test.buildProblem(orders, [1, 2], [driver("D")], m, settings(), NOW);
+  assertEquals([...p.overdue], [0, 0]);
+  const res = solve(orders, [driver("D")], m, settings(), NOW, 0);
+  assertEquals(tourOf(res, "A")!.stops.filter((s) => s.orderId).map((s) => s.orderId), ["B", "A"]);
+});
+
+Deno.test("search and exact agree with overdue orders in the mix", () => {
+  let matched = 0;
+  const cases = 20;
+  for (let seed = 101; seed < 101 + cases; seed++) {
+    const n = 4 + (seed % 3);
+    const { orders, drivers } = randomInstance(seed, n);
+    // Make every other order 15 min overdue.
+    const mixed = orders.map((o, i) =>
+      i % 2 === 0 ? { ...o, targetDeliveryTime: new Date(NOW.getTime() - 15 * 60_000) } : o
+    );
+    const p = __test.buildProblem(mixed, mixed.map((_, i) => i + 1), drivers, matrixFor(mixed), settings(), NOW);
+    const optimum = __test.exactOptimum(p);
+    const found = __test.searchOnly(p, mixed, 120, seed);
+    assert(found >= optimum - 1e-6, "search cannot beat a proven optimum");
+    if (found <= optimum + 1e-6) matched++;
+  }
+  assert(matched >= cases - 1, `search matched the optimum in ${matched}/${cases} cases`);
+});
