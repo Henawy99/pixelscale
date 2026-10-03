@@ -658,15 +658,27 @@ class _DeliveryMonitorScreenState extends State<DeliveryMonitorScreen> with Tick
                   ? 'planned'
                   : (s.state == StopState.next ? 'next' : 'live');
           final selected = s.key == _selectedStopKey;
-          final icon = await _icons.stop(number: number, color: color, style: style, selected: selected);
+          // Stops still to do carry their arrival time and first name, e.g. "22:14 Anastasia".
+          final ({gmaps.BitmapDescriptor icon, Offset anchor}) pin = s.isDone || s.eta == null
+              ? (icon: await _icons.stop(number: number, color: color, style: style, selected: selected), anchor: const Offset(0.5, 1))
+              : await _icons.stopWithLabel(
+                  number: number,
+                  color: color,
+                  style: style,
+                  selected: selected,
+                  time: clock(s.eta),
+                  name: s.name.trim().split(RegExp(r'\s+')).first,
+                  late: s.punctuality == Punctuality.late,
+                  dim: !tour.live,
+                );
           final when = s.isDone
               ? 'delivered ${clock(s.deliveredAt)}'
               : '~${clock(s.eta)}${s.dueAt != null ? ' · due ${clock(s.dueAt)}' : ''}';
           markers.add(gmaps.Marker(
             markerId: gmaps.MarkerId('stop_${tour.routeId}_${s.key}'),
             position: gmaps.LatLng(s.point!.lat, s.point!.lng),
-            icon: icon,
-            anchor: const Offset(0.5, 1),
+            icon: pin.icon,
+            anchor: pin.anchor,
             alpha: dim ? 0.45 : 1,
             zIndexInt: selected ? 6 : (s.isDone ? 1 : (tour.live ? 3 : 2)),
             infoWindow: gmaps.InfoWindow(title: '$number. ${s.name} (${b.name})', snippet: when),
@@ -1009,23 +1021,45 @@ class _DeliveryMonitorScreenState extends State<DeliveryMonitorScreen> with Tick
           final s = tour.stops[i];
           final n = ++number;
           if (s.point == null) continue;
+          final labelled = !s.isDone && s.eta != null;
+          const labelledWidth = 190.0;
+          final dot = _StopDot(
+            number: n,
+            color: color,
+            done: s.isDone,
+            filled: tour.live && !s.isDone,
+            selected: s.key == _selectedStopKey,
+          );
           markers.add(fmap.Marker(
             point: latlong.LatLng(s.point!.lat, s.point!.lng),
-            width: 30,
+            width: labelled ? labelledWidth : 30,
             height: 30,
+            // Keep the dot (not the label) on the address.
+            alignment: labelled ? const Alignment(1 - 30 / labelledWidth, 0) : null,
             child: Opacity(
               opacity: dim ? 0.45 : 1,
               child: Tooltip(
                 message: '$n. ${s.name} · ${s.isDone ? 'delivered ${clock(s.deliveredAt)}' : '~${clock(s.eta)}'}',
                 child: GestureDetector(
                   onTap: () => _selectStop(b, s),
-                  child: _StopDot(
-                    number: n,
-                    color: color,
-                    done: s.isDone,
-                    filled: tour.live && !s.isDone,
-                    selected: s.key == _selectedStopKey,
-                  ),
+                  child: !labelled
+                      ? dot
+                      : Align(
+                          alignment: Alignment.centerLeft,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              SizedBox(width: 30, height: 30, child: dot),
+                              const SizedBox(width: 3),
+                              _TimeLabel(
+                                time: clock(s.eta),
+                                name: s.name.trim().split(RegExp(r'\s+')).first,
+                                late: s.punctuality == Punctuality.late,
+                                color: color,
+                              ),
+                            ],
+                          ),
+                        ),
                 ),
               ),
             ),
@@ -2248,6 +2282,41 @@ class _StopDot extends StatelessWidget {
                   ? Icon(icon, size: size * 0.55, color: fg)
                   : Text('$number', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: fg)),
         ),
+      ),
+    );
+  }
+}
+
+/// Desktop map label next to a stop: arrival time and first name.
+class _TimeLabel extends StatelessWidget {
+  final String time;
+  final String name;
+  final bool late;
+  final Color color;
+  const _TimeLabel({required this.time, required this.name, required this.late, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 150),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(7),
+        border: Border.all(color: color.withValues(alpha: 0.5)),
+        boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 3, offset: Offset(0, 1))],
+      ),
+      child: Text.rich(
+        TextSpan(children: [
+          TextSpan(
+            text: time,
+            style: TextStyle(fontWeight: FontWeight.w800, color: late ? const Color(0xFFDC2626) : const Color(0xFF111827)),
+          ),
+          TextSpan(text: '  $name', style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF4B5563))),
+        ]),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(fontSize: 12),
       ),
     );
   }

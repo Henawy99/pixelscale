@@ -666,10 +666,10 @@ String relative(DateTime? t, DateTime now) {
   return mins > 0 ? 'in $text' : '$text ago';
 }
 
-/// "13 min" (at least 1 min for any non-zero leg).
+/// "13 min", "1 h 43 min" (at least 1 min for any non-zero leg).
 String minutes(Duration? d) {
   if (d == null) return '';
   if (d == Duration.zero) return '0 min';
   final m = math.max(1, (d.inSeconds / 60).round());
-  return m < 60 ? '$m min' : '${m ~/ 60} h ${(m % 60).toString().padLeft(2, '0')}';
+  return m < 60 ? '$m min' : '${m ~/ 60} h ${(m % 60).toString().padLeft(2, '0')} min';
 }

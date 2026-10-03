@@ -1038,6 +1038,10 @@ class _StopRow extends StatelessWidget {
         ),
       });
     }
+    final orderedAt = parseTs(order?['created_at']);
+    if (orderedAt != null) {
+      chips.add(_Tag(text: 'ordered ${clock(orderedAt)}', color: _muted, outline: true));
+    }
     if (isCash(order)) {
       // Foodora's amount to collect at the door can differ from the order total.
       final due = double.tryParse('${order?['collect'] ?? ''}') ?? total;
@@ -1577,6 +1581,11 @@ class _WaitingRow extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(fontSize: 12, color: _muted),
+                    ),
+                  if (parseTs(order['created_at']) != null)
+                    Text(
+                      'ordered ${clock(parseTs(order['created_at']))}',
+                      style: const TextStyle(fontSize: 11.5, color: _muted),
                     ),
                   if (reason != null && reason.isNotEmpty)
                     Padding(

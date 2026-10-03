@@ -63,33 +63,107 @@ class MapIcons {
     required String style,
     bool selected = false,
   }) =>
-      _get('stop:$number:${color.toARGB32()}:$style:$selected', stopSize, (c, s) {
-        final done = style == 'done';
-        final filled = style == 'next' || style == 'live';
-        final fill = done ? const Color(0xFF9CA3AF) : (filled ? color : Colors.white);
-        final ring = done ? Colors.white : (filled ? Colors.white : color);
-        const r = 13.0;
-        final center = Offset(s.width / 2, r + 1.5);
+      _get('stop:$number:${color.toARGB32()}:$style:$selected', stopSize,
+          (c, s) => _paintPin(c, Offset.zero, number: number, color: color, style: style, selected: selected));
 
-        // Pin: circle with a point at the bottom.
-        final pin = Path()
-          ..addOval(Rect.fromCircle(center: center, radius: r))
-          ..moveTo(center.dx - 6, center.dy + r - 3)
-          ..lineTo(center.dx, s.height - 1)
-          ..lineTo(center.dx + 6, center.dy + r - 3)
-          ..close();
-        c.drawPath(pin.shift(const Offset(0, 1)), Paint()..color = Colors.black26..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.5));
-        c.drawPath(pin, Paint()..color = selected ? const Color(0xFF111827) : ring);
-        c.drawCircle(center, r - (selected ? 3 : 2.2), Paint()..color = fill);
-        if (style == 'next') {
-          c.drawCircle(center, r - 5, Paint()..color = Colors.white.withValues(alpha: 0.25)..style = PaintingStyle.stroke..strokeWidth = 1.2);
-        }
-        if (done) {
-          _icon(c, Icons.check_rounded, center, 16, Colors.white);
-        } else {
-          _text(c, '$number', center, number > 9 ? 11.5 : 13.5, filled ? Colors.white : color);
-        }
-      });
+  static void _paintPin(Canvas c, Offset at,
+      {required int number, required Color color, required String style, required bool selected}) {
+    final done = style == 'done';
+    final filled = style == 'next' || style == 'live';
+    final fill = done ? const Color(0xFF9CA3AF) : (filled ? color : Colors.white);
+    final ring = done ? Colors.white : (filled ? Colors.white : color);
+    const r = 13.0;
+    final center = at + Offset(stopSize.width / 2, r + 1.5);
+
+    // Pin: circle with a point at the bottom.
+    final pin = Path()
+      ..addOval(Rect.fromCircle(center: center, radius: r))
+      ..moveTo(center.dx - 6, center.dy + r - 3)
+      ..lineTo(center.dx, at.dy + stopSize.height - 1)
+      ..lineTo(center.dx + 6, center.dy + r - 3)
+      ..close();
+    c.drawPath(pin.shift(const Offset(0, 1)), Paint()..color = Colors.black26..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.5));
+    c.drawPath(pin, Paint()..color = selected ? const Color(0xFF111827) : ring);
+    c.drawCircle(center, r - (selected ? 3 : 2.2), Paint()..color = fill);
+    if (style == 'next') {
+      c.drawCircle(center, r - 5, Paint()..color = Colors.white.withValues(alpha: 0.25)..style = PaintingStyle.stroke..strokeWidth = 1.2);
+    }
+    if (done) {
+      _icon(c, Icons.check_rounded, center, 16, Colors.white);
+    } else {
+      _text(c, '$number', center, number > 9 ? 11.5 : 13.5, filled ? Colors.white : color);
+    }
+  }
+
+  // ── Stop with a label: arrival time and first name ────────────────────────
+
+  /// Labelled icons change every minute (the time), so they get their own small cache.
+  final Map<String, ({gmaps.BitmapDescriptor icon, Offset anchor})> _labelled = {};
+  final Map<String, Future<({gmaps.BitmapDescriptor icon, Offset anchor})>> _labelledPending = {};
+  static const int _maxLabelled = 150;
+
+  /// A stop pin with a label to its right, e.g. "22:14 Anastasia". [late] paints the time red.
+  /// The anchor keeps the pin's point on the address.
+  Future<({gmaps.BitmapDescriptor icon, Offset anchor})> stopWithLabel({
+    required int number,
+    required Color color,
+    required String style,
+    bool selected = false,
+    required String time,
+    required String name,
+    bool late = false,
+    bool dim = false,
+  }) {
+    final key = 'lstop:$number:${color.toARGB32()}:$style:$selected:$time:$name:$late:$dim';
+    final hit = _labelled[key];
+    if (hit != null) return Future.value(hit);
+    return _labelledPending[key] ??= () async {
+      final timeTp = TextPainter(
+        text: TextSpan(
+          text: time,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w800,
+            color: late ? const Color(0xFFDC2626) : (dim ? const Color(0xFF6B7280) : const Color(0xFF111827)),
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      final nameTp = TextPainter(
+        text: TextSpan(text: name, style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: Color(0xFF4B5563))),
+        textDirection: TextDirection.ltr,
+        maxLines: 1,
+        ellipsis: '…',
+      )..layout(maxWidth: 90);
+      const gap = 3.0, pad = 6.0, pillH = 22.0;
+      final pillW = pad + timeTp.width + (name.isEmpty ? 0 : 4 + nameTp.width) + pad;
+      final size = Size(stopSize.width + gap + pillW, stopSize.height);
+
+      final recorder = ui.PictureRecorder();
+      final c = Canvas(recorder)..scale(_scale);
+      _paintPin(c, Offset.zero, number: number, color: color, style: style, selected: selected);
+      final pill = RRect.fromRectAndRadius(
+        Rect.fromLTWH(stopSize.width + gap, 14.5 - pillH / 2, pillW, pillH),
+        const Radius.circular(7),
+      );
+      c.drawRRect(pill.shift(const Offset(0, 1)), Paint()..color = Colors.black26..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.5));
+      c.drawRRect(pill, Paint()..color = Colors.white);
+      c.drawRRect(pill, Paint()..color = color.withValues(alpha: 0.5)..style = PaintingStyle.stroke..strokeWidth = 1);
+      timeTp.paint(c, Offset(pill.left + pad, 14.5 - timeTp.height / 2));
+      if (name.isNotEmpty) nameTp.paint(c, Offset(pill.left + pad + timeTp.width + 4, 14.5 - nameTp.height / 2));
+
+      final image = await recorder.endRecording().toImage((size.width * _scale).ceil(), (size.height * _scale).ceil());
+      final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+      final out = (
+        icon: gmaps.BitmapDescriptor.bytes(bytes!.buffer.asUint8List(), width: size.width, height: size.height),
+        anchor: Offset((stopSize.width / 2) / size.width, 1),
+      );
+      if (_labelled.length >= _maxLabelled) _labelled.remove(_labelled.keys.first);
+      _labelled[key] = out;
+      _labelledPending.remove(key);
+      return out;
+    }();
+  }
 
   // ── Order waiting for a driver ────────────────────────────────────────────
 

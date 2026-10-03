@@ -276,6 +276,7 @@ void main() {
       expect(relative(now.add(const Duration(minutes: 65)), now), 'in 1 h 05');
       expect(minutes(const Duration(seconds: 20)), '1 min');
       expect(minutes(const Duration(minutes: 13)), '13 min');
+      expect(minutes(const Duration(minutes: 103)), '1 h 43 min');
     });
     test('parseTs treats a missing offset as UTC', () {
       expect(parseTs('2026-10-03T17:42:00'), DateTime.utc(2026, 10, 3, 17, 42));
