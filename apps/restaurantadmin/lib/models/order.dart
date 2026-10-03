@@ -48,7 +48,6 @@ class Order {
   deliveryRouteId; // ID of the DeliveryRoute this order belongs to
   final int? deliveryRouteSequence; // Sequence number within its route
   final DateTime? plannedArrivalAt; // Planned arrival time calculated by route planner
-  final bool isDemo; // Flag for simulated/demo orders
   // Add other fields as needed, e.g., userId, tableNumber
 
   Order({
@@ -95,7 +94,6 @@ class Order {
     this.deliveryRouteId,
     this.deliveryRouteSequence,
     this.plannedArrivalAt,
-    this.isDemo = false,
   });
 
   Map<String, dynamic> toJson() {
@@ -141,7 +139,6 @@ class Order {
       'delivery_route_id': deliveryRouteId,
       'delivery_route_sequence': deliveryRouteSequence,
       'planned_arrival_at': plannedArrivalAt?.toIso8601String(),
-      'is_demo': isDemo,
     };
   }
 
@@ -301,7 +298,6 @@ class Order {
       plannedArrivalAt: json['planned_arrival_at'] == null
           ? null
           : DateTime.tryParse(json['planned_arrival_at'] as String),
-      isDemo: json['is_demo'] as bool? ?? false,
     );
   }
 }

@@ -15,7 +15,6 @@ import 'package:restaurantadmin/screens/delivery_simulation_screen.dart';
 import 'package:restaurantadmin/screens/driver/driver_app_shell.dart';
 import 'package:restaurantadmin/models/order.dart' as app_order;
 import 'package:restaurantadmin/widgets/delivery_timeline_widget.dart';
-import 'package:restaurantadmin/services/demo_order_service.dart';
 
 /// Check if running on desktop platform
 bool get isDesktopPlatform {
@@ -883,16 +882,13 @@ class _DeliveryMonitorScreenState extends State<DeliveryMonitorScreen> with Tick
                             itemBuilder: (context, index) {
                               final driver = _allDrivers[index];
                               final Color driverColor = driverColors[driver.colorIndex % driverColors.length];
-                              final bool isStale = _isLocationStale(driver.lastSeenAt, isDemo: driver.isDemo);
-                              final bool isActive = (driver.isOnline || driver.isDemo) && !isStale;
+                              final bool isStale = _isLocationStale(driver.lastSeenAt);
+                              final bool isActive = driver.isOnline && !isStale;
                               
                               // Determine status color and text
                               Color statusColor;
                               String statusText;
-                              if (driver.isDemo) {
-                                statusColor = Colors.amber[800]!;
-                                statusText = 'Demo • Always Available';
-                              } else if (!driver.isOnline) {
+                              if (!driver.isOnline) {
                                 statusColor = Colors.grey;
                                 statusText = 'Offline';
                               } else if (isStale) {
@@ -1060,13 +1056,13 @@ class _DeliveryMonitorScreenState extends State<DeliveryMonitorScreen> with Tick
                         ),
                         Container(width: 1, height: 30, color: Colors.grey[300]),
                         _buildSummaryItem(
-                          '${_onlineDrivers.where((d) => !_isLocationStale(d.lastSeenAt, isDemo: d.isDemo)).length}',
+                          '${_onlineDrivers.where((d) => !_isLocationStale(d.lastSeenAt)).length}',
                           'Active',
                           Colors.green[700]!,
                         ),
                         Container(width: 1, height: 30, color: Colors.grey[300]),
                         _buildSummaryItem(
-                          '${_onlineDrivers.where((d) => _isLocationStale(d.lastSeenAt, isDemo: d.isDemo)).length}',
+                          '${_onlineDrivers.where((d) => _isLocationStale(d.lastSeenAt)).length}',
                           'No Signal',
                           Colors.orange[700]!,
                         ),
@@ -2525,107 +2521,6 @@ class _DeliveryMonitorScreenState extends State<DeliveryMonitorScreen> with Tick
               tooltip: 'Route Simulation',
             ),
           ),
-          // Demo Order Generator Button
-          Padding(
-            padding: const EdgeInsets.only(right: 2),
-            child: IconButton(
-              icon: const Icon(
-                Icons.flash_on,
-                color: Colors.amber,
-                shadows: [Shadow(color: Colors.black45, blurRadius: 4)],
-              ),
-              onPressed: () async {
-                try {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('⚡ Cloning random past order (60m ETA)...'),
-                      duration: Duration(seconds: 1),
-                    ),
-                  );
-                  final res = await DemoOrderService.createDemoOrder();
-                  if (context.mounted) {
-                    final order = res['order'];
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('✅ Demo Order Added: ${order?['customer_name'] ?? 'New Order'}! Route planned.'),
-                        backgroundColor: Colors.green[700],
-                        behavior: SnackBarBehavior.floating,
-                      ),
-                    );
-                    _fetchDeliveryOrders();
-                    _fetchPlannedRoutes();
-                    _fetchOnlineDrivers();
-                  }
-                } catch (e) {
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Failed to add demo order: $e'),
-                        backgroundColor: Colors.red,
-                        behavior: SnackBarBehavior.floating,
-                      ),
-                    );
-                  }
-                }
-              },
-              tooltip: 'Add Demo Order (60 Min ETA)',
-            ),
-          ),
-          // Reset Demo Button
-          Padding(
-            padding: const EdgeInsets.only(right: 2),
-            child: IconButton(
-              icon: const Icon(
-                Icons.cleaning_services_outlined,
-                color: Colors.white70,
-                shadows: [Shadow(color: Colors.black45, blurRadius: 4)],
-              ),
-              onPressed: () async {
-                final confirm = await showDialog<bool>(
-                  context: context,
-                  builder: (ctx) => AlertDialog(
-                    title: const Text('Reset Demo Data?'),
-                    content: const Text('This will delete all demo orders, demo routes, and reset demo driver assignments.'),
-                    actions: [
-                      TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-                      FilledButton(
-                        style: FilledButton.styleFrom(backgroundColor: Colors.red),
-                        onPressed: () => Navigator.pop(ctx, true),
-                        child: const Text('Reset'),
-                      ),
-                    ],
-                  ),
-                );
-                if (confirm != true) return;
-                try {
-                  await DemoOrderService.resetDemoOrders();
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('🧹 Demo orders and routes cleared.'),
-                        backgroundColor: Colors.blueGrey,
-                        behavior: SnackBarBehavior.floating,
-                      ),
-                    );
-                    _fetchDeliveryOrders();
-                    _fetchPlannedRoutes();
-                    _fetchOnlineDrivers();
-                  }
-                } catch (e) {
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Failed to reset demo: $e'),
-                        backgroundColor: Colors.red,
-                        behavior: SnackBarBehavior.floating,
-                      ),
-                    );
-                  }
-                }
-              },
-              tooltip: 'Reset Demo Orders',
-            ),
-          ),
           // Driver App View Button (for testing)
           Padding(
             padding: const EdgeInsets.only(right: 4),
@@ -2781,8 +2676,8 @@ class _DeliveryMonitorScreenState extends State<DeliveryMonitorScreen> with Tick
                           right: 16,
                           bottom: 16,
                           child: DeliveryTimelineWidget(
-                            drivers: _allDrivers.where((d) => d.isOnline || d.isDemo).toList().isNotEmpty
-                                ? _allDrivers.where((d) => d.isOnline || d.isDemo).toList()
+                            drivers: _allDrivers.where((d) => d.isOnline).toList().isNotEmpty
+                                ? _allDrivers.where((d) => d.isOnline).toList()
                                 : _allDrivers,
                             routes: _plannedRoutes,
                             stops: _planStops,
@@ -3089,8 +2984,7 @@ class _DeliveryMonitorScreenState extends State<DeliveryMonitorScreen> with Tick
 
   /// Check if driver location is stale (more than 2 minutes old).
   /// Uses a 2-minute window to account for network delays and timer intervals.
-  bool _isLocationStale(DateTime? lastSeenAt, {bool isDemo = false}) {
-    if (isDemo) return false; // Demo drivers are ALWAYS fresh/available
+  bool _isLocationStale(DateTime? lastSeenAt) {
     if (lastSeenAt == null) return true;
     
     // Ensure consistent UTC comparison
@@ -3153,8 +3047,8 @@ class _DeliveryMonitorScreenState extends State<DeliveryMonitorScreen> with Tick
     if (!mounted) return;
     
     final Color driverColor = driverColors[driver.colorIndex % driverColors.length];
-    final bool isStale = _isLocationStale(driver.lastSeenAt, isDemo: driver.isDemo);
-    final String lastSeenText = driver.isDemo ? 'Always Active (Demo)' : _formatLastSeen(driver.lastSeenAt);
+    final bool isStale = _isLocationStale(driver.lastSeenAt);
+    final String lastSeenText = _formatLastSeen(driver.lastSeenAt);
     
     // Format last seen timestamp
     String lastUpdateTime = 'Never';

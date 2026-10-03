@@ -8,7 +8,6 @@ import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart' as ph;
 import 'package:url_launcher/url_launcher.dart';
 import 'package:restaurantadmin/services/location_foreground_service.dart';
-import 'package:restaurantadmin/services/demo_order_service.dart';
 import 'package:restaurantadmin/services/driver_notifications.dart';
 
 // ─────────────────────────────────────────────────────────────────────
@@ -60,8 +59,6 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with TickerProvider
   String _driverName = 'Driver';
   bool _isLoading = true;
   bool _isTogglingStatus = false;
-  bool _isDemoDriver = false;
-  bool _isGeneratingDemoOrder = false;
   Position? _lastPosition;
   DateTime? _lastUpdateTime;
   int _updateCount = 0;
@@ -192,7 +189,6 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with TickerProvider
           .select('id, planned_departure_at, route_stops(order_id)')
           .eq('assigned_driver_id', _driverRecordId!)
           .eq('status', 'assigned')
-          .eq('is_demo', _isDemoDriver)
           .order('created_at', ascending: false)
           .limit(1);
       final list = rows as List;
@@ -548,9 +544,6 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with TickerProvider
             _driverRecordId = driverResponse['id'] as String?;
             _driverName = driverResponse['name'] as String? ?? 'Driver';
             _isDriverOnline = driverResponse['is_online'] as bool? ?? false;
-            _isDemoDriver = (driverResponse['is_demo'] as bool? ?? false) ||
-                _driverName.toLowerCase().contains('demo') ||
-                _driverName.toLowerCase().contains('abunageb');
           });
         }
         debugPrint('[DriverHomeScreen] ✅ Driver found! ID: $_driverRecordId, Name: $_driverName, Online: $_isDriverOnline');
@@ -826,13 +819,11 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with TickerProvider
                             key: _routeTabKey,
                             driverRecordId: _driverRecordId,
                             isOnline: _isDriverOnline,
-                            isDemoDriver: _isDemoDriver,
                           )
                         : _currentTab == 1
                             ? _DriverTodaysRoutesTab(
                                 key: const ValueKey('todays_routes'),
                                 driverRecordId: _driverRecordId,
-                                isDemoDriver: _isDemoDriver,
                               )
                             : _DriverShiftsTab(
                                 key: const ValueKey('shifts'),
@@ -901,26 +892,6 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with TickerProvider
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                    if (_isDemoDriver) ...[
-                      const SizedBox(width: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
-                        decoration: BoxDecoration(
-                          color: Colors.amber.withOpacity(0.18),
-                          borderRadius: BorderRadius.circular(4),
-                          border: Border.all(color: Colors.amber.withOpacity(0.6), width: 0.8),
-                        ),
-                        child: const Text(
-                          'DEMO',
-                          style: TextStyle(
-                            color: Colors.amber,
-                            fontSize: 9,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                      ),
-                    ],
                   ],
                 ),
                 Row(
@@ -954,50 +925,6 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with TickerProvider
               ],
             ),
           ),
-          // Demo Actions Button
-          if (_isDemoDriver) ...[
-            InkWell(
-              onTap: _isGeneratingDemoOrder ? null : _handleAddDemoOrder,
-              borderRadius: BorderRadius.circular(10),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Colors.amber.withOpacity(0.15),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: Colors.amber.withOpacity(0.5)),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _isGeneratingDemoOrder
-                        ? const SizedBox(
-                            width: 12,
-                            height: 12,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.amber),
-                          )
-                        : const Icon(Icons.flash_on, size: 14, color: Colors.amber),
-                    const SizedBox(width: 4),
-                    const Text(
-                      '+Order',
-                      style: TextStyle(
-                        color: Colors.amber,
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(width: 6),
-            IconButton(
-              icon: const Icon(Icons.cleaning_services_outlined, size: 18),
-              color: _DriverTheme.textSecondary,
-              onPressed: _handleResetDemo,
-              tooltip: 'Reset Demo',
-            ),
-            const SizedBox(width: 2),
-          ],
           // Online/Offline toggle
           GestureDetector(
             onTap: _isTogglingStatus ? null : () => _toggleOnlineStatus(!_isDriverOnline),
@@ -1056,86 +983,6 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with TickerProvider
         ],
       ),
     );
-  }
-
-  Future<void> _handleAddDemoOrder() async {
-    setState(() => _isGeneratingDemoOrder = true);
-    try {
-      final res = await DemoOrderService.createDemoOrder();
-      if (mounted) {
-        final order = res['order'];
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('⚡ Demo Order Added: ${order?['customer_name'] ?? 'Order'} (60m ETA)'),
-            backgroundColor: _DriverTheme.accent,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
-      await _routeTabKey.currentState?.reload();
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error adding demo order: $e'),
-            backgroundColor: _DriverTheme.danger,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _isGeneratingDemoOrder = false);
-    }
-  }
-
-  Future<void> _handleResetDemo() async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: _DriverTheme.surface,
-        title: const Text('Reset Demo Data?', style: TextStyle(color: _DriverTheme.textPrimary)),
-        content: const Text(
-          'Delete all demo orders and routes for this driver?',
-          style: TextStyle(color: _DriverTheme.textSecondary),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel', style: TextStyle(color: _DriverTheme.textMuted)),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: _DriverTheme.danger),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Reset'),
-          ),
-        ],
-      ),
-    );
-    if (confirm != true) return;
-
-    try {
-      await DemoOrderService.resetDemoOrders();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('🧹 Demo data reset successfully.'),
-            backgroundColor: Colors.blueGrey,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
-      await _routeTabKey.currentState?.reload();
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error resetting demo: $e'),
-            backgroundColor: _DriverTheme.danger,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
-    }
   }
 
   Widget _buildBottomNav() {
@@ -1233,12 +1080,10 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with TickerProvider
 
 class _DriverTodaysRoutesTab extends StatefulWidget {
   final String? driverRecordId;
-  final bool isDemoDriver;
 
   const _DriverTodaysRoutesTab({
     super.key,
     required this.driverRecordId,
-    this.isDemoDriver = false,
   });
 
   @override
@@ -1261,8 +1106,7 @@ class _DriverTodaysRoutesTabState extends State<_DriverTodaysRoutesTab> {
   @override
   void didUpdateWidget(covariant _DriverTodaysRoutesTab oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.driverRecordId != widget.driverRecordId ||
-        oldWidget.isDemoDriver != widget.isDemoDriver) {
+    if (oldWidget.driverRecordId != widget.driverRecordId) {
       _loadRoutes();
     }
   }
@@ -1318,12 +1162,6 @@ class _DriverTodaysRoutesTabState extends State<_DriverTodaysRoutesTab> {
           .eq('assigned_driver_id', widget.driverRecordId!)
           .gte('created_at', startOfDay)
           .lte('created_at', endOfDay);
-
-      if (widget.isDemoDriver) {
-        routesQuery = routesQuery.eq('is_demo', true);
-      } else {
-        routesQuery = routesQuery.eq('is_demo', false);
-      }
 
       final response = await routesQuery.order('created_at', ascending: false);
 
@@ -1854,13 +1692,11 @@ class _DriverTodaysRoutesTabState extends State<_DriverTodaysRoutesTab> {
 class _DriverRouteTab extends StatefulWidget {
   final String? driverRecordId;
   final bool isOnline;
-  final bool isDemoDriver;
 
   const _DriverRouteTab({
     super.key,
     required this.driverRecordId,
     required this.isOnline,
-    this.isDemoDriver = false,
   });
 
   @override
@@ -1979,12 +1815,6 @@ class _DriverRouteTabState extends State<_DriverRouteTab> with TickerProviderSta
           .select('*')
           .eq('assigned_driver_id', widget.driverRecordId!)
           .inFilter('status', ['assigned', 'in_progress']);
-
-      if (widget.isDemoDriver) {
-        routeQuery = routeQuery.eq('is_demo', true);
-      } else {
-        routeQuery = routeQuery.eq('is_demo', false);
-      }
 
       final routeResponse = await routeQuery
           .order('status', ascending: false) // 'in_progress' comes before 'assigned'
@@ -3210,48 +3040,6 @@ class _DriverRouteTabState extends State<_DriverRouteTab> with TickerProviderSta
                 padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               ),
             ),
-            if (widget.isDemoDriver) ...[
-              const SizedBox(height: 16),
-              ElevatedButton.icon(
-                onPressed: () async {
-                  setState(() => _isLoading = true);
-                  try {
-                    final res = await DemoOrderService.createDemoOrder();
-                    if (mounted) {
-                      final order = res['order'];
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('⚡ Demo Order Added: ${order?['customer_name'] ?? 'Order'} (60m ETA)'),
-                          backgroundColor: _DriverTheme.accent,
-                          behavior: SnackBarBehavior.floating,
-                        ),
-                      );
-                    }
-                    await _loadRoute();
-                  } catch (e) {
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Error: $e'), backgroundColor: _DriverTheme.danger),
-                      );
-                    }
-                  } finally {
-                    if (mounted) setState(() => _isLoading = false);
-                  }
-                },
-                icon: const Icon(Icons.flash_on, color: Colors.amber, size: 18),
-                label: const Text(
-                  'Add Demo Order (60 Min ETA)',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.amber.withOpacity(0.18),
-                  foregroundColor: Colors.amber,
-                  side: const BorderSide(color: Colors.amber, width: 1.2),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                ),
-              ),
-            ],
           ],
         ),
       ),

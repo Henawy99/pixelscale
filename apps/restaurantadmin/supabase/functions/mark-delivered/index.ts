@@ -137,15 +137,10 @@ serve(async (req: Request) => {
     }
 
     // 5. The driver's return time changed: re-plan everyone (one plan covers all brands).
-    const { data: routeInfo } = await supabase
-      .from("delivery_routes")
-      .select("is_demo")
-      .eq("id", routeStop.delivery_route_id)
-      .single();
     const replan = fetch(`${supabaseUrl}/functions/v1/plan-routes`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${supabaseServiceKey}` },
-      body: JSON.stringify({ trigger_reason: "mark_delivered", is_demo: routeInfo?.is_demo ?? false }),
+      body: JSON.stringify({ trigger_reason: "mark_delivered" }),
     }).catch((e) => console.error("Replan trigger failed:", e));
     // Keep the request alive after responding.
     (globalThis as any).EdgeRuntime?.waitUntil?.(replan);

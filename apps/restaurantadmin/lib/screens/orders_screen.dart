@@ -16,7 +16,6 @@ import 'package:restaurantadmin/screens/delivery_monitor_screen.dart';
 import 'package:restaurantadmin/widgets/global_order_listener.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:restaurantadmin/screens/intensive_filter_screen.dart';
-import 'package:restaurantadmin/services/demo_order_service.dart';
 
 class OrdersScreen extends StatefulWidget {
   const OrdersScreen({super.key});
@@ -63,8 +62,6 @@ class _OrdersScreenState extends State<OrdersScreen>
   String _selectedBrandFilter = 'all';
   String _selectedStatusFilter = 'all';
   String _selectedTab = 'Prepare';
-  bool _showOnlyDemoOrders = false;
-  bool _isGeneratingDemoOrder = false;
 
   List<Driver> _activeDrivers = [];
   List<DeliveryRoute> _activeRoutes = [];
@@ -398,7 +395,6 @@ class _OrdersScreenState extends State<OrdersScreen>
     if (driverId == null) return null;
     final driver = _activeDrivers.where((d) => d.id == driverId).firstOrNull;
     if (driver != null) return driver.name;
-    if (driverId == '4ece59ec-5d06-4b1f-adc4-c15090418eea') return 'Abunageb (Demo)';
     return 'Driver';
   }
 
@@ -673,15 +669,6 @@ class _OrdersScreenState extends State<OrdersScreen>
 
   List<app_order.Order> _filterOrders(List<app_order.Order> orders) {
     List<app_order.Order> filteredOrders = orders;
-
-    // Demo orders filter - never mix demo orders with real store orders
-    filteredOrders = filteredOrders.where((order) {
-      if (_showOnlyDemoOrders) {
-        return order.isDemo == true;
-      } else {
-        return order.isDemo != true;
-      }
-    }).toList();
 
     // Search filter
     if (_searchQuery.isNotEmpty) {
@@ -989,7 +976,7 @@ class _OrdersScreenState extends State<OrdersScreen>
       );
     }
 
-    final activeDrivers = _activeDrivers.where((d) => d.isOnline || d.isDemo).toList();
+    final activeDrivers = _activeDrivers.where((d) => d.isOnline).toList();
     
     if (activeDrivers.isEmpty) {
       return const Padding(
@@ -1649,12 +1636,6 @@ class _OrdersScreenState extends State<OrdersScreen>
       builder: (context, constraints) {
         // Apply search, brand, and status filters first
         final filteredOrders = _loadedOrders.where((order) {
-          // Never mix demo orders with real orders
-          if (_showOnlyDemoOrders) {
-            if (!order.isDemo) return false;
-          } else {
-            if (order.isDemo) return false;
-          }
           if (_selectedBrandFilter != 'all' &&
               order.brandId != _selectedBrandFilter) {
             return false;
@@ -2474,236 +2455,12 @@ class _OrdersScreenState extends State<OrdersScreen>
     );
   }
 
-  Widget _buildDemoSwitch() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.grey.shade200,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.grey.shade300),
-      ),
-      padding: const EdgeInsets.all(2),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          GestureDetector(
-            onTap: () {
-              if (_showOnlyDemoOrders) {
-                setState(() => _showOnlyDemoOrders = false);
-              }
-            },
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 150),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-              decoration: BoxDecoration(
-                color: !_showOnlyDemoOrders ? Colors.white : Colors.transparent,
-                borderRadius: BorderRadius.circular(18),
-                boxShadow: !_showOnlyDemoOrders
-                    ? [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.08),
-                          blurRadius: 4,
-                          offset: const Offset(0, 1),
-                        )
-                      ]
-                    : null,
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.storefront_outlined,
-                    size: 14,
-                    color: !_showOnlyDemoOrders ? Colors.green.shade700 : Colors.grey.shade600,
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    'LIVE',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: !_showOnlyDemoOrders ? Colors.green.shade700 : Colors.grey.shade600,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          GestureDetector(
-            onTap: () {
-              if (!_showOnlyDemoOrders) {
-                setState(() => _showOnlyDemoOrders = true);
-              }
-            },
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 150),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-              decoration: BoxDecoration(
-                color: _showOnlyDemoOrders ? Colors.amber.shade700 : Colors.transparent,
-                borderRadius: BorderRadius.circular(18),
-                boxShadow: _showOnlyDemoOrders
-                    ? [
-                        BoxShadow(
-                          color: Colors.amber.shade700.withOpacity(0.3),
-                          blurRadius: 4,
-                          offset: const Offset(0, 1),
-                        )
-                      ]
-                    : null,
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.bolt,
-                    size: 14,
-                    color: _showOnlyDemoOrders ? Colors.white : Colors.grey.shade600,
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    'DEMO',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: _showOnlyDemoOrders ? Colors.white : Colors.grey.shade600,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          if (_showOnlyDemoOrders) ...[
-            const SizedBox(width: 6),
-            InkWell(
-              onTap: _isGeneratingDemoOrder ? null : _handleCreateDemoOrder,
-              borderRadius: BorderRadius.circular(12),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.amber.shade800,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: _isGeneratingDemoOrder
-                    ? const SizedBox(
-                        width: 12,
-                        height: 12,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                      )
-                    : const Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.add, size: 13, color: Colors.white),
-                          SizedBox(width: 2),
-                          Text(
-                            '+ Order',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDemoBanner() {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-      decoration: BoxDecoration(
-        color: Colors.amber.shade50,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.amber.shade400),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.bolt, size: 18, color: Colors.amber.shade800),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              'Demo Mode Active: Showing test orders only (real orders hidden).',
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.amber.shade900,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-          TextButton.icon(
-            onPressed: _isGeneratingDemoOrder ? null : _handleCreateDemoOrder,
-            icon: const Icon(Icons.add, size: 15),
-            label: const Text(
-              'Add Order',
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-            ),
-            style: TextButton.styleFrom(
-              foregroundColor: Colors.amber.shade900,
-              visualDensity: VisualDensity.compact,
-            ),
-          ),
-          const SizedBox(width: 4),
-          TextButton.icon(
-            onPressed: () async {
-              await DemoOrderService.resetDemoOrders();
-              _loadAllData();
-            },
-            icon: const Icon(Icons.delete_outline, size: 15, color: Colors.red),
-            label: const Text(
-              'Reset',
-              style: TextStyle(color: Colors.red, fontSize: 12, fontWeight: FontWeight.bold),
-            ),
-            style: TextButton.styleFrom(
-              visualDensity: VisualDensity.compact,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _handleCreateDemoOrder() async {
-    setState(() => _isGeneratingDemoOrder = true);
-    try {
-      final res = await DemoOrderService.createDemoOrder();
-      if (mounted) {
-        final order = res['order'];
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('⚡ Demo Order Added: ${order?['customer_name'] ?? 'Order'} (60m ETA)'),
-            backgroundColor: Colors.amber[800],
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-        _loadAllData();
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to create demo order: $e'),
-            backgroundColor: Colors.red,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _isGeneratingDemoOrder = false);
-    }
-  }
-
   Widget _buildActionButtonsRow() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
-          _buildDemoSwitch(),
-          const SizedBox(width: 10),
           Container(
             decoration: BoxDecoration(
               gradient: LinearGradient(
@@ -3237,7 +2994,6 @@ class _OrdersScreenState extends State<OrdersScreen>
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       _buildActionButtonsRow(), // Added action buttons
-                      if (_showOnlyDemoOrders) _buildDemoBanner(),
                       _buildDateNavigator(), // Date navigation
 
                       Padding(
@@ -3352,8 +3108,6 @@ class _OrdersScreenState extends State<OrdersScreen>
                           fontWeight: FontWeight.w700,
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      _buildDemoSwitch(),
                       const Spacer(),
                       // Quick actions inline
                       IconButton(
@@ -3372,7 +3126,6 @@ class _OrdersScreenState extends State<OrdersScreen>
                   ),
                 ),
 
-                if (_showOnlyDemoOrders) _buildDemoBanner(),
 
                 // Dropdown brand row appears when + is pressed
                 AnimatedCrossFade(

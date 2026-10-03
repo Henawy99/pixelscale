@@ -9,7 +9,7 @@
 // Runs are serialised with planner_try_lock/planner_release: triggers that arrive while a
 // run is in progress collapse into a single follow-up run.
 //
-// Body (all optional): { trigger_reason, is_demo, dry_run, complete_route_id }
+// Body (all optional): { trigger_reason, dry_run, complete_route_id }
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.43.4";
@@ -142,9 +142,9 @@ const fmtTime = (d: Date) =>
 
 async function planOnce(
   supabase: SupabaseClient,
-  opts: { isDemo: boolean; triggerReason: string; dryRun: boolean }
+  opts: { triggerReason: string; dryRun: boolean }
 ) {
-  const { isDemo, triggerReason, dryRun } = opts;
+  const { triggerReason, dryRun } = opts;
   const now = new Date();
 
   // 1. Settings (one row drives the whole kitchen).
@@ -165,8 +165,8 @@ async function planOnce(
     )
     .eq("fulfillment_type", "delivery")
     .not("status", "in", '("cancelled","delivered","completed","delivering","pending_payment")')
-    .eq("is_demo", isDemo)
-    .gte("created_at", new Date(now.getTime() - (isDemo ? 24 : 6) * 3600_000).toISOString());
+    .eq("is_demo", false)
+    .gte("created_at", new Date(now.getTime() - 6 * 3600_000).toISOString());
   const { data: rawOrders, error: ordersErr } = await q;
   if (ordersErr) throw ordersErr;
 
@@ -175,7 +175,7 @@ async function planOnce(
     .from("delivery_routes")
     .select("id")
     .eq("status", "in_progress")
-    .eq("is_demo", isDemo);
+    .eq("is_demo", false);
   const onRoadIds = new Set((onRoad ?? []).map((r: any) => r.id));
 
   const staleBefore = now.getTime() - settings.staleOrderMins * 60_000;
@@ -223,14 +223,11 @@ async function planOnce(
     .select("id, name, is_demo, is_online, last_seen_at, current_latitude, current_longitude, fcm_token");
   const driverRowById = new Map((allDriverRows ?? []).map((d: any) => [d.id, d]));
 
-  let availableRows: any[] = [];
-  if (isDemo) {
-    availableRows = (allDriverRows ?? []).filter((d: any) => d.is_demo && d.is_online);
-  } else {
-    const { data, error } = await supabase.from("available_drivers").select("id, name, shift_end_at");
-    if (error) throw error;
-    availableRows = (data ?? []).filter((d: any) => !driverRowById.get(d.id)?.is_demo);
-  }
+  const { data: availableData, error: availableErr } = await supabase
+    .from("available_drivers")
+    .select("id, name, shift_end_at");
+  if (availableErr) throw availableErr;
+  const availableRows: any[] = (availableData ?? []).filter((d: any) => !driverRowById.get(d.id)?.is_demo);
 
   // Tours already on the road decide when each driver is back.
   const liveByDriver = new Map<string, { live: LiveRoute; plannedReturn: Date | null }>();
@@ -239,7 +236,7 @@ async function planOnce(
       .from("delivery_routes")
       .select("id, assigned_driver_id, planned_return_at, route_stops(type, status, sequence_number, latitude, longitude)")
       .eq("status", "in_progress")
-      .eq("is_demo", isDemo)
+      .eq("is_demo", false)
       .in("assigned_driver_id", availableRows.map((d) => d.id));
     for (const r of liveRoutes ?? []) {
       const remaining = ((r as any).route_stops ?? [])
@@ -380,7 +377,7 @@ async function planOnce(
       planned_arrival_at: laterArrival.get(o.id)?.toISOString() ?? null,
     }));
 
-  const noDriverReason = isDemo ? "No demo driver online" : "No driver is online in the driver app";
+  const noDriverReason = "No driver is online in the driver app";
   const unassignable = [
     ...result.unassignedOrderIds.map((id) => ({
       order_id: id,
@@ -390,7 +387,7 @@ async function planOnce(
   ];
 
   const payload = {
-    is_demo: isDemo,
+    is_demo: false,
     plan_version: result.planVersion,
     trigger_reason: triggerReason,
     brand_id: settingsRow.brand_id,
@@ -471,7 +468,6 @@ serve(async (req: Request) => {
     // No body — manual run.
   }
   const triggerReason: string = body.trigger_reason ?? "manual";
-  const isDemo = body.is_demo === true || triggerReason === "demo_order_created" || triggerReason === "demo_reset";
   const dryRun = body.dry_run === true;
 
   try {
@@ -487,11 +483,11 @@ serve(async (req: Request) => {
     }
 
     if (dryRun) {
-      const { result, payload } = await planOnce(supabase, { isDemo, triggerReason, dryRun: true });
+      const { result, payload } = await planOnce(supabase, { triggerReason, dryRun: true });
       return json({ dry_run: true, method: result.method, solver_time_ms: result.solverTimeMs, payload });
     }
 
-    const mode = isDemo ? "demo" : "real";
+    const mode = "real";
     const holder = crypto.randomUUID();
     const { data: locked, error: lockErr } = await supabase.rpc("planner_try_lock", {
       p_mode: mode,
@@ -507,7 +503,7 @@ serve(async (req: Request) => {
       while (true) {
         runs++;
         try {
-          last = await planOnce(supabase, { isDemo, triggerReason: runs === 1 ? triggerReason : `${triggerReason}+rerun`, dryRun: false });
+          last = await planOnce(supabase, { triggerReason: runs === 1 ? triggerReason : `${triggerReason}+rerun`, dryRun: false });
         } catch (e) {
           if (!(e instanceof StalePlanError) || runs >= MAX_RUNS) throw e;
           console.log(`[plan-routes] plan went stale (${e.message}), re-planning`);
